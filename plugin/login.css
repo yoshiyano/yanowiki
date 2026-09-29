@@ -1,0 +1,277 @@
+/* login プラグインの見た目。色は自前で決めず、テーマが配るカスタム
+ * プロパティを使う（第2引数は、テーマがその変数を持っていなかったときの
+ * 受け皿）。_sys/accounts/accounts.css の acct-* と発想は同じだが、
+ * プラグイン自身が持つCSS（README「CSS/JSはプラグイン自身が持つ」）
+ * なので名前空間はぶつからない login-* にしている。 */
+
+.login {
+  max-width: 38rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  padding: 0.4rem 1.2rem 1.2rem;
+  margin: 0 0 1rem;
+}
+
+.login > legend {
+  padding: 0 0.4em;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* ---- 知らせ ----
+ * ボタン（.login-go等）と背景色・枠線・角丸が同じだと見分けが付かない
+ * という指摘（Wiki設計者の指摘、2026-09-11）を受けて、ボタンとは別物と分かる
+ * 見た目に直した。色付きの背景＋アイコンで「押せるもの」ではなく
+ * 「メッセージ」だと伝える。直前の要素（タブの中のボタン等）との間隔も
+ * margin-topで空けてある。
+ *
+ * **色はボタンの色と被らない系統にする**（Wiki設計者の指示）。最初は情報=青系・
+ * エラー=赤系にしたが、それぞれ .login-go（青）・.login-logout-go:hover
+ * （赤）と同じ系統で紛らわしかった。情報=緑系・エラー=オレンジ系に
+ * 直した（オレンジは newwiki-notice-error と同じ色）。
+ *
+ * **角の丸みもボタンと揃えない**（Wiki設計者の指示）。ボタン・入力欄・タブの
+ * パネルはすべて `var(--radius, 6px)` を使っており、同じ丸みだと
+ * 「押せるもの」に見えてしまう。ここだけ固定の小さい値にしてある。 */
+
+.login-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  margin: 1.2rem 0 0;
+  padding: 0.7em 1em;
+  border: 1px solid rgb(45 164 78 / 40%);
+  border-radius: 3px;
+  background: rgb(45 164 78 / 10%);
+  color: var(--fg, #1f2328);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.login-notice::before {
+  content: "✅";
+  flex: 0 0 auto;
+  line-height: 1.4;
+}
+
+.login-notice-error {
+  border-color: rgb(217 131 36 / 40%);
+  background: rgb(217 131 36 / 12%);
+}
+
+.login-notice-error::before {
+  content: "⚠️";
+}
+
+.login-note {
+  margin: 0 0 1rem;
+}
+
+/* ---- 入力欄・共通のフォーム ---- */
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.login-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.login-row label {
+  flex: 0 0 8em;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.login-row input {
+  flex: 1 1 14em;
+  min-width: 0;
+  padding: 0.45em 0.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: var(--fg, #1f2328);
+  font: inherit;
+}
+
+.login-signup-note {
+  margin: 0;
+  color: var(--muted, #57606a);
+  font-size: 0.85rem;
+}
+
+.login-actions {
+  display: flex;
+  gap: 0.6em;
+}
+
+.login-go {
+  padding: 0.45em 1.4em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--accent, #0969da);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.login-go:hover {
+  filter: brightness(1.08);
+}
+
+.login-logout-go,
+.login-revoke-go {
+  width: 70%;
+  background: var(--panel-bg, #f6f8fa);
+  color: inherit;
+}
+
+.login-logout-go:hover,
+.login-revoke-go:hover {
+  border-color: #cf222e;
+  color: #cf222e;
+  filter: none;
+}
+
+.login-revoke {
+  margin-bottom: 0.5rem;
+}
+
+/* ---- ログイン中（アカウントタブの中身） ---- */
+
+.login-current {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+}
+
+.login-current code {
+  font-size: 0.85em;
+}
+
+/* 承認待ちの人数（管理者と助手だけに出る。Wiki設計者の指示、2026-09-21）。赤字 */
+.login-pending {
+  margin: -0.5rem 0 1rem;
+  font-weight: bold;
+}
+
+.login-pending a {
+  color: #d1242f;
+}
+
+/* 認証される期間の説明（Wiki設計者の指示、2026-09-11。旧 /.login の完了画面に
+   あった文言を #login() のアカウントタブへ移した） */
+.login-hint {
+  margin: 0 0 1rem;
+  color: var(--muted, #57606a);
+  font-size: 0.85rem;
+}
+
+/* ---- タブ（JavaScript不要。radioの:checkedと隣接兄弟結合子だけで動く） ---- */
+
+.login-tabs {
+  position: relative;
+}
+
+.login-tab-radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.login-tab-list {
+  display: flex;
+  gap: 0.4em;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+
+.login-tab {
+  padding: 0.5em 1em;
+  color: var(--muted, #57606a);
+  font-size: 0.92rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.login-tab:hover {
+  color: var(--fg, #1f2328);
+}
+
+.login-tab-radio-1:checked ~ .login-tab-list .login-tab-1,
+.login-tab-radio-2:checked ~ .login-tab-list .login-tab-2,
+.login-tab-radio-3:checked ~ .login-tab-list .login-tab-3 {
+  color: var(--fg, #1f2328);
+  border-bottom-color: var(--accent, #0969da);
+  font-weight: 600;
+}
+
+.login-tab-panel {
+  display: none;
+}
+
+.login-tab-radio-1:checked ~ .login-tab-panel-1,
+.login-tab-radio-2:checked ~ .login-tab-panel-2,
+.login-tab-radio-3:checked ~ .login-tab-panel-3 {
+  display: block;
+}
+
+/* キーボード操作（Tabで選んでスペース/矢印で切り替え）でも、いま選ばれて
+   いるタブが見えるように */
+.login-tab-radio:focus-visible ~ .login-tab-list label {
+  outline: none;
+}
+
+.login-tab-radio-1:focus-visible ~ .login-tab-list .login-tab-1,
+.login-tab-radio-2:focus-visible ~ .login-tab-list .login-tab-2,
+.login-tab-radio-3:focus-visible ~ .login-tab-list .login-tab-3 {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 2px;
+}
+
+/* ---- 管理者メニュー（3枚目。管理者と助手にだけ出る） --------------------
+   中身は本体の /.admin と同じ一覧（wikilib.adminui.admin_tools_html）。
+   あちらの見た目は accounts.css が持っていて、ふつうのページには届かない
+   ので、**ここで最低限の体裁だけ**を与える（表が素のまま出ると読みにくい）。 */
+
+.login-admin .acct-lead {
+  margin: 0 0 0.6rem;
+  font-size: 0.9em;
+}
+
+.login-admin .acct-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.login-admin .acct-table th,
+.login-admin .acct-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  vertical-align: top;
+}
+
+.login-admin .acct-only {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.login-admin .acct-hint,
+.login-admin-more {
+  margin: 0.6rem 0 0;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+@media (max-width: 480px) {
+  .login-row label {
+    flex-basis: 100%;
+  }
+}

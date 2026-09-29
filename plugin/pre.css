@@ -1,0 +1,77 @@
+/* pre プラグインの見た目。
+
+   テーマ共通のカスタムプロパティ（--code-bg, --border, --radius, --fg,
+   --accent）にフォールバックを添えて使うので、どのテーマでも壊れない。
+   color引数で背景色を指定した場合は、要素のinline styleが
+   このCSSの背景色指定より後勝ちする。
+
+   base.css/bloom.css は `.content pre { background: var(--code-bg);
+   border: 1px solid var(--border); ... }` という汎用ルールを持っている
+   （行頭スペースの整形済みテキストなど、素の<pre>向け）。このプラグインの
+   <pre>もこれに拾われてしまい、詳細度が`.pre-box pre`と同点（class1つ+
+   要素1つ）のため、読み込み順（プラグインCSS→テーマCSSで後勝ち）で
+   テーマ側が勝つ。結果、内側の<pre>が不透明な背景と自前の枠線を持って
+   しまい、外側`.pre-box`のbackground-color（color引数）を完全に覆い隠し、
+   枠線も二重になっていた。<pre>に`.pre-body`クラスを足し、`.pre-box
+   .pre-body`（class2つ）でテーマの`.content pre`（class1つ+要素1つ）より
+   詳細度を確実に上回らせて上書きする。 */
+
+.pre-box {
+  position: relative;
+  margin: 1rem 0;
+  background: var(--code-bg, #f5f5f5);
+  border: 1px solid var(--border, #ddd);
+  border-radius: var(--radius, 6px);
+  overflow-x: auto;
+}
+.pre-box .pre-body {
+  margin: 0;
+  padding: 0.8rem 1rem;
+  background: none;
+  border: none;
+  border-radius: 0;
+  white-space: pre;
+  font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--fg, inherit);
+}
+.pre-box .pre-body code {
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 0;
+}
+
+.pre-copy {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--fg, #333);
+  background: var(--panel-bg, #fff);
+  border: 1px solid var(--border, #ddd);
+  border-radius: var(--radius, 4px);
+  cursor: pointer;
+  opacity: 0.75;
+}
+.pre-box:hover .pre-copy,
+.pre-copy:focus-visible {
+  opacity: 1;
+}
+.pre-copy:hover {
+  border-color: var(--accent, #888);
+  color: var(--accent, #333);
+}
+.pre-copy.is-copied {
+  color: #2e9e6b;
+  border-color: #2e9e6b;
+}
+.pre-copy.is-failed {
+  color: #d98324;
+  border-color: #d98324;
+}

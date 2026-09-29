@@ -1,0 +1,122 @@
+/* 新しいWikiを作る画面（/.newwiki.css）。
+ *
+ * 入れるものを「名前」「管理者のパスワード」「使いかた」「設定」の4つの枠
+ * （fieldset）に分け、説明は各枠の短い補足にとどめる。使いかたは選択肢ごとに
+ * 閲覧・編集・アカウントの3つを並べ、違いが見比べられるようにしてある。
+ *
+ * 色は自前で決めず、外枠（_sys/sysui/shell.css）が配るカスタムプロパティを使う。 */
+
+.newwiki { max-width: 44rem; }
+.newwiki-lead { margin: 0 0 1rem; color: var(--muted, #656d76); font-size: 0.92rem; }
+
+.newwiki-notice {
+  margin: 0 0 1rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px solid var(--border, #d0d7de);
+}
+.newwiki-notice-error {
+  background: rgb(217 131 36 / 12%);
+  border-color: rgb(217 131 36 / 40%);
+}
+
+/* ---- 枠（fieldset） ------------------------------------------------------ */
+
+.newwiki-set {
+  margin: 0 0 1.1rem;
+  padding: 0.6rem 1.1rem 0.9rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg, #f6f8fa);
+}
+.newwiki-set legend {
+  padding: 0 0.4rem;
+  font-weight: 600;
+}
+
+.newwiki-row {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+.newwiki-row label { flex: none; width: 10rem; font-size: 0.9rem; }
+.newwiki-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.92rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.newwiki-hint {
+  display: block;
+  margin: 0.4rem 0;
+  font-size: 0.82rem;
+  color: var(--muted, #656d76);
+}
+
+/* ---- 使いかた（選択肢のカード） ------------------------------------------ */
+
+.newwiki-usages { display: grid; gap: 0.5rem; }
+.newwiki-usage {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+}
+.newwiki-usage:has(input:checked) {
+  border-color: var(--accent, #0969da);
+  box-shadow: 0 0 0 1px var(--accent, #0969da);
+}
+.newwiki-usage input { margin-top: 0.3rem; }
+.newwiki-usage-body { display: grid; gap: 0.15rem; }
+.newwiki-usage-label { font-size: 0.85rem; color: var(--muted, #656d76); }
+.newwiki-usage-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.1rem;
+  font-size: 0.82rem;
+}
+.newwiki-usage-facts em {
+  margin-right: 0.35em;
+  font-style: normal;
+  color: var(--muted, #656d76);
+}
+
+/* ---- 設定（チェックボックス） -------------------------------------------- */
+
+.newwiki-check {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0.5rem 0;
+  cursor: pointer;
+}
+.newwiki-check input { margin-top: 0.35rem; }
+.newwiki-check .newwiki-hint { margin: 0.1rem 0 0; }
+
+/* ---- ボタン ------------------------------------------------------------- */
+
+.newwiki-actions { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
+.newwiki-go {
+  font-size: 0.95rem;
+  padding: 0.45rem 1.5rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent, #0969da);
+  border: 1px solid var(--accent, #0969da);
+  border-radius: var(--radius, 6px);
+}
+.newwiki-go:hover { filter: brightness(1.08); }
+.newwiki-cancel { font-size: 0.9rem; }
+
+@media (max-width: 560px) {
+  .newwiki-row { flex-direction: column; align-items: stretch; gap: 0.2rem; }
+  .newwiki-row label { width: auto; }
+}

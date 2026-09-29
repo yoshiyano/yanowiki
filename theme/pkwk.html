@@ -1,0 +1,235 @@
+{#
+  pkwk — post_it_1 を土台に、PukiWiki 標準スキンの配色（#DDEEFF 系）へ寄せた
+  テーマ。参考: hmi.aitech.ac.jp/1ev-py/ （Python 講義の PukiWiki サイト）。
+
+  ● 個別Wiki（wikidata/<farm名>/theme/）へコピーするときのファイル
+    コピーするもの（このテーマ固有）:
+      pkwk.html
+      pkwk.css
+      pkwk.js
+    コピー不要（そのWikiの theme/ に無ければ、共通の theme/ から読まれる）:
+      post_it_1.css … pkwk.css が @import で読む
+      common.css・common.js … 全テーマ共通
+    Wiki側で用意するもの（共通の theme/ にも無い）:
+      pkwk-logo.png … ヘッダのロゴ（商標・著作権の都合で同梱しない。theme/README.txt 参照）
+    ※ 依存ファイルもコピーすると、そのWikiではコピーしたほうが優先され、
+      同じファイルを使うほかのテーマにも効く（共通のものを直したいときだけ）。
+
+  post_it_1 との違い:
+    - 見た目: 付箋風の外枠（灰色の下地・太い左枠線）を外し、見出しの下地を
+      クリーム色から PukiWiki の薄青(#DDEEFF)へ。ヘッダ左にロゴを置き、
+      その右に Title と TopicPath を縦積みにする。詳細は pkwk.css
+      （@import で post_it_1.css を読み、配色と見出しだけ上書き）。
+      ※ ロゴ画像（{{ theme_url }}/pkwk-logo.png）は theme/ に同梱せず、
+        wikidata/<farm名>/theme/ に置く（商標・著作権の都合。theme/README.txt
+        「pkwk / pukiwiki_default のヘッダロゴについて」参照）。用意していない
+        ファームでは画像が404になる。
+    - 操作メニュー（ログイン/トップ/編集/新規）: 以前は「編集導線を画面に出さない」
+      方針で #hidden-menu と Alt+E 3連打の隠し操作にしていたが、全テーマ共通の
+      メニューに揃えるため廃止した（Wiki設計者の指示、2026-09-24）。ヘッダ2行目に
+      本体が渡す {{ common_menu }} を置く（Alt+E単発は common.js）。
+      data-editable によるセクション編集（Ctrl+Alt+ダブルクリック）は従来どおり。
+    - 残すもの: 検索フォーム・TopicPath・サイトタイトルリンク・
+      menu1/menu2・目次（＝閲覧用の導線）。
+
+  search.html がこのファイルを {% extends themefile + ".html" %} で継承するため、
+  breadcrumb / content の2ブロックは必須。
+
+  700px以下では、ヘッダ2行目のログイン〜新規を隠し、ハンバーガーで開く
+  #rightbar の先頭に同じものを出す（Wiki設計者の指示、2026-09-29。#rightbar
+  参照）。
+
+  ヘッダ（<header id="header">。以前は<div>だった）は2行構成
+  （1行目: タイトル＋検索／2行目: TopicPath＋ハンバーガー）で、
+  このテーマではその左にロゴを置いて2行にまたがらせる。行の組みかた・
+  常時表示（position: sticky）・700px以下で#rightbarがハンバーガー開閉に
+  なる挙動・620px以下で検索がメニューへ移りハンバーガーだけ画面右上に
+  固定される挙動は、いずれも post_it_1.css / pkwk.js を引き継ぐ
+  （Wiki設計者の指示、2026-09-05）。TopicPath はこのテーマでは常時表示。
+#}
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ page_title }} - {{ site_title }}{% endblock %}</title>
+{% for url in plugin_styles %}<link rel="stylesheet" href="{{ url }}">
+{% endfor -%}
+{% for url in plugin_scripts %}<script src="{{ url }}" defer></script>
+{% endfor -%}
+{# common.css は common.js が作る要素の既定の見た目。テーマCSSより先に読み込む。 #}
+<link rel="stylesheet" href="{{ theme_url }}/common.css">
+<link rel="stylesheet" href="{{ theme_url }}/pkwk.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="pi-all">
+<div class="pi-container">
+<div class="pi-base">
+
+<header id="header">
+  {# 参照サイト（1ev-py）と同じく、ロゴだけでサイト名の役割を兼ねる
+     （site_titleの文字は出さない。Wiki設計者の指示、2026-09-03）。
+     aria-labelにsite_titleを入れ、視覚的に文字が無い分をスクリーン
+     リーダー向けに補っている。
+     ロゴは .header-rows（2行ぶん）の左に置き、2行にまたがらせる。 #}
+  <a class="pkwk-logo-link" href="{{ base_url }}/" aria-label="{{ site_title }}">
+    <img class="pkwk-logo" src="{{ theme_url }}/pkwk-logo.png" alt="">
+  </a>
+
+  {#
+    ヘッダは2行構成（Wiki設計者の指示、2026-09-05）。
+      1行目 .header-row-title … タイトル（左・下寄せ）／検索（右・上寄せ）
+      2行目 .header-row-path  … TopicPath（左）／ハンバーガー（右）
+    長くなりがちなTopicPathを、幅の短いハンバーガーと同じ行に置いて、
+    行の幅をめいっぱい使えるようにするための組みかた。
+  #}
+  <div class="header-rows">
+    <div class="header-row header-row-title">
+      <h1 class="title"><a href="{{ base_url }}/{{ page }}">{{ page_title }}</a>{{ title_note }}</h1>
+      {#
+        検索。常時表示（隠す対象に含めない）。「検索語 → 範囲 → 検索ボタン」の並び。
+        範囲ボタン(.search-scope)はクリックでトグル、押したまま動かす（ドラッグ）と
+        選択メニューが出て指を離した項目が選ばれる（メニュー自体はcommon.jsが組み立てる）。
+          サイト全体   … 検索ページへ移動する（詳しい条件は.search-optionsで指定する）
+          このページ内 … 移動せず、本文の一致箇所を強調して前へ/次へで辿る
+        620px幅を下回るとpkwk.jsが #rightbar の中へ移動させる。
+      #}
+      <form class="search" id="site-search-form" action="{{ search_url }}" method="get" role="search">
+        <input class="search-word" type="search" name="q" value="{{ query }}"
+               placeholder="検索" aria-label="検索語">
+        <button class="search-scope" type="button" data-scope="site"
+                aria-pressed="false" aria-label="検索範囲を切り替え（現在: サイト全体）">サイト全体</button>
+        <button class="search-submit" type="submit">検索</button>
+        <span class="page-search-nav" hidden>
+          <button class="page-search-prev" type="button" aria-label="前の一致へ">‹</button>
+          <button class="page-search-next" type="button" aria-label="次の一致へ">›</button>
+          <span class="page-search-count" role="status" aria-live="polite"></span>
+        </span>
+      </form>
+    </div>
+
+    <div class="header-row header-row-path">
+      {% block breadcrumb %}
+      <div class="page-path">TopicPath :
+        <a href="{{ base_url }}/">Top /</a>{% for item in topic_path %} {% if item.url %}<a href="{{ item.url }}">{{ item.label }} /</a>{% else %}{{ item.label }}{% endif %}{% endfor %}
+      </div>
+      {% endblock %}
+      {#
+        操作メニュー（ログイン/トップ/編集/新規）。本体が組み立てて渡す
+        （common_menu。wikilib.themes.common_menu_html）。出し分け・Alt+E用の
+        data-hotkey・「新規」ダイアログもここに含まれ、処理は common.js が受け持つ。
+        配置は post_it_1.css の .header-row-path .commands。
+      #}
+      <nav class="commands" aria-label="コマンド">{{ common_menu }}</nav>
+      {#
+        ハンバーガーメニュー。700px幅を下回ると表示され、#rightbarの
+        off-canvasパネルを開閉する（pkwk.js参照）。700pxより広い画面では
+        常に非表示。
+      #}
+      <button type="button" class="menu-toggle" id="menu-toggle"
+              aria-expanded="false" aria-controls="rightbar" aria-label="メニューを開く">
+        <span class="menu-toggle-bar" aria-hidden="true"></span>
+        <span class="menu-toggle-bar" aria-hidden="true"></span>
+        <span class="menu-toggle-bar" aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="search-options" hidden>
+    <div class="search-options-row">
+      <label class="search-options-label" for="so-mode">条件</label>
+      <select id="so-mode" name="mode" form="site-search-form">
+        <option value="and"{% if mode == 'and' %} selected{% endif %}>すべての語を含む（AND）</option>
+        <option value="or"{% if mode == 'or' %} selected{% endif %}>いずれかの語を含む（OR）</option>
+      </select>
+    </div>
+    <div class="search-options-row">
+      <label class="search-options-label" for="so-target">対象</label>
+      <select id="so-target" name="target" form="site-search-form">
+        <option value="all"{% if target == 'all' %} selected{% endif %}>ページ名と本文</option>
+        <option value="name"{% if target == 'name' %} selected{% endif %}>ページ名だけ</option>
+        <option value="body"{% if target == 'body' %} selected{% endif %}>本文だけ</option>
+      </select>
+    </div>
+    <div class="search-options-row">
+      <label class="search-options-label" for="so-path">絞り込み</label>
+      <input id="so-path" type="search" name="path" value="{{ path_filter }}" form="site-search-form"
+             placeholder="例: Tech/* （* と ? が使えます）">
+    </div>
+    <div class="search-options-row search-options-actions">
+      <button type="submit" form="site-search-form">この条件で検索</button>
+    </div>
+  </div>
+
+  {# タイトル下のHRはヘッダの中に置く（Wiki設計者の指示、2026-09-05）。header自体が
+     position: stickyなので、外に置くとスクロール時にHRだけ本文と一緒に
+     流れて消えてしまう。ヘッダ内の最後の子要素にすることで、ヘッダと
+     一体のまま常時表示される（幅いっぱいに広げる指定はpkwk.css側）。 #}
+  <hr class="full_hr">
+</header>
+
+<div id="contents">
+  <div id="body">
+    <main class="content"{% if editable %} data-editable data-base-url="{{ base_url }}" data-page="{{ page }}"{% endif %}{% if editing %} data-draft="1"{% endif %}>
+      {% block content %}{{ content }}{% endblock %}
+    </main>
+  </div>
+
+  <div class="menu-backdrop" id="menu-backdrop" hidden></div>
+
+  <div id="rightbar">
+    {#
+      ログイン〜新規（common_menu）の複製。#rightbar がハンバーガーのドロワーに
+      なる幅（700px以下）でだけ pkwk.css が表示し、そのぶんヘッダ2行目の
+      リンク列は隠す。広い幅では display:none。
+      置き場所はドロワーの先頭（620px以下で pkwk.js が検索フォームを
+      さらにその上へ入れるので、並びは 検索 → コマンド → menu1 → 目次 → menu2）。
+      pukiwiki_default / pkwk_wide は menu2 の有無で左右のメニューを選び分けるが、
+      pkwk はメニューが #rightbar 1本なので、menu2 の有無に関係なく先頭に
+      置く（Wiki設計者の指示、2026-09-29）。
+      common_menu を2か所に置くと「新規」の <dialog> と data-hotkey="edit" も
+      2組できるが、common.js はどちらも最初の1個（ヘッダ側）を使うので、
+      ヘッダ側は <dialog> を残してリンクだけ隠す（pkwk.css 参照）。
+    #}
+    <nav class="panel rightbar-commands" aria-label="コマンド（メニュー）">{{ common_menu }}</nav>
+
+    {% if menu1 %}<div class="panel menu1">{{ menu1 }}</div>{% endif %}
+
+    {% if toc|length > 1 %}
+    <nav class="panel toc" aria-label="目次">
+      <h2>目次</h2>
+      <ul>
+        {% for item in toc %}
+        <li class="toc-l{{ item.level }}"><a href="#{{ item.id }}">{{ item.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+
+    {% if menu2 %}<div class="panel menu2">{{ menu2 }}</div>{% endif %}
+  </div>
+</div>
+
+<aside class="page-search-panel" hidden aria-label="ページ内検索の結果">
+  <div class="page-search-panel-head">
+    <span class="page-search-panel-title">ページ内検索</span>
+    <button class="page-search-close" type="button" aria-label="検索を閉じる">×</button>
+  </div>
+  <ol class="page-search-list"></ol>
+  <p class="page-search-more" hidden></p>
+</aside>
+
+<hr class="full_hr">
+<div id="footer">
+  <p><small>{% if render_ms is defined %}<span class="render-time">Convert-time: {{ render_ms }}ms</span> {% endif %}{% if source_mtime is defined %}<span class="source-mtime">Last-modified: {{ source_mtime }}</span> {% endif %}{% if disk_usage is defined %}<span class="disk-usage">{{ disk_usage.text }}</span> {% endif %}{% if login_as is defined and login_as %}<span class="login-as">{{ login_as }}</span> {% endif %}Powered by wikiSystem <span class="site-version">{{ version }}</span> <span class="site-copyright">&copy; {% if copyright_year is defined %}{{ copyright_year }} {% endif %}Yano Labo / AIT</span></small></p>
+</div>
+
+</div><!-- .pi-base -->
+</div><!-- .pi-container -->
+</div><!-- .pi-all -->
+
+<script src="{{ theme_url }}/common.js"></script>
+<script src="{{ theme_url }}/pkwk.js"></script>
+</body>
+</html>

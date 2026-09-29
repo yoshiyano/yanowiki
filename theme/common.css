@@ -1,0 +1,1117 @@
+/*
+ * すべてのテーマが読み込むスタイル。common.js と対になります。
+ *
+ * ここに置くのは「テーマの作りに関わらず要るもの」で、3通りあります。
+ *
+ *   (1) common.js が作る要素の見た目
+ *       .section-editor …  セクション編集のパネル
+ *       .toc a.current  …  目次の現在位置
+ *
+ *   (2) テーマがHTMLで用意する部品の見た目（検索）
+ *       .search / .search-options / .page-search-nav / .page-search-panel …
+ *       これらは common.js が作るのではなく、**テーマが置いたものに
+ *       振る舞いを付ける**関係です。クラス名を合わせておけば、
+ *       一から書いたテーマでも検索がそのまま使えます。
+ *
+ *   (3) どのテーマでも踏む落とし穴の手当て
+ *       [hidden] { display: none !important; }
+ *       html { scroll-padding-top } … ページ内アンカーが固定ヘッダに隠れない
+ *
+ * レイアウトや配色そのものは各テーマの領分です。
+ *
+ * 色は var(--名前, 既定値) の形で書いています。テーマが変数を定義していれば
+ * その配色になじみ、定義していなくても既定値で成立します。
+ * 一から書いたテーマ（変数を持たないもの）でも崩れないようにするためです。
+ *
+ * 読み込む順番はテーマ自身のCSSより前です。同名セレクタをテーマ側に書けば、
+ * 後勝ちでそちらが有効になります（プラグインCSSと同じ考えかた）。
+ *
+ * **ただしこれは詳細度が同じときだけ成り立ちます。** "input, button" の
+ * ような型セレクタでまとめて指定すると詳細度が上がり、テーマ側の
+ * .search-word のようなクラスセレクタ単体では読み込み順に関係なく
+ * 負けてしまいます（実際に踏んだ不具合。/Tech/ChangeLog/themes/2026-08-17
+ * 参照）。部品ごとに決まったクラス名がある場合は、型セレクタでまとめず
+ * そのクラス名を直接書いてください。
+ *
+ * このファイルを wikidata/<Wiki名>/theme/common.css にコピーすると、
+ * そのWikiだけ見た目を差し替えられます。
+ */
+
+/* ---- ページ内アンカーの移動先を固定ヘッダの下へずらす ----
+   --anchor-offset は common.js が、画面上部に固定されたヘッダ（.site-header /
+   #header）の実際の高さを測って html に入れる（固定されていなければ 0）。
+   scroll-padding-top はアンカー移動・scrollIntoView の両方に効き、見出しにも
+   本文中の要素（&aname 等）にも一律に効く。0.5rem はヘッダとの間の息継ぎ。
+   JS が動かないときは既定の 0 に 0.5rem を足すだけ（従来とほぼ同じ）。 */
+html {
+  scroll-padding-top: calc(var(--anchor-offset, 0px) + 0.5rem);
+}
+
+/* ---- 文字サイズ ----
+   本来「配色・レイアウトは各テーマの領分」の原則からは外れるが、全体の
+   文字サイズはどのテーマでも揃えたい設定なので例外的にここへ置く。
+   このテーマ群はrem基準で組んであるものが多く、ここを縮めるだけで
+   余白・幅もまとめて比例して縮む。 */
+:root {
+  font-size: 85%;
+}
+/* スマートフォン相当の画面幅では、既定の文字サイズをさらに小さくする
+   （iPhoneで確認したところ、デスクトップ基準の85%はそのままだと大きすぎ、
+   50%相当でも十分読める・むしろ大きいくらいだった）。ここで決めた値が
+   拡大縮小ボタンの「100%」の基準になる（common.jsが実際の計算値を
+   読み取って基準にするため、この値自体を直接編集してよい）。 */
+@media (max-width: 480px) {
+  :root { font-size: 65%; }
+}
+
+/* ---- 表示の拡大縮小 ----
+   .zoom-in / .zoom-out（テーマが用意する決まったクラス名）のクリックで、
+   <html>のfont-sizeを段階的に上下させる（ループしない。端では自動的に
+   disabledになる）。現在の倍率はtitle属性でマウスオーバー時に出す。
+   段階の管理・disabled切り替え・localStorageへの記憶はcommon.jsが行い、
+   ここにはボタンの見た目だけを置く。アイコンは別ファイルを増やさず
+   SVGをmask-imageで埋め込み、色は他のアイコンと同じくテーマの文字色に
+   追従させている。 */
+/* .search・.marker-controlsと同じ「枠+角丸+背景でひとつづきに見せる」作り。
+   拡大/倍率/縮小の3つはborder-leftで区切る（個々のborderは持たない）。 */
+.zoom-controls {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  background: var(--bg, #ffffff);
+  overflow: hidden;
+}
+.zoom-in, .zoom-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.zoom-out { border-left: 1px solid var(--border, #d0d7de); }
+.zoom-in::before, .zoom-out::before {
+  content: "";
+  display: block;
+  width: 1em;
+  height: 1em;
+  background-color: var(--muted, #656d76);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+.zoom-in::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cline x1='20' y1='20' x2='14.5' y2='14.5'/%3E%3Cline x1='10' y1='7' x2='10' y2='13'/%3E%3Cline x1='7' y1='10' x2='13' y2='10'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cline x1='20' y1='20' x2='14.5' y2='14.5'/%3E%3Cline x1='10' y1='7' x2='10' y2='13'/%3E%3Cline x1='7' y1='10' x2='13' y2='10'/%3E%3C/svg%3E");
+}
+.zoom-out::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cline x1='20' y1='20' x2='14.5' y2='14.5'/%3E%3Cline x1='7' y1='10' x2='13' y2='10'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cline x1='20' y1='20' x2='14.5' y2='14.5'/%3E%3Cline x1='7' y1='10' x2='13' y2='10'/%3E%3C/svg%3E");
+}
+.zoom-in:hover:not(:disabled), .zoom-out:hover:not(:disabled) { background: var(--panel-bg, #f6f8fa); }
+.zoom-in:disabled, .zoom-out:disabled { opacity: 0.35; cursor: default; }
+
+/* 現在の倍率(%)。数値を直接書き換えてEnterで自由な値に変更できる
+   （LABELSに無い値でもよい。デバイスごとの適切な最小/最大値を
+   探るためのもの）。 */
+.zoom-value {
+  width: 3.2em;
+  padding: 0.15em 0.3em;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--fg, #1f2328);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border, #d0d7de);
+  border-radius: 0;
+  /* 数値入力のスピンボタンは狭い場所では邪魔なので消す */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.zoom-value::-webkit-outer-spin-button,
+.zoom-value::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.zoom-value:focus { outline: none; border-color: var(--accent, #0969da); }
+
+/* ---- マーカー操作（.marker-controls、Tech/MarkerSystem.md参照） ----
+   状態を持つ本体は _sys/markers/markers.js（全ページ末尾へ自動で差し込まれる）で、
+   ここは検索・拡大縮小と同じ「テーマが置いた部品にwindow.WikisysMarkers経由で
+   振る舞いを付ける」関係。テーマ側は.marker-controlsを組み立ててJSを配線するだけで
+   よい（今はbase.htmlだけが使う。他テーマが同じマークアップを置けばそのまま使える）。
+
+   見た目は .search と同じ「枠+角丸+背景でひとつづきに見せる」作りにし、
+   中の3つ（マーカーボタン・トグル・セレクト）は border-left で区切る
+   （.search-scope/.search-submit の区切りかたと同じ）。 */
+.marker-controls {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  background: var(--bg, #ffffff);
+  overflow: hidden;  /* 内側のセレクトの角を親のborder-radiusで丸く切り取る */
+}
+.marker-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+}
+
+/* スライドスイッチ。ネイティブのcheckboxは視覚的に隠すだけにして
+   （キーボード操作・スクリーンリーダーへの伝達はcheckbox自身に任せる）、
+   見た目はトラック(.marker-toggle-track)とつまみ(.marker-toggle-thumb)で描く。 */
+.marker-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.6rem;
+  cursor: pointer;
+}
+.marker-toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+.marker-toggle-track {
+  display: inline-block;
+  width: 2.2em;
+  height: 1.3em;
+  border-radius: 999px;
+  background: var(--border, #d0d7de);
+  transition: background 0.15s ease;
+}
+.marker-toggle-thumb {
+  display: block;
+  width: 1em;
+  height: 1em;
+  margin: 0.15em;
+  border-radius: 50%;
+  background: var(--bg, #ffffff);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 25%);
+  transition: transform 0.15s ease;
+}
+.marker-toggle-input:checked ~ .marker-toggle-track {
+  background: var(--accent, #0969da);
+}
+.marker-toggle-input:checked ~ .marker-toggle-track .marker-toggle-thumb {
+  transform: translateX(0.9em);
+}
+.marker-toggle-input:focus-visible ~ .marker-toggle-track {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 2px;
+}
+
+.marker-set-select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.15rem 0.4rem;
+  color: var(--fg, #1f2328);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border, #d0d7de);
+  border-radius: 0;
+}
+
+/* ---- テーマセレクタ（.theme-selector） ----
+   `theme.selector: true` のWikiで、サーバーが menu1 の中身の先頭へ差し込む
+   （_sys/wikilib/themes.py の theme_selector_html）。テーマ側のテンプレートを
+   一切変えずに出る作りなので、**どのテーマにも同じマークアップが来る**。
+   マーカー操作・拡大縮小と同じ「サーバー／テーマが置いた決まった部品に
+   common.css が見た目を与える」関係として、ここに最低限だけ当てる。
+
+   素のままだと (1) form が2つとも block で3行に縦積みになる
+   (2) ブラウザ標準のボタンが平坦なテーマから浮く
+   (3) 直後の menu1 と地続きに見える、の3点が目立ったため
+   （2026-09-04、実装直後に base で確認）。
+
+   `<select>` は既定だといちばん長い項目名（tdiary系は
+   `tdiary_cafe-mint-julep-soda` のように長い）に合わせて広がり、
+   17rem のサイドバーをはみ出す。**flex で伸ばして min-width: 0 を
+   与え、幅は親に従わせる**のが要点。
+
+   「切替」ボタンはJSが動かないとき用の保険（`<select>` の onchange で
+   自動送信されるので通常は押さない）。JSで隠すこともできるが、
+   common.js 自体が読み込めなかった場合こそ必要になる部品なので、
+   消さずに小さく添える形にしてある。 */
+.theme-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.4rem;
+  margin: 0 0 0.9rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+/* 2つの <form> の箱を外し、中のラベル・ボタンを .theme-selector の
+   flex 項目として直接並べる。こうしないと「切替」と「既定に戻す」は
+   別々のformに入っているせいで同じ行に並べられない（=3行になる）。
+   display:contents はフォームの機能・DOM構造を変えないので送信に影響しない。
+   このテーマ群は既に base.css で :has() を使っており、:has() のほうが
+   対応ブラウザは新しいので、これで対応範囲が狭まることはない。 */
+.theme-selector-form,
+.theme-selector-reset { display: contents; }
+/* ラベル（「テーマ:」＋<select>）で1行を占有し、2つのボタンを次の行へ送る。
+   幅の狭いサイドバー（tdiary系は div.sidebar { width: 20% } のように
+   200px 前後になるものが多い）でも、行が溢れて欠けることがないようにする。 */
+.theme-selector-label {
+  display: flex;
+  flex: 1 1 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  /* 色は var(--muted) ではなく inherit。tdiary系342種のような
+     「カスタムプロパティを一切定義しない他所のCSS」では var() が
+     フォールバック（明色前提の #656d76）に落ちるため、黒背景テーマだと
+     背景に沈んで読めなくなる（tdiary_bill で実際に確認）。
+     inherit なら、そのテーマがサイドバーに与えている文字色に従うので、
+     明るいテーマでも暗いテーマでも自動的に読める。 */
+  color: inherit;
+  /* 「テーマ:」が1文字ずつ折り返されるのを防ぐ（狭い幅で実際に起きた） */
+  white-space: nowrap;
+}
+.theme-selector-select {
+  flex: 1 1 4rem;
+  min-width: 0;          /* flexの既定(auto)のままだと内容幅で押し広げられる */
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.3rem;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+}
+.theme-selector-go,
+.theme-selector-reset-go {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  color: var(--muted, #656d76);
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.theme-selector-go:hover,
+.theme-selector-reset-go:hover {
+  color: var(--fg, #1f2328);
+  border-color: var(--muted, #656d76);
+}
+
+/* ---- サイドバーの折りたたみ（既定の挙動。全テーマ共通） ----
+   画面が狭いとき、.mainbar（左）はhtml.bp-narrow、.subbar（右）は
+   html.bp-narrower が付いた状態で、画面端に張り付く帯へ折りたたむ。
+   閉: 帯（幅は--drawer-bar-width）。開: ドロワーとして画面を覆う。
+   開閉判定・タップ/スワイプ検出はcommon.js（position: fixedかどうかで判定）。
+   テーマ側は--bp-narrow/--bp-narrowerに値を与えるだけでこの挙動が有効になる。
+   値を定義しない（=common.jsのreadBreakpoint()がnullを返す）テーマは
+   html.bp-narrow/bp-narrowerが一切付かないため、この節は何も起きない
+   （post_it_1はそもそもこれらのクラス名自体を使わない独自デザインなので対象外）。
+   個々のテーマはこの節を上書きせず、--bp-narrow/--bp-narrower・
+   --drawer-*・--drawer-topの値だけを調整するのが基本。 */
+:root {
+  --drawer-bar-width: 10px;
+  /* 閉じている帯の色。以前はテーマのアクセント色（多くが青系）で、
+     画面端に出る細い帯としては主張が強すぎた。用は「そこに畳んだ帯がある」
+     と分かればよいだけなので、控えめな明るいグレーにする。アクセント色に
+     揃える必要はない（テーマ側で色を変えたいときは --drawer-bar-bg を上書き）。 */
+  --drawer-bar-bg: #ccd0d6;
+  --drawer-bg: var(--bg, #fff);
+  --drawer-border: var(--border, #d0d7de);
+  /* 帯の開始位置。ヘッダがposition: stickyで浮いているテーマは、その高さぶん
+     テーマ側で上書きする（例: base.css → 3.4rem）。既定は画面の最上部から。 */
+  --drawer-top: 0;
+}
+
+html.bp-narrow .mainbar {
+  position: fixed;
+  top: var(--drawer-top);
+  bottom: 0;
+  left: 0;
+  width: var(--drawer-bar-width);
+  z-index: 40;
+  overflow: hidden;
+  background: var(--drawer-bar-bg);
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  transition: width 0.15s ease;
+}
+html.bp-narrow .mainbar:not(.is-open) > * { opacity: 0; pointer-events: none; }
+html.bp-narrow .mainbar.is-open {
+  width: min(85vw, var(--sidebar-width, 17rem));
+  overflow-y: auto;
+  background: var(--drawer-bg);
+  box-shadow: 4px 0 16px rgb(0 0 0 / 20%);
+  border-right: 1px solid var(--drawer-border);
+  padding: 0.8rem;
+}
+
+html.bp-narrower .subbar {
+  position: fixed;
+  top: var(--drawer-top);
+  bottom: 0;
+  right: 0;
+  width: var(--drawer-bar-width);
+  z-index: 40;
+  overflow: hidden;
+  background: var(--drawer-bar-bg);
+  border-radius: 6px 0 0 6px;
+  cursor: pointer;
+  transition: width 0.15s ease;
+}
+html.bp-narrower .subbar:not(.is-open) > * { opacity: 0; pointer-events: none; }
+html.bp-narrower .subbar.is-open {
+  width: min(85vw, var(--sidebar-width, 17rem));
+  overflow-y: auto;
+  background: var(--drawer-bg);
+  box-shadow: -4px 0 16px rgb(0 0 0 / 20%);
+  border-left: 1px solid var(--drawer-border);
+  padding: 0.8rem;
+}
+
+/* 帯は position: fixed で画面端に貼り付くため、.layout側のrem基準の余白
+   だけでは足りない縮小率だと本文の上に帯が重なる。帯の実幅ぶんを
+   確実にbodyへ足しておく。 */
+html.bp-narrow body { padding-left: var(--drawer-bar-width); }
+html.bp-narrower body { padding-right: var(--drawer-bar-width); }
+
+/* オーバーレイ式スクロールバー（common.jsが html.overlay-scrollbar を付ける）
+   の環境で、右の閉じた帯を端から離す。オーバーレイのスクロールバーは画面の
+   右端に重なって出て、そこへ置かれた帯のクリックを取ってしまう（Firefox）。
+   マウス等の精密ポインタだけが対象で、タッチ端末は変えない（タッチでは
+   スクロールバーを直接押さないうえ、画面端からのスワイプが右端を使うため）。
+   開いたドロワー（.is-open）は従来どおり端に付ける。
+   離す幅は、ホバーで太くなったスクロールバーがかぶらない程度。
+   下の menu2_mode=fix の節（padding-right:0 など）より前に置いて、そちらが
+   詳細度の同じこの節を上書きできるようにしてある。 */
+:root { --drawer-scrollbar-gap: 18px; }
+@media (pointer: fine) {
+  html.overlay-scrollbar.bp-narrower .subbar:not(.is-open) {
+    right: var(--drawer-scrollbar-gap);
+  }
+  html.overlay-scrollbar.bp-narrower body {
+    padding-right: calc(var(--drawer-bar-width) + var(--drawer-scrollbar-gap));
+  }
+}
+
+/* ドロワーが開いているときの背景の暗幕（common.jsが<body>に付け外しする） */
+body.drawer-open::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 35%);
+  z-index: 35;
+}
+
+/* ---- menu1/menu2のモード指定（theme.menu1_mode/theme.menu2_mode、
+   ページ単位の上書き） ----
+   auto（既定）は上の折りたたみ挙動そのまま。fixは「常時表示」に戻す
+   （=折りたたみ導入前の、画面が狭ければ本文の下へそのまま回り込む挙動）。
+   テンプレート側が <html data-menu1-mode="fix">・<html data-menu2-mode="fix">
+   のように出す想定（両方付くこともある）。
+   .mainbarはmenu1専用なのでdata-menu1-modeだけで判定する。.subbarは
+   base.cssでは目次+menu2（menu1は別カラムの.mainbar）、bloom/fresh
+   では.mainbar自体が無く目次+menu1+menu2が1本にまとまっているため、
+   「.mainbarが無いテーマ（:not(:has(.mainbar))）」に限り
+   menu1_modeも.subbarに効くようにする。それ以外（base）は.subbarを
+   menu2_modeだけで判定する。
+   両方ともauto（=属性が無い）ならこの節は一致せず何も起きない。 */
+html[data-menu1-mode="fix"].bp-narrow .mainbar {
+  position: static;
+  width: auto;
+  overflow: visible;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  cursor: auto;
+  transition: none;
+  padding: 0;
+}
+html[data-menu2-mode="fix"].bp-narrower .subbar,
+html[data-menu1-mode="fix"].bp-narrower .layout:not(:has(.mainbar)) .subbar {
+  position: static;
+  width: auto;
+  overflow: visible;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  cursor: auto;
+  transition: none;
+  padding: 0;
+}
+/* 元の opacity:0 ルール（html.bp-narrow .mainbar:not(.is-open) > *
+   等）は :not(.is-open) の分だけ詳細度が高い（クラス3個相当）ため、
+   同じ詳細度になるよう .bp-narrow/.bp-narrower を明示して揃える
+   （揃えた上で、こちらが後にあることでカスケード順により上書きする）。 */
+html[data-menu1-mode="fix"].bp-narrow .mainbar > * {
+  opacity: 1;
+  pointer-events: auto;
+}
+html[data-menu2-mode="fix"].bp-narrower .subbar > *,
+html[data-menu1-mode="fix"].bp-narrower .layout:not(:has(.mainbar)) .subbar > * {
+  opacity: 1;
+  pointer-events: auto;
+}
+html[data-menu1-mode="fix"].bp-narrow body {
+  padding-left: 0;
+}
+/* body:has(.layout:not(:has(.mainbar))) で「.mainbarを
+   持たないテーマ（bloom/fresh）か」を判定し、.subbarの折りたたみを
+   実際に解除する側（menu2_mode、もしくはそのテーマではmenu1_mode）と
+   条件を合わせる。 */
+html[data-menu2-mode="fix"].bp-narrower body,
+html[data-menu1-mode="fix"].bp-narrower body:has(.layout:not(:has(.mainbar))) {
+  padding-right: 0;
+}
+
+/* ---- 浮いた検索パネルの操作系（ドラッグ・重なり順） ----
+   見た目（色・余白・フォント等）は各テーマの領分のまま、ここでは
+   「操作」だけを面倒みる。common.js側のmakeDraggable()・検索モーダル
+   開閉ロジックと対になっている。
+   .page-search-panel-head はどのテーマにもある（ドラッグの目印として
+   cursor: moveだけ統一）。.search-modal-* は使うテーマだけが持つ
+   （無ければ何にも一致せず、これらのルールは効かない）。 */
+.page-search-panel-head { cursor: move; }
+.search-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  /* 外側クリックでは閉じない設計（common.js参照）なので、クリックを
+     一切奪わない。全画面を覆う要素として残っているのは、将来
+     テーマ側が独自に暗幕を出したくなったときの土台のため。 */
+  pointer-events: none;
+  z-index: 50;
+}
+.search-modal-panel {
+  position: fixed;
+  z-index: 51;
+}
+.search-modal-head { cursor: move; }
+
+/* 等幅フォント(keywordなどの半角文字)は本文と同じ数値でも小さく見える。
+   .content code はどのテーマも使うクラス名なので、ここにまとめて置く。
+   背景色・paddingなど見た目の残りは各テーマの領分のまま。 */
+.content code {
+  font-family: monospace, sans-serif;
+}
+
+/* PukiWiki記法の見出し行(|||h)は本家に合わせてセルをtdのまま<thead>に
+   入れているため（/Syntax/PukiWiki参照）、各テーマの`.content th`だけを
+   狙ったスタイルでは色が付かない。Markdownの表はmarkdown-it標準どおり
+   <thead><tr><th>なので、こちらはテーマ側の.content thが従来どおり
+   効く（このセレクタとは重ならない）。
+   色は各テーマの--table-header-bgを使う。定義していないテーマは
+   --panel-bg（多くのテーマで.content thの背景と同じ）にフォールバックし、
+   それも無ければ既定値になる。
+   太字は付けない（本家PukiWikiのtheadも太字指定はしていない。thは
+   ブラウザ既定で太字になるので、Markdown側は元々ここと無関係）。 */
+.content thead td {
+  background: var(--table-header-bg, var(--panel-bg, #f6f8fa));
+}
+
+/* ---- セクション編集（試験的、Ctrl+Alt+ダブルクリック） ---- */
+.section-editor {
+  margin: 0.5rem 0;
+  padding: 0.8rem;
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px solid var(--accent, #0969da);
+  border-radius: 8px;
+}
+.section-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.section-editor-status { font-size: 0.85rem; color: var(--muted, #656d76); }
+/* 取得に失敗した・保存できなかった・競合した、という断り。読み込み中や
+   保存中（.section-editor-status に色指定なし）と見分けられるよう変える */
+.section-editor-status.is-error { color: #c62828; }
+.section-editor-save {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent, #0969da);
+  border: 1px solid var(--accent, #0969da);
+  border-radius: 4px;
+}
+.section-editor-save:hover { opacity: 0.85; }
+.section-editor-close {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+}
+.section-editor-close:hover {
+  border-color: var(--accent, #0969da);
+  color: var(--accent, #0969da);
+}
+.section-editor-save:disabled,
+.section-editor-close:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.section-editor-source {
+  display: block;
+  width: 100%;
+  min-height: 8rem;
+  padding: 0.6rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  resize: vertical;
+}
+.section-editor-preview {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border, #d0d7de);
+}
+.section-editor-preview:empty { display: none; }
+
+
+/* ---- hidden 属性を必ず効かせる ----
+   ブラウザ既定の [hidden] { display: none } は、作者スタイルの display 指定に
+   詳細度と関係なく負ける（カスケードでは origin が先に評価されるため）。
+   display:flex などを当てた要素は、hidden を付けても閉じなくなってしまう。
+
+   開閉する部品（検索の条件パネル・ページ内検索のナビと一覧）を hidden で
+   扱っているので、ここで一度だけ手当てしておく。テーマごとに
+   :not([hidden]) で回避する必要はない。 */
+/* display を指定した要素でも hidden 属性を効かせる
+   （display:flex 等は既定の display:none より優先されてしまうため） */
+[hidden] { display: none !important; }
+
+/* ---- 検索フォーム ----
+   「検索語→範囲→検索ボタン」の3要素をひとつの枠で囲み、ひとつづきの
+   検索フォームであることが見た目でもわかるようにしている。 */
+.search {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  background: var(--bg, #ffffff);
+  overflow: hidden;  /* 内側のボタンの角を親のborder-radiusで丸く切り取る */
+}
+.search:focus-within { border-color: var(--accent, #0969da); }
+/* 型セレクタ（input, button）ではなく、テーマが用意する決まったクラス名を
+   直接使う。".search input" のような型セレクタだと詳細度がクラス単体より
+   高くなり、テーマ側の同名クラスでの上書きが（後読みでも）効かなくなる
+   （/Tech/ChangeLog/themes 参照）。 */
+.search-word, .search-scope, .search-submit {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+  color: var(--fg, #1f2328);
+  background: transparent;
+  border: none;
+}
+/* 幅が足りないときに縮むのは入力欄だけにする。範囲・検索ボタンは
+   flex-shrink:0 で固定幅・右寄せのまま崩さない（狭い画面で折り返しが
+   起きるテーマでも、ボタン側だけが2行目に落ちて元の行の右端に空白が
+   残る、という不具合を避けるため。/Tech/ChangeLog/themes/2026-08-17 参照）。 */
+.search-word {
+  width: 50%;
+  max-width: 40vw;
+  min-width: 2.5em;
+  /* flex-grow:0にしている。1のままだと、.searchの幅が定まっていない
+     （auto/fit-content）場合にwidthの指定そのものが無視され、常に
+     入力欄の既定サイズへ丸め込まれてしまう挙動をChromeで確認したため。 */
+  flex: 0 1 auto;
+  transition: width 0.15s ease;
+}
+/* フォーカス中は、これまでの既定幅（12rem、40vwで頭打ち）まで伸ばす */
+.search:focus-within .search-word { width: 12rem; }
+.search-word:focus { outline: none; }  /* 枠全体のfocus-withinで代替する */
+.search-submit { cursor: pointer; flex-shrink: 0; border-left: 1px solid var(--border, #d0d7de); }
+.search-submit:hover { background: var(--panel-bg, #f6f8fa); color: var(--accent, #0969da); }
+
+/* 検索範囲の切り替えボタン（クリック=トグル、ドラッグ=選択メニュー） */
+.search-scope {
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  touch-action: none;  /* ドラッグ中にページがスクロールしないようにする */
+  border-left: 1px solid var(--border, #d0d7de);
+  border-right: 1px solid var(--border, #d0d7de);
+}
+.search-scope:hover { background: var(--panel-bg, #f6f8fa); color: var(--accent, #0969da); }
+.search-scope[aria-pressed="true"] { background: var(--panel-bg, #f6f8fa); color: var(--accent, #0969da); }
+
+.search-scope-menu {
+  /* .search に overflow:hidden（連結した見た目のため）を掛けているので、
+     メニューはその外（document.body直下）に置き、位置はcommon.jsが
+     範囲ボタンの実際の画面上の位置から計算して設定する。 */
+  position: fixed;
+  /* サイドバーの折りたたみ帯・ドロワー（本ファイル内、z-index: 40）・
+     暗幕（同35）、検索モーダル（同50/51、使うテーマのみ）より確実に
+     手前に出す */
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  min-width: 9rem;
+  padding: 0.3rem;
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+.search-scope-item {
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  color: var(--fg, #1f2328);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.search-scope-item.current { font-weight: 600; }
+.search-scope-item.hover { background: var(--panel-bg, #f6f8fa); border-color: var(--accent, #0969da); }
+
+/* サイト全体を検索するときの条件パネル（検索窓の下にフロートイン） */
+.search-options {
+  /* テンプレート上、検索フォームの外（overflow:hiddenの外）に置いてあり、
+     表示時にcommon.jsがdocument.body直下へ移して位置(top/right)を設定する。 */
+  position: fixed;
+  /* .search-scope-menuと同じ理由 */
+  z-index: 55;
+  width: 24rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.7rem 0.9rem;
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  animation: page-search-in 0.15s ease-out;
+}
+.search-options-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+.search-options-row:last-child { margin-bottom: 0; }
+.search-options-label {
+  width: 4rem;
+  font-size: 0.85rem;
+  color: var(--muted, #656d76);
+}
+.search-options select, .search-options input, .search-options button {
+  flex: 1;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+}
+.search-options-actions { justify-content: flex-end; }
+.search-options-actions button { flex: 0 0 auto; cursor: pointer; }
+.search-options-actions button:hover { border-color: var(--accent, #0969da); color: var(--accent, #0969da); }
+
+/* ページ内検索の前へ/次へ */
+.page-search-nav { display: flex; gap: 0.3rem; align-items: center; }
+.page-search-nav button {
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+}
+.page-search-nav button:hover:not(:disabled) { border-color: var(--accent, #0969da); color: var(--accent, #0969da); }
+.page-search-nav button:disabled { opacity: 0.4; cursor: default; }
+.page-search-count {
+  font-size: 0.8rem;
+  color: var(--muted, #656d76);
+  min-width: 4.5rem;
+}
+
+/* ---- ページ内検索のフロートパネル ---- */
+.page-search-panel {
+  position: fixed;
+  right: 1rem;
+  top: 4rem;
+  z-index: 20;
+  width: 22rem;
+  max-width: calc(100vw - 2rem);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  animation: page-search-in 0.15s ease-out;
+}
+@keyframes page-search-in {
+  from { opacity: 0; transform: translateX(0.6rem); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-search-panel { animation: none; }
+}
+
+/* タイトル行（.page-search-panel-head-row）と、その下のホットキー案内
+   （.search-hotkey-hint）の2段構成。head自体はblock（縦積みの入れ物）。 */
+.page-search-panel-head {
+  display: block;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  background: var(--panel-bg, #f6f8fa);
+  border-radius: 8px 8px 0 0;
+}
+.page-search-panel-head-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.page-search-panel-title { font-size: 0.9rem; font-weight: 600; }
+/* 矢印キーで候補を移動できることの案内。検索モーダル（.search-modal-panel、
+   使うテーマだけが持つ）の検索フォーム直下と、.page-search-panel-head
+   （どのテーマにもある）のタイトル行の下、両方で使う共通の見た目。 */
+.search-hotkey-hint {
+  margin: 0.3rem 0 0;
+  font-size: 7pt;
+  color: var(--muted, #656d76);
+}
+.page-search-close {
+  margin-left: auto;
+  font: inherit;
+  line-height: 1;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+  color: var(--fg, #1f2328);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.page-search-close:hover { border-color: var(--border, #d0d7de); color: var(--accent, #0969da); }
+
+.page-search-list {
+  margin: 0;
+  padding: 0.4rem 0.4rem 0.4rem 2.2rem;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+.page-search-list li { padding: 0.1rem 0; }
+.page-search-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  line-height: 1.5;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  color: var(--fg, #1f2328);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.page-search-item:hover { background: var(--panel-bg, #f6f8fa); }
+.page-search-item.current {
+  background: var(--panel-bg, #f6f8fa);
+  border-color: var(--accent, #0969da);
+}
+.page-search-more {
+  margin: 0;
+  padding: 0.4rem 0.8rem 0.6rem;
+  color: var(--muted, #656d76);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 60rem) {
+  .page-search-panel {
+    right: 0.5rem;
+    left: 0.5rem;
+    width: auto;
+    max-height: 50vh;
+  }
+}
+
+/* ---- 検索専用フォーム ---- */
+.search-detail {
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1.5rem;
+}
+.search-detail-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.search-detail-row:last-child { margin-bottom: 0; }
+.search-detail-label { width: 10rem; font-size: 0.9rem; color: var(--muted, #656d76); }
+.search-detail input, .search-detail select, .search-detail button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.3rem 0.5rem;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+}
+.search-detail-word { flex: 1; min-width: 12rem; }
+
+/* ---- 検索結果 ---- */
+.search-summary code {
+  background: var(--code-bg, #f6f8fa);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+}
+.search-hint { color: var(--muted, #656d76); font-size: 0.9rem; }
+.search-results { list-style: none; padding: 0; }
+.search-result {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+.search-result-title { font-size: 1.1rem; font-weight: 600; }
+.search-result-path { color: var(--muted, #656d76); font-size: 0.8rem; }
+.search-result-snippet { margin: 0.3rem 0 0; }
+/* 抜粋そのものもリンクにしてあるので、本文と同じ見た目に戻す */
+.search-result-jump { color: inherit; }
+.search-result-jump:hover { color: var(--accent, #0969da); }
+
+mark {
+  background: color-mix(in srgb, var(--accent, #0969da) 25%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 0.1em;
+}
+/* ページ内検索で、いま辿っている一致箇所 */
+.search-hit.current {
+  background: color-mix(in srgb, var(--accent, #0969da) 55%, transparent);
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 1px;
+}
+
+/* ---- 編集中の印（サーバーが title_note として渡す） ----
+   一時保存を預かっているページに出る。気づかずに直しにかかると、
+   あとで一時保存のほうに上書きされてしまうので、タイトルの脇で知らせる。
+   タイトルより控えめにして、読むときの邪魔にならないようにする。 */
+.page-editing {
+  margin-left: 0.4em;
+  font-size: 0.62em;
+  font-weight: normal;
+  vertical-align: middle;
+  color: #c62828;
+  white-space: nowrap;
+}
+
+/* ---- 目次: 現在表示中の見出し（common.js が .current を付ける） ---- */
+.toc a.current { font-weight: 600; }
+
+/* 版と改訂（"Ver.0.49 Rev.7.001"）。フッタの "Powered by wikiSystem" の後ろ、
+   著作権表示の前に出る。
+   どのテーマでも同じ扱いなので common に置く。控えめにしたいので小さく薄く */
+.site-version {
+  margin-left: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted, #656d76);
+  white-space: nowrap;
+}
+
+/* ページのレンダリング時間（本文平文をDBから取得後、HTML生成完了までの
+   ミリ秒）。"Powered by wikiSystem" の左に出す（テンプレート側で
+   render_msが定義されているときだけ表示。本体側が未対応の間は
+   何も出ない）。どのテーマでも同じ扱いなのでcommonに置く。 */
+.render-time {
+  margin-right: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted, #656d76);
+  white-space: nowrap;
+}
+
+/* 本文平文ファイルの最終更新日時。render-timeの右側に並べる
+   （テンプレート側の並び順もそうなっている）。 */
+.source-mtime {
+  margin-right: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted, #656d76);
+  white-space: nowrap;
+}
+
+/* 使用量（"DiskUsage: Page/Attached 1.2MB/349KB"）。source-mtimeの右側に
+   並べる。テンプレート側で disk_usage is defined ガード済みで、wikiSystem
+   本体が値を渡すまでは何も出ない。どのテーマでも同じ扱いなのでcommonに置く。 */
+.disk-usage {
+  margin-right: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted, #656d76);
+  white-space: nowrap;
+}
+
+/* 著作権表示（"© 2026 サイト名"）。フッタの版（.site-version）の後ろ、
+   末尾に出す。どのテーマでも同じ扱いなのでcommonに置く。copyright_yearは
+   テンプレート側で is defined ガード済み（本体側が年を渡すようになるまでは
+   年を出さず「© サイト名」のまま安全に表示される）。 */
+.site-copyright {
+  margin-left: 0.6em;
+  font-size: 0.85em;
+  color: var(--muted, #656d76);
+  white-space: nowrap;
+}
+
+/* 「編集」「このページを作る」など、編集画面を開く操作はGETを受け
+   付けない（'.edit'という別パスも持たず、そのページ自身の通常URLへ
+   POST + cmd=edit を送ることで開く。URLさえ分かれば誰でもフォームを
+   開けてしまう状況を避けるため）。<a href>ではなくPOSTの<form>+<button>
+   で出すので、並びを崩さずリンクと同じ見た目にする。
+   :where() でbuttonのUAスタイルだけをリセットし、詳細度は.commandや
+   .no-page-create（テーマ側で定義済み）と同じに保つ。型セレクタで
+   詳細度を上げるとテーマ側の定義が負けてしまう（本ファイル冒頭の
+   注意書き参照）。 */
+.command-form, .no-page-actions form {
+  display: contents;
+}
+:where(button.command, button.no-page-create) {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+button.command {
+  color: var(--accent, #0969da);
+}
+button.command:hover {
+  text-decoration: underline;
+}
+
+/* トップ/編集/履歴/リネームのように並ぶ .command どうしの間に置く区切り。
+   一連の操作であることが見た目でもわかるようにする（読み上げには
+   意味を持たないので aria-hidden="true" をテーマ側のマークアップに
+   付けてもらう想定）。 */
+.command-sep {
+  color: var(--muted, #656d76);
+  user-select: none;
+}
+
+/* 文中に置く同種のリンク（views.pyの添付ファイル案内など）。
+   通常の<a>と見分けが付かないよう、下線ありの文中リンクの見た目にする。 */
+.inline-form { display: inline; }
+:where(button.link-button) {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+button.link-button {
+  color: var(--accent, #0969da);
+  text-decoration: none;
+}
+button.link-button:hover {
+  text-decoration: underline;
+}
+
+/* ---- 「新規」ダイアログ（コマンドバー） ----
+   本体が渡す共通メニュー（common_menu。wikilib.themes.common_menu_html）が
+   出す<dialog>の見た目。base.css を読み込まないテーマでも崩れないよう、
+   ここに置く（2026-09-24、wikiThemesからの依頼）。 */
+.new-page-dialog {
+  width: min(24rem, 90vw);
+  padding: 1.2rem;
+  color: var(--fg, #222);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 6px);
+}
+.new-page-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+.new-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+.new-page-title { font-size: 1rem; }
+.new-page-x {
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.1rem 0.4rem;
+  color: var(--muted, #666);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.new-page-x:hover { color: var(--fg, #222); }
+.new-page-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+.new-page-input {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  color: var(--fg, #222);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 6px);
+}
+.new-page-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+.new-page-cancel {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--muted, #666);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.new-page-cancel:hover { color: var(--fg, #222); }
+.new-page-ok {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.45rem 1.4rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent, #0969da);
+  border: 1px solid var(--accent, #0969da);
+  border-radius: var(--radius, 6px);
+}
+.new-page-ok:hover:not(:disabled) { filter: brightness(1.08); }
+.new-page-ok:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -1,0 +1,497 @@
+/*
+ * wikiSystem 標準テーマ
+ * このファイルを wikidata/<farm名>/theme/base.css にコピーすると、
+ * そのwikiだけデザインを差し替えられます。
+ * 配色はここのカスタムプロパティを書き換えるだけでも大きく変えられます。
+ */
+
+:root {
+  /* 全体の文字サイズ(font-size: 85%)はどのテーマでも揃えたいので
+     common.cssに置いてある。ここではこのテーマ固有の配色だけを持つ。 */
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #656d76;
+  --border: #d0d7de;
+  --accent: #0969da;
+  --panel-bg: #f6f8fa;
+  --code-bg: #f6f8fa;
+  --sidebar-width: 17rem;  /* menu1（左）・目次+menu2（右）の両方に使う共通幅 */
+  --content-max: 52rem;
+  /* サイドバー折りたたみ（common.css参照）の帯は、.site-headerが
+     position: stickyで浮いている高さぶん、画面最上部から下げて始める。 */
+  --drawer-top: 3.4rem;
+  /* 3→2→1カラムへの折り返ししきい値（拡大縮小ボタンの既定=85%のときの
+     ビューポート幅）。common.jsが読み取り、実際の拡大率に応じて
+     html.bp-narrow / html.bp-narrower を付け外しする（@mediaは
+     ページのfont-size変更を考慮できないため使っていない）。 */
+  --bp-narrow: 1023px;
+  --bp-narrower: 960px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --border: #30363d;
+    --accent: #4493f8;
+    --panel-bg: #161b22;
+    --code-bg: #161b22;
+  }
+}
+
+* { box-sizing: border-box; }
+
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans JP", "Hiragino Sans", Meiryo, sans-serif;
+  line-height: 1.7;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- ヘッダ（タイトル + コマンド系） ---- */
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  /* ページ内検索の前へ/次へを、本文をたどっている間も使えるようにする */
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.site-title { font-weight: 700; font-size: 1.1rem; }
+.site-title a { color: inherit; }
+.commands {
+  margin-left: auto;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.command { font-size: 0.9rem; }
+
+/* common.cssの.search-wordはwidth: 50%（%指定）だが、これは.search自身の
+   幅が定まっている前提で成り立つ（common.css冒頭のコメント参照）。
+   .commandsはflex-wrap:wrapのままで.search自体に幅を持たせていないため
+   .searchの幅が定まらず、Chromeでは「幅を計算する時点」と「実際に
+   描画する時点」とで.search-wordの実効幅がずれ、.search-submit
+   （検索ボタン）の右側に空白が残っていた（post_it_1で見つかったのと
+   同じ原因。/Tech/ChangeLog/themes/2026-08-26参照）。固定値に
+   置き換えて解消する。フォーカス時に広がる挙動（common.cssの
+   .search:focus-within .search-word { width: 12rem; }）はこのテーマでも
+   変更していないため、そのまま効く。 */
+.search-word {
+  width: 10rem;
+}
+
+
+/* ---- ページタイトル（本文の外に置く枠） ---- */
+.page-header {
+  /* .layout と幅を揃える（既定は3カラムぶん）。 */
+  max-width: calc(var(--content-max) + var(--sidebar-width) * 2 + 6rem);
+  margin: 0 auto;
+  padding: 1.4rem 1.2rem 0;
+}
+/* menu1が無く.layoutが2カラムに詰まっているときは、こちらも合わせて詰める。
+   以前は .page-header:has(~ .layout:not(:has(.mainbar))) と書いていたが、
+   :has() の中に :has() を入れ子にできないため無効なセレクタで、ブラウザに
+   捨てられて効いていなかった（2026-09-27 に気づいて修正）。「menu1が無い」
+   判定（body:not(:has(.mainbar))）と「.layout の直前の兄弟である」判定
+   （:has(~ .layout)）を別々の複合セレクタに分けて、入れ子を避けている。
+   後者の条件で、.page-header をヘッダの中へ移したテーマ（fresh）には
+   当たらない。 */
+body:not(:has(.mainbar)) .page-header:has(~ .layout) {
+  max-width: calc(var(--content-max) + var(--sidebar-width) + 4rem);
+}
+.page-title {
+  margin: 0;
+  font-size: 1.8rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/*
+  ---- 3コラムレイアウト ----
+  menu1（左） / 本文 / 目次・menu2（右）。menu1が無いページ（menu1_sidebarを
+  空にしたテーマ・menu1のHTMLが無い farm）では :has() で自動的に2カラムへ詰める。
+*/
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--sidebar-width);
+  gap: 2rem;
+  align-items: start;
+  max-width: calc(var(--content-max) + var(--sidebar-width) * 2 + 6rem);
+  margin: 0 auto;
+  padding: 1.2rem 1.2rem 4rem;
+}
+/* menu1・右サイドバーとも本文と同じ流れでスクロールする（position: sticky
+   は使わない）。sticky だと、本文よりメニュー自体が長いページで下のほうが
+   画面外に隠れたまま、本文を最後までスクロールしないと読めなくなるため。 */
+.mainbar { grid-column: 1; grid-row: 1; }
+.content { grid-column: 2; grid-row: 1; min-width: 0; }
+.subbar { grid-column: 3; grid-row: 1; }
+
+.layout:not(:has(.mainbar)) {
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
+  max-width: calc(var(--content-max) + var(--sidebar-width) + 4rem);
+}
+.layout:not(:has(.mainbar)) .content { grid-column: 1; }
+.layout:not(:has(.mainbar)) .subbar { grid-column: 2; }
+
+/*
+  3カラムぶんの幅が確保できない画面幅では、まずmenu1を本文+右サイドバーの
+  下に全幅で落として2カラムに戻す（menu1が無いページと同じ見えかたになる）。
+  1024px（横幅の目安として要求された値）では3カラムのまま収まるよう、
+  しきい値はそれよりわずかに下（1023px、--bp-narrow）にしてある。
+
+  拡大縮小ボタンで文字サイズを変えると、同じビューポート幅でも実際に
+  必要な横幅が変わる。@media のpx/remはページ側のfont-size変更を反映せず
+  常にブラウザ既定(16px)基準で判定されてしまうため、この折り返しは
+  メディアクエリではなくcommon.jsが付け外しするクラス（html.bp-narrow /
+  html.bp-narrower）で判定している（common.jsは--bp-narrow/--bp-narrowerの
+  値を読み、いまの拡大率に応じて実際のしきい値を計算し直す）。
+*/
+html.bp-narrow .layout { grid-template-columns: minmax(0, 1fr) var(--sidebar-width); }
+html.bp-narrow .content { grid-column: 1; grid-row: 1; }
+html.bp-narrow .subbar { grid-column: 2; grid-row: 1; }
+
+html.bp-narrower .layout { grid-template-columns: minmax(0, 1fr); }
+html.bp-narrower .content { grid-column: 1; grid-row: 1; }
+/* .subbar・.mainbarはどちらもこの時点でposition: fixed（下記）に
+   なっているため、グリッド上の位置指定はもう意味を持たない */
+
+/* サイドバーの折りたたみ（画面端の帯・ドロワー・fixモードの上書き）は
+   全テーマ共通の既定挙動としてcommon.cssへ移した。baseはbp-narrow/
+   bp-narrower・drawer-topの値を渡すだけでよい。 */
+
+/* ---- サイドバー ---- */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+}
+.panel h1, .panel h2, .panel h3, .panel-title {
+  font-size: 0.95rem;
+  margin: 0.4rem 0;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+.panel ul { margin: 0.4rem 0; padding-left: 1.2rem; }
+
+/* ---- menu1の階層開閉 ----
+   base.js が「子リストを持つli」を<details>/<summary>に組み替える
+   （.mainbar .menu1 にしか無いマークアップ。開閉状態・キーボード操作・
+   三角マーカーはブラウザ標準のdetails/summaryに任せている）。
+   三角が付く項目（=子を持つ項目）は、liの既定の丸ブレットを消して
+   三角だけにする（子を持たない項目は丸ブレットのまま）。 */
+.menu1 li:has(> details.menu1-node) { list-style: none; }
+.menu1 summary {
+  cursor: pointer;
+  list-style: none;
+  /* 丸ブレットを消した分、liの空きができる。左へ詰める。 */
+  margin-left: -0.9rem;
+}
+.menu1 summary::-webkit-details-marker { display: none; }
+/* markdownの行間を空けた書き方（loose list）だとliの中身が<p>で包まれる。
+   summary内でも改行させず三角マーカーと同じ行に収める。 */
+.menu1 summary > p { display: inline; margin: 0; }
+.menu1 summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--accent);
+}
+.menu1 details[open] > summary::before { content: "▾"; }
+.menu1 details > ul { margin-top: 0.2rem; }
+
+.toc ul { list-style: none; padding-left: 0; }
+.toc li { padding: 0.1rem 0; }
+.toc .toc-l2 { padding-left: 0.9rem; }
+.toc .toc-l3 { padding-left: 1.8rem; font-size: 0.9em; }
+
+/* ---- 本文 ---- */
+/* 半角(TopicPathの "/" 区切りなど)は本文と同じ数値でも小さく見えるため、
+   font-sizeは縮めず本文と揃える */
+.page-path { color: var(--muted); margin-top: 0.4rem; }
+
+.content h1, .content h2 {
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+}
+.content h1 { font-size: 1.6rem; margin-top: 2.5rem; }
+.content h2 { font-size: 1.4rem; margin-top: 2rem; }
+.content h3 { font-size: 1.15rem; margin-top: 1.5rem; }
+/* 目次から飛んだ見出しが固定ヘッダの下に隠れないようにする処理は、以前は
+   ここで scroll-margin-top: 4rem を見出しに付けていた。ヘッダの高さは画面幅や
+   拡大率で 4rem を超え、見出し以外のアンカーにも効かなかったため、
+   common.css の html { scroll-padding-top }（高さは common.js が測る）へ
+   移した（2026-09-28）。ここに残すと余白が二重になる。 */
+/* 本文の先頭要素は、タイトル枠との間隔が二重にならないよう余白を詰める */
+.content > :first-child { margin-top: 0; }
+
+.content img { max-width: 100%; }
+.content pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+}
+/* font-family(monospace, sans-serif)はcommon.cssで指定済み。
+   font-sizeも縮めず本文と揃えている（半角文字は同じ数値でも小さく見えるため） */
+.content code {
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.content pre code { background: none; padding: 0; }
+.content blockquote {
+  margin: 1rem 0;
+  padding: 0.1rem 1rem;
+  color: var(--muted);
+  border-left: 3px solid var(--border);
+}
+.content table { border-collapse: collapse; display: block; overflow-x: auto; }
+.content th, .content td { border: 1px solid var(--border); padding: 0.4rem 0.8rem; }
+.content th { background: var(--panel-bg); }
+.content .contains-task-list { list-style: none; padding-left: 1rem; }
+
+/* ---- 注釈（脚注） ---- */
+.footnote-ref a {
+  text-decoration: none;
+  color: var(--accent);
+}
+.footnote-ref a:hover { text-decoration: underline; }
+.footnotes-sep {
+  margin: 2rem 0 1rem;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+.footnotes {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.footnotes-list { padding-left: 1.4rem; }
+.footnote-item { margin: 0.3rem 0; }
+.footnote-backref {
+  margin-left: 0.3rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.footnote-backref:hover { color: var(--accent); text-decoration: underline; }
+
+/* ---- 存在しないページ ---- */
+.no-page {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--muted);
+}
+.no-page-icon { color: var(--border); margin-bottom: 0.5rem; }
+.no-page-message {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.no-page-path { margin: 0.5rem 0 1.5rem; }
+.no-page-hint { margin: 0.3rem 0; font-size: 0.9rem; }
+/* ここから作成に進めるのが一番したいことなので、ボタン風にして目立たせる */
+.no-page-actions { margin: 0 0 1.5rem; }
+.no-page-create {
+  display: inline-block;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 6px);
+  text-decoration: none;
+}
+.no-page-create:hover { filter: brightness(1.08); text-decoration: none; }
+
+/* ---- プラグイン ---- */
+/* エラーと断り書き。プラグインの不備はこの箇所だけに閉じ込め、ページは表示され続ける。
+   標準では「** 名前 plugin error : 使いかた」の1行（色付き太字）だけにし、
+   ページ上にエラーが長々と出ないようにしている。個別の理由（message）は
+   ページの読み手より直す人向けの情報なので、plugin.debug が有効なときだけ
+   行末に [詳細] を足し、開いた中に理由と _help()（無ければdocstring）を出す。 */
+.plugin-error { margin: 0.5rem 0; font-size: 0.9rem; }
+.plugin-error-summary { color: #d93025; font-weight: 700; }
+/* [詳細]/[閉じる] という文字自体が開閉の目印なので、ブラウザ既定の
+   三角マーカーは重複するため消す（Firefox・Chrome/Safari両対応） */
+details.plugin-error-summary summary { cursor: default; list-style: none; }
+details.plugin-error-summary summary::-webkit-details-marker { display: none; }
+details.plugin-error-summary summary::marker { display: none; }
+details.plugin-error-summary[open] summary { margin-bottom: 0.4rem; }
+/* クリックできる範囲を [詳細]/[閉じる] の文字だけに絞る（行全体を
+   クリック対象にすると、理由を読もうとしただけで開閉してしまうため）。
+   summary自体はクリックを受け付けず、内側のtoggleだけ受け付け直す */
+details.plugin-error-summary summary { pointer-events: none; }
+.plugin-error-toggle { pointer-events: auto; cursor: pointer; text-decoration: underline; }
+/* 開いているかで [詳細]/[閉じる] を切り替える */
+.plugin-error-summary .is-open { display: none; }
+.plugin-error-summary[open] .is-closed { display: none; }
+.plugin-error-summary[open] .is-open { display: inline; }
+.plugin-error-message {
+  margin: 0 0 0.3rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.plugin-error-summary pre {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+/* トレースバック（server.yamlのdebug）。plugin.debug（上の[詳細]）とは別口 */
+.plugin-error-detail { margin-top: 0.5rem; }
+.plugin-error-detail summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.plugin-error-detail pre {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.plugin-notice {
+  margin: 0.8rem 0;
+  padding: 0.5rem 0.9rem;
+  color: var(--muted);
+  background: var(--panel-bg);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+/* note・contents・recent のCSSは、それぞれ plugin/note.css・plugin/contents.css・
+   plugin/recent.css に移した（プラグインが使うCSSは基本的にプラグイン自身が持つ）。
+   このテーマで見た目を変えたい場合は、同名セレクタをここに書けば上書きできる
+   （プラグインCSSはテーマCSSより先に読み込まれるため、後勝ちでテーマ側が有効になる）。 */
+
+/* セクション編集の見た目は theme/common.css に移した（common.js と対になるため）。
+   このテーマで変えたい場合は、同名セレクタをここに書けば上書きできる
+   （common.css はテーマCSSより先に読み込まれるため、後勝ちでこちらが有効になる）。 */
+
+/* ---- フッタ ---- */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 1rem 1.2rem;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+/* ---- 再起動（/.restart） ---- */
+.restart {
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+.restart-message {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.restart-note,
+.restart-hint {
+  margin: 0.4rem 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.restart-form {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+.restart-go {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 1.6rem;
+  cursor: pointer;
+  color: #fff;
+  /* 押すと止まる操作なので、ふつうのボタンとは色を変えて注意を促す */
+  background: #b3261e;
+  border: 1px solid #b3261e;
+  border-radius: var(--radius, 6px);
+}
+.restart-go:hover { filter: brightness(1.1); }
+.restart-cancel { font-size: 0.9rem; }
+
+/* ---- 新しいWikiを作る（/.newwiki） ---- */
+.newwiki { max-width: 40rem; }
+.newwiki-lead { color: var(--muted); font-size: 0.92rem; }
+.newwiki-notice {
+  margin: 0 0 1rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+}
+.newwiki-notice-error {
+  background: rgb(217 131 36 / 12%);
+  border-color: rgb(217 131 36 / 40%);
+}
+.newwiki-form {
+  margin: 1.2rem 0;
+  padding: 1rem 1.2rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 6px);
+}
+.newwiki-row {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+.newwiki-row label { width: 11rem; font-size: 0.9rem; color: var(--muted); }
+.newwiki-row input {
+  flex: 1;
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.35rem 0.6rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.newwiki-row-checkbox label {
+  width: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--fg);
+}
+.newwiki-row-checkbox input { flex: none; width: auto; padding: 0; border: none; background: none; }
+.newwiki-hint { margin: 0.6rem 0; font-size: 0.85rem; color: var(--muted); }
+.newwiki-actions { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
+.newwiki-go {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.45rem 1.5rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 6px);
+}
+.newwiki-go:hover { filter: brightness(1.08); }
+.newwiki-cancel { font-size: 0.9rem; }
+.newwiki-existing h2 { font-size: 1rem; }
+.newwiki-existing ul { margin: 0.4rem 0; padding-left: 1.2rem; font-size: 0.92rem; }

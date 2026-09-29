@@ -1,0 +1,47 @@
+/* navi プラグインの見た目。本家PukiWiki既定スキン（pukiwiki.css）の
+   ul.navi / li.navi_left / li.navi_right / li.navi_none / hr.full_hr を
+   移植したもの。**クラス名は本家のまま残し**、3列の作りかただけを
+   float から flex に置き換えている（プラグイン側でDOMの順番を
+   「前へ・目次・次へ」の論理順にできるようにするため）。 */
+
+ul.navi {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75em;
+  margin: 0.25em 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+}
+
+/* 3列を等分する。min-width:0 と overflow-wrap が無いと、長い見出し
+   （タイトル）を持つページが隣の列を押し出してしまう。省略（ellipsis）では
+   なく折り返しにしているのは、フッターが <br> で2行になるため
+   （text-overflow は単一行が前提）と、タイトルを削らずに見せたいため。 */
+ul.navi > li {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+li.navi_left { text-align: left; }
+li.navi_none { text-align: center; }
+li.navi_right { text-align: right; }
+
+/* 本家の hr.full_hr（border-style:ridge・上下だけ1px）をそのまま移して、
+   色だけテーマの変数に預けている（変数が無いテーマでも本家と同じ #333）。 */
+hr.full_hr {
+  width: 100%;
+  margin: 0.25em 0 0.75em;
+  border-style: ridge;
+  border-color: var(--border, #333333);
+  border-width: 1px 0;
+}
+
+/* 目次ページ側の子ページ一覧。本家はクラスの無い素の <ul> だったので、
+   見た目は本文の箇条書きに寄せてある（クラスを足すぶんは後方互換を
+   壊さない追加）。 */
+ul.navi_contents {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}

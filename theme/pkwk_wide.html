@@ -1,0 +1,173 @@
+{#
+  pkwk_wide — pukiwiki_default をコピーし、本文（.layout）の最大幅の上限を
+  外して画面の横幅全体を使うようにしたテーマ（Wiki設計者の指示、2026-09-27）。
+  見た目・ヘッダ構成などは pukiwiki_default と同じ。違いは pkwk_wide.css の
+  「横幅いっぱいに使う」の節だけ。以下の説明は pukiwiki_default のもの
+  （「pukiwiki_default.css」は、このテーマでは pkwk_wide.css と読み替える）。
+
+  ● 個別Wiki（wikidata/<farm名>/theme/）へコピーするときのファイル
+    コピーするもの（このテーマ固有）:
+      pkwk_wide.html
+      pkwk_wide.css
+    コピー不要（そのWikiの theme/ に無ければ、共通の theme/ から読まれる）:
+      common/base.html … 継承元。"common/" 付きなので常に共通のものが使われる
+      base.css         … このテーマの .css が @import で読む
+      base.js          … base.html が読み込む
+      common.css・common.js … 全テーマ共通
+    Wiki側で用意してもよいもの:
+      logo.png … ヘッダのロゴ。共通の theme/ に wikiSystem のロゴがあり、
+                 置かなければそれが出る（theme/README.txt 参照）
+    ※ 依存ファイルもコピーすると、そのWikiではコピーしたほうが優先され、
+      同じファイルを使うほかのテーマにも効く（共通のものを直したいときだけ）。
+
+  pukiwiki_default — PukiWiki 標準スキン（skin/pukiwiki.css）の見た目を、
+  common/base.html を継承して再現したテーマ。
+
+  ● 方針: レイアウトの大枠（3コラム: menu1が左・本文が中央・目次+menu2が右）・
+    検索・編集導線は base.html のものをそのまま使い、見た目だけ
+    pukiwiki_default.css で PukiWiki 配色（#DDEEFF 系）へ寄せる。
+    編集リンク・Alt+E などの編集導線は base 標準のまま（隠さない）。
+
+  ● ヘッダは header ブロックを上書きして pkwk に揃えている（Wiki設計者の指示、
+    2026-09-04）:
+      - 参考サイトと同じ位置にロゴを置く
+      - ページタイトルと TopicPath を header の中へ入れる
+        （base 標準では header の外の .page-header にある）
+      - コマンド nav を2段にする
+          上の段 … マーカー操作（marker-controls）＋ 検索フォーム
+          下の段 … 表示倍率（zoom-controls）＋ ログイン/トップ/編集/新規
+    ※ ロゴ画像（{{ theme_url }}/logo.png）は、wikidata/<farm名>/theme/ に
+      置いたものが優先され、無ければ共通の theme/ の wikiSystem のロゴが出る
+      （本家ロゴは商標・著作権の都合で同梱しない。theme/README.txt
+      「pkwk / pukiwiki_default のヘッダロゴについて」参照）。
+
+  ● 参考: PukiWiki 1.5系 の既定スキン
+    - h1/h2: 薄青(#DDEEFF)の背景、枠なし
+    - h3: 白背景 + 細い青の4辺ボーダー（左10px/下3px/上1px/右5px）
+    - h4: 白背景 + 太い左ボーダー（18px の #DDEEFF）
+    - h5/h6: 薄青の背景
+    - pre: 薄い青白(#F0F8FF)、左上は淡く右下は濃いめの1pxボーダー
+    - 本文フォントは monospace 優先
+
+  config/default.yaml で theme.name: pkwk_wide とすると有効になります。
+
+  JavaScript は共通の common.js だけで足りるため pkwk_wide.js はありません
+  （menu1 の階層開閉を持つ base.js は継承しても .mainbar .menu1 が
+  無ければ何もしないので、そのまま連れてきています）。
+#}
+{% extends "common/base.html" %}
+
+{#
+  ログイン〜新規のリンク列。本体が渡す {{ common_menu }}（wikilib.themes.
+  common_menu_html）を、ヘッダ（.commands-row-secondary）と、メニューを畳んだ
+  状態（html.bp-narrow）で同じものを埋めるメニュー側の2か所に置く。
+  メニュー側は menu2 があれば右メニュー（.subbar-commands）、menu2 が無く
+  menu1 があれば左メニュー（.mainbar-commands）、どちらも無ければ右メニュー
+  （下の toc / menu1_sidebar ブロック参照）。どちらが見えるかはCSS（bp-narrow）
+  で切り替える。
+  common_menu は DOM 上のどの位置にあっても同じ HTML なので、2か所に置くと
+  編集ホットキーの data-hotkey="edit" と「新規」の <dialog> も2組できる。
+  common.js は data-hotkey も dialog も querySelector で**最初の1個（ヘッダ側）**
+  を使い、「新規」ボタンは全部を同じ dialog に配線する。display:none でも
+  .click() は効くため、畳んだ幅でも壊れない（2つ目の dialog は使われず眠るだけ）。
+  Wiki設計者の指示、2026-09-21。共通メニュー化は 2026-09-24。
+#}
+{% macro command_links() %}
+<span class="command-links">{{ common_menu }}</span>
+{% endmacro %}
+
+{% block header %}
+<header class="site-header">
+  {# 参照サイト（_1ev-py）の img#logo と同じ、PukiWiki本家ロゴ。
+     ロゴだけでサイト名の役割を兼ねる（site_titleの文字は出さない）。
+     aria-labelにsite_titleを入れ、視覚的に文字が無い分をスクリーン
+     リーダー向けに補っている。 #}
+  <a class="pukiwiki-logo-link" href="{{ base_url }}/" aria-label="{{ site_title }}">
+    <img class="pukiwiki-logo" src="{{ theme_url }}/logo.png" alt="">
+  </a>
+  <div class="header-body">
+    {# ページタイトルと TopicPath を header の中へ（Wiki設計者の指示）。
+       base 標準の位置（header の外の page_header ブロック）は下で空にして
+       いる。中身は base の page_heading / breadcrumb の定義を super() で
+       引き継ぐ。 #}
+    <div class="header-titles">
+      {# ルート（/）で題名が farm 名（Wiki の内部名）に落ちているときだけ、
+         site_title を出す。PukiWiki記法（.txt）のルートは先頭のh1を題名に
+         抜き出さないため、page_title が farm 名になってしまう（本体の
+         page_title_of の既定値）。内部名を見せるより、設定画面で変えられる
+         サイト名のほうが読み手に伝わる（Wiki設計者の指示、2026-09-19）。
+         本体の既定値を直すより影響が小さいテーマ側の対応として妥当と判断した。
+         .md のルートで h1 があれば page_title はそれなので、そのまま出す。
+         「権限なし」など別の題名を出す画面も page_title != farm なので触らない。 #}
+      {% block page_heading %}{% if not page and page_title == farm %}<h1 class="page-title">{{ site_title }}{{ title_note }}</h1>{% else %}{{ super() }}{% endif %}{% endblock %}
+      {% block breadcrumb %}{{ super() }}{% endblock %}
+    </div>
+
+    {% block commands %}
+    <nav class="commands" aria-label="コマンド">
+      {# 上の段: マーカー操作 ＋ 検索フォーム（Wiki設計者の指示） #}
+      <div class="commands-row commands-row-primary">
+        {% block marker_controls %}{{ super() }}{% endblock %}
+        {% block search_form %}{{ super() }}{% endblock %}
+      </div>
+      {# 下の段: 表示倍率 ＋ ログイン/トップ/編集/新規 #}
+      <div class="commands-row commands-row-secondary">
+        <span class="zoom-controls">
+          <button type="button" class="zoom-in" aria-label="表示を拡大"></button>
+          <input type="number" class="zoom-value" aria-label="表示倍率(%)" inputmode="decimal">
+          <button type="button" class="zoom-out" aria-label="表示を縮小"></button>
+        </span>
+        {{ command_links() }}
+      </div>
+      {# サイト全体検索の詳細条件パネル。position:fixed でフロート表示される
+         ため段には属さない。base の定義をそのまま使う。 #}
+      {% block search_options %}{{ super() }}{% endblock %}
+    </nav>
+    {% endblock %}
+  </div>
+</header>
+{% endblock %}
+
+{# タイトルと TopicPath は header の中へ移したので、base 標準の位置では出さない #}
+{% block page_header %}{% endblock %}
+
+{# メニューの先頭に、ログイン〜新規を埋める。
+   メニュー1（左）が帯へ畳まれる幅（html.bp-narrow）になったときだけ CSS で
+   表示し、そのぶんヘッダ側のリンク列は隠す（Wiki設計者の指示、2026-09-21）。
+   広い幅では display:none。
+
+   埋める先は menu2（menu2_page のページ）があるかで決める（Wiki設計者の指示、
+   2026-09-29「menu2_page がない場合は menu1_page 側に組み込む。どちらも
+   ない場合は menu2_page 側」）:
+     menu2 あり          … 右メニュー（.subbar）の先頭（.subbar-commands）
+     menu2 なし・menu1 あり … 左メニュー（.mainbar）の先頭（.mainbar-commands）
+     どちらもなし         … 右メニュー
+   目次の有無は見ない（目次だけあって menu2 が無いページも左へ入れる）。
+   以前は常に右へ入れていたため、menu2 も目次も無いページでは、狭い幅で
+   コマンドのためだけに右カラムが残っていた。
+
+   .subbar-commands は目次・menu2 と同じ .subbar の子だが、「.subbar が空か」の
+   判定（pkwk_wide.css）からは除いてある。 #}
+{% block toc %}
+{% if menu2 or not menu1 %}
+<nav class="panel subbar-commands" aria-label="コマンド（メニュー）">
+  {{ command_links() }}
+</nav>
+{% endif %}
+{{ super() }}
+{% endblock %}
+
+{# menu2 が無く menu1 があるときは、左メニューの先頭に埋める（上の説明参照）。
+   base.html の menu1_sidebar と同じマークアップに .mainbar-commands を足したもの。 #}
+{% block menu1_sidebar %}
+{% if menu1 %}
+<aside class="mainbar">
+  {% if not menu2 %}
+  <nav class="panel mainbar-commands" aria-label="コマンド（メニュー）">
+    {{ command_links() }}
+  </nav>
+  {% endif %}
+  <section class="panel menu1">{{ menu1 }}</section>
+</aside>
+{% endif %}
+{% endblock %}

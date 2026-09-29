@@ -1,0 +1,423 @@
+/* Wikiの設定画面（/.admin/configwiki）。テーマ（theme/）は別プロジェクトの
+   持ち物なので、この画面ぶんの見た目はここで持つ（/.admin/accounts.css と
+   同じ考えかた）。 */
+
+.wcfg {
+  max-width: 60rem;
+}
+
+.wcfg-lead,
+.wcfg-hint {
+  margin: 0 0 0.8rem;
+  color: var(--muted, #57606a);
+}
+
+.wcfg-hand {
+  color: var(--fg, #1f2328);
+}
+
+.wcfg-notice {
+  margin: 0 0 1rem;
+  padding: 0.6em 0.9em;
+  border: 1px solid var(--border, #d0d7de);
+  border-left: 3px solid #2da44e;
+  border-radius: var(--radius, 6px);
+}
+
+.wcfg-notice-error {
+  border-left-color: #cf222e;
+}
+
+/* ---- タブ（/.groups と同じ作り。_sys/groups/groups.css に揃えてある） ---- */
+
+.wcfg-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  margin: 0 0 1rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+
+.wcfg-tab-btn {
+  padding: 0.5em 1.1em;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted, #57606a);
+  font: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+}
+
+.wcfg-tab-btn:hover {
+  color: var(--fg, #1f2328);
+}
+
+.wcfg-tab-active {
+  color: var(--fg, #1f2328);
+  border-bottom-color: var(--accent, #0969da);
+  font-weight: 600;
+}
+
+.wcfg-panel {
+  margin: 0 0 1.4rem;
+}
+
+.wcfg-field {
+  margin: 0 0 0.9rem;
+  padding: 0.6em 0.8em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+}
+
+/* このWikiで指定している項目は、ひと目で分かるようにしておく */
+.wcfg-field.is-own {
+  border-left: 3px solid var(--accent, #0969da);
+}
+
+.wcfg-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6em;
+}
+
+.wcfg-label {
+  font-weight: 600;
+}
+
+.wcfg-use {
+  font-size: 0.85rem;
+  color: var(--muted, #57606a);
+  white-space: nowrap;
+}
+
+.wcfg-key {
+  font-size: 0.8rem;
+  color: var(--muted, #57606a);
+}
+
+.wcfg-value {
+  margin: 0.4em 0;
+}
+
+.wcfg-value input[type="text"],
+.wcfg-value input[type="number"],
+.wcfg-value select,
+.wcfg-value textarea {
+  width: 100%;
+  max-width: 28rem;
+  padding: 0.35em 0.5em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.wcfg-value textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+/* 印の付いていない項目は触れない。値は共通の設定を写して出している */
+.wcfg-value :disabled {
+  opacity: 0.55;
+}
+
+.wcfg-help,
+.wcfg-common {
+  margin: 0.3em 0 0;
+  font-size: 0.85rem;
+  color: var(--muted, #57606a);
+}
+
+.wcfg-go {
+  padding: 0.45em 1.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--accent, #0969da);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.wcfg-go:hover {
+  filter: brightness(1.08);
+}
+
+.wcfg-backups {
+  margin: 1.5rem 0;
+  color: var(--muted, #57606a);
+  font-size: 0.9rem;
+}
+
+.wcfg-backups ul {
+  margin: 0.4em 0;
+}
+
+/* ---- 直したその場の知らせ ---- */
+
+/* 項目ごとに、保存できたか・断られたかをその場に出す（画面上部へは出さない）*/
+.wcfg-said {
+  font-size: 0.85rem;
+  color: #1a7f37;
+}
+
+.wcfg-said-error {
+  color: #cf222e;
+  font-weight: 600;
+}
+
+/* ---- Wiki名 ---- */
+
+.wcfg-rename {
+  margin: 1rem 0;
+  padding: 0.8em 1em;
+  border: 1px solid var(--border, #d0d7de);
+  border-left: 3px solid #bf8700;   /* 他の項目と違い、その場では保存しない */
+  border-radius: var(--radius, 6px);
+}
+
+.wcfg-rename-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0 0 0.6em;
+}
+
+.wcfg-rename-row label {
+  min-width: 7em;
+  font-weight: 600;
+}
+
+.wcfg-rename-row input {
+  flex: 1 1 18rem;
+  max-width: 28rem;
+  padding: 0.35em 0.5em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.wcfg-rename .wcfg-said {
+  display: block;
+  margin: 0.6em 0 0;
+}
+
+.wcfg-backups-box:empty {
+  display: none;
+}
+
+/* ---- 定義ルールのタブ（wikilib.extrarulesui） ---------------------------- */
+
+.wcfg-rx section {
+  margin: 0 0 1.6em;
+}
+
+.wcfg-rx h3 {
+  margin: 0 0 0.4em;
+  font-size: 1.05rem;
+}
+
+.wcfg-rx h4 {
+  margin: 1em 0 0.3em;
+  font-size: 0.95rem;
+}
+
+.wcfg-rx-count {
+  margin-left: 0.5em;
+  font-size: 0.85rem;
+  font-weight: normal;
+  color: var(--muted, #57606a);
+}
+
+.wcfg-rx-own {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8em;
+  margin: 0.4em 0;
+}
+
+.wcfg-rx-cols,
+.wcfg-rx-row,
+.wcfg-rx-add {
+  display: grid;
+  grid-template-columns: 2.2em minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+  gap: 0.4em;
+  align-items: center;
+}
+
+.wcfg-rx-cols {
+  font-size: 0.85rem;
+  color: var(--muted, #57606a);
+}
+
+.wcfg-rx-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wcfg-rx-row,
+.wcfg-rx-add {
+  padding: 0.25em 0;
+  border-bottom: 1px solid var(--border, #d8dee4);
+}
+
+.wcfg-rx-row .wcfg-said,
+.wcfg-rx-add .wcfg-said {
+  grid-column: 2 / -1;
+  min-height: 0;
+  margin: 0;
+}
+
+.wcfg-rx-row .wcfg-said:empty,
+.wcfg-rx-add .wcfg-said:empty {
+  display: none;
+}
+
+.wcfg-rx-row.is-bad input {
+  border-color: var(--danger, #cf222e);
+}
+
+.wcfg-rx-no {
+  text-align: right;
+  color: var(--muted, #57606a);
+  font-size: 0.85rem;
+}
+
+.wcfg-rx input[type="text"],
+.wcfg-rx-text {
+  min-width: 0;
+  padding: 0.3em 0.45em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: inherit;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.wcfg-rx input[type="text"]:disabled {
+  opacity: 0.7;
+}
+
+.wcfg-rx-text {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.wcfg-rx-tools {
+  display: inline-flex;
+  gap: 0.25em;
+}
+
+.wcfg-rx button {
+  padding: 0.2em 0.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.wcfg-rx button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wcfg-rx-testbar {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  margin: 0.4em 0;
+}
+
+.wcfg-rx-frame {
+  width: 100%;
+  height: 6rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: #fff;
+}
+
+.wcfg-rx-html {
+  margin: 0;
+  padding: 0.5em 0.7em;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  font-size: 0.85rem;
+}
+
+.wcfg-rx-hits ul {
+  margin: 0.2em 0 0.6em;
+}
+
+.wcfg-rx-pos,
+.wcfg-rx-group {
+  margin-left: 0.5em;
+  font-size: 0.8rem;
+  color: var(--muted, #57606a);
+}
+
+.wcfg-rx-bad {
+  color: var(--danger, #cf222e);
+}
+
+@media (max-width: 640px) {
+  .wcfg-rx-cols {
+    display: none;
+  }
+
+  .wcfg-rx-row,
+  .wcfg-rx-add {
+    grid-template-columns: 1.8em 1fr;
+  }
+
+  .wcfg-rx-row .wcfg-rx-replace,
+  .wcfg-rx-add .wcfg-rx-replace,
+  .wcfg-rx-row .wcfg-rx-tools,
+  .wcfg-rx-add .wcfg-rx-tools {
+    grid-column: 2;
+  }
+}
+
+/* 警告つきの項目（パスワードの塩）。取り返しが付かないので、警告を赤で目立たせ、
+   「理解して編集」のチェックを入れるまで印も入力欄も触れない（configui.js） */
+.wcfg-guard {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid #c0392b;
+  border-radius: 4px;
+  background: rgba(192, 57, 43, 0.08);
+}
+.wcfg-guard-warn {
+  margin: 0 0 6px;
+  color: #c0392b;
+}
+.wcfg-guard-ack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: bold;
+}
+.wcfg-guarded input:disabled,
+.wcfg-guarded label:has(input:disabled) {
+  opacity: 0.55;
+}
+@media (prefers-color-scheme: dark) {
+  .wcfg-guard-warn { color: #ff8a7a; }
+  .wcfg-guard { border-color: #ff8a7a; background: rgba(255, 138, 122, 0.1); }
+}

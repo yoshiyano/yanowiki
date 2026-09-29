@@ -1,0 +1,132 @@
+/*
+ * ac — 折りたたみ（plugin/ac.py）。ブロックは <details>、インラインはチェックボックス。
+ * 色はテーマの変数（--border・--muted・--accent・--panel-bg・--radius）に合わせ、
+ * 無ければ代わりの値にする。
+ */
+
+/* ---- 開閉の印（▸ が開くと ▾ へ回る） ---- */
+.plugin-ac-icon {
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  margin-right: 0.5em;
+  border-right: 0.14em solid currentColor;
+  border-bottom: 0.14em solid currentColor;
+  transform: translateY(-0.12em) rotate(-45deg);
+  transition: transform 0.2s ease;
+  opacity: 0.7;
+  flex: none;
+}
+.plugin-ac[open] > .plugin-ac-summary .plugin-ac-icon,
+.plugin-ac-header.is-open > .plugin-ac-icon,
+.plugin-ac-check:checked + .plugin-ac-label .plugin-ac-icon {
+  transform: translateY(-0.2em) rotate(45deg);
+}
+
+/* ---- ブロック ---- */
+.plugin-ac {
+  margin: 0.6em 0;
+  border: 1px solid var(--border, #d6dde5);
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg, #f7f9fb);
+  interpolate-size: allow-keywords;   /* auto へ滑らかに開く（対応ブラウザ） */
+}
+.plugin-ac > .plugin-ac-summary {
+  display: flex;
+  align-items: baseline;
+  padding: 0.5em 0.9em;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  border-radius: var(--radius, 6px);
+}
+.plugin-ac > .plugin-ac-summary::-webkit-details-marker { display: none; }
+.plugin-ac > .plugin-ac-summary:hover { color: var(--accent, #1a5fb4); }
+.plugin-ac > .plugin-ac-summary:focus-visible {
+  outline: 2px solid var(--accent, #1a5fb4);
+  outline-offset: 2px;
+}
+.plugin-ac[open] > .plugin-ac-summary {
+  border-bottom: 1px solid var(--border, #d6dde5);
+  border-radius: var(--radius, 6px) var(--radius, 6px) 0 0;
+}
+.plugin-ac > .plugin-ac-body { padding: 0.2em 1em 0.6em; }
+.plugin-ac > .plugin-ac-body > :first-child { margin-top: 0.6em; }
+.plugin-ac > .plugin-ac-body > :last-child { margin-bottom: 0.2em; }
+
+.plugin-ac::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition: block-size 0.28s ease, content-visibility 0.28s allow-discrete;
+}
+.plugin-ac[open]::details-content { block-size: auto; }
+
+/* #ac(h): 押すところはすぐ上の見出し。<details> の枠と summary は目立たせない */
+.plugin-ac.plugin-ac-headed {
+  margin-top: 0;
+  border: 0;
+  background: none;
+}
+.plugin-ac.plugin-ac-headed > .plugin-ac-summary { display: none; }
+.plugin-ac.plugin-ac-headed > .plugin-ac-body { padding: 0 0 0.2em; }
+.plugin-ac-header { cursor: pointer; }
+.plugin-ac-header:hover { color: var(--accent, #1a5fb4); }
+.plugin-ac-header:focus-visible {
+  outline: 2px solid var(--accent, #1a5fb4);
+  outline-offset: 2px;
+}
+
+/* alt: 閉じているあいだだけの案内 */
+.plugin-ac-alt {
+  margin: -0.3em 0 0.6em;
+  font-size: 0.8em;
+  color: var(--muted, #6b7580);
+}
+.plugin-ac[open] + .plugin-ac-alt { display: none; }
+
+/* 全て開く／全て閉じる */
+.plugin-ac-ctrl { margin: 0.4em 0; text-align: right; }
+.plugin-ac-all {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.2em 0.9em;
+  color: var(--accent, #1a5fb4);
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.plugin-ac-all:hover { background: var(--panel-bg, #eef3f8); }
+
+/* ---- インライン（チェックボックスとラベル。JavaScript不要） ---- */
+.plugin-ac-inline .plugin-ac-check {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.plugin-ac-inline .plugin-ac-label {
+  cursor: pointer;
+  color: var(--accent, #1a5fb4);
+  border-bottom: 1px dotted currentColor;
+}
+.plugin-ac-inline .plugin-ac-check:focus-visible + .plugin-ac-label {
+  outline: 2px solid var(--accent, #1a5fb4);
+  outline-offset: 2px;
+}
+.plugin-ac-inline .plugin-ac-inline-body { display: none; }
+.plugin-ac-inline .plugin-ac-check:checked ~ .plugin-ac-inline-body {
+  display: inline;
+  margin-left: 0.4em;
+  padding: 0.05em 0.4em;
+  background: var(--panel-bg, #f1f4f8);
+  border-radius: var(--radius, 4px);
+}
+.plugin-ac-inline .plugin-ac-alt { margin: 0 0 0 0.4em; }
+.plugin-ac-inline .plugin-ac-check:checked ~ .plugin-ac-alt { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .plugin-ac::details-content { transition: none; }
+  .plugin-ac-icon { transition: none; }
+}

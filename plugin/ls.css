@@ -1,0 +1,83 @@
+/* ls プラグイン（ページの一覧）の見た目。
+
+   note.css・contents.css と同じ考えかたで、テーマのカスタムプロパティに乗り、
+   テーマ固有の変数はフォールバック付きで使う。
+   階層の開閉は <details> なのでJavaScriptは要らない。 */
+
+/* 上下の余白は Wiki設計者の指示（2026-09-27）で 1.2rem の1/3 にした */
+.ls { margin: 0.4rem 0; font-size: 0.94rem; }
+/* Wiki設計者の指示（2026-09-18）でドット（マーカー）を表示するようにした。
+   list-style を外すだけだとマーカーがぶら下がって字が詰まるので、
+   マーカーぶんの余白を padding-left に足す。 */
+.ls-list { list-style: disc; margin: 0; padding-left: 1.2em; }
+/* 入れ子の段はマーカーの余白ぶんを引いた分だけ、いちばん外側より深く字下げする */
+.ls-list .ls-list { padding-left: 2.3rem; }
+
+.ls-page,
+.ls-folder { padding: 0.12rem 0; }
+
+/* ファイル名とタイトルを並べるとき（format=BOTH）の間隔 */
+.ls-title {
+  margin-left: 0.6rem;
+  font-size: 0.85em;
+  color: var(--muted, #656d76);
+}
+
+/* フォルダの入口ページが無いときの見出し */
+.ls-dirname { font-weight: 600; }
+
+.ls-folder > details > summary {
+  cursor: pointer;
+  padding: 0.1rem 0;
+  /* 標準の三角マーカーはブラウザ差が大きいので、自前のものに置き換える */
+  list-style: none;
+}
+.ls-folder > details > summary::-webkit-details-marker { display: none; }
+.ls-folder > details > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1.1em;
+  font-size: 0.8em;
+  color: var(--muted, #656d76);
+  transition: transform 0.12s;
+}
+.ls-folder > details[open] > summary::before { transform: rotate(90deg); }
+.ls-folder > details > summary:hover { color: var(--accent, #0969da); }
+
+.ls-empty { color: var(--muted, #656d76); }
+
+/* ---- その場で開く（ajaxview=true） ---- */
+.ls-openable { position: relative; }
+.ls-open {
+  font: inherit;
+  font-size: 0.8em;
+  width: 1.4em;
+  padding: 0;
+  margin-right: 0.1rem;
+  cursor: pointer;
+  color: var(--muted, #656d76);
+  background: transparent;
+  border: none;
+}
+.ls-open:hover { color: var(--accent, #0969da); }
+
+.ls-view[hidden] { display: none; }
+.ls-view {
+  margin: 0.4rem 0 0.8rem 1.4em;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.95em;
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+}
+/* 読み込んだ本文は、まわりの一覧の字下げを引き継がないようにする */
+.ls-view .ls-list { padding-left: 0; }
+.ls-view > .ls-view-body > :first-child { margin-top: 0; }
+.ls-view > .ls-view-body > :last-child { margin-bottom: 0; }
+.ls-view-loading,
+.ls-view-error { margin: 0; color: var(--muted, #656d76); }
+.ls-view-plain {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

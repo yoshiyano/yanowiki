@@ -1,0 +1,9 @@
+/* hr プラグイン（class="short_line"）の見た目。本家PukiWiki既定スキンの
+   pukiwiki.css にある short_line のCSSをそのまま移植した（Wiki設計者の提供）。 */
+hr.short_line {
+  text-align: center;
+  width: 80%;
+  border-style: solid;
+  border-color: #333333;
+  border-width: 1px 0;
+}

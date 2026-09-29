@@ -1,0 +1,244 @@
+{#
+  bloom — 薄オレンジ系の、ゆったりしたテーマ（サンプル）
+
+  ● 個別Wiki（wikidata/<farm名>/theme/）へコピーするときのファイル
+    コピーするもの（このテーマ固有）:
+      bloom.html
+      bloom.css
+      bloom.js
+      headicon.svg … タイトル右のロゴ（bloom 専用）
+    コピー不要（そのWikiの theme/ に無ければ、共通の theme/ から読まれる）:
+      common.css・common.js … 全テーマ共通
+    ※ 依存ファイルもコピーすると、そのWikiではコピーしたほうが優先され、
+      同じファイルを使うほかのテーマにも効く（共通のものを直したいときだけ）。
+
+  ● このテーマの書き方の特徴: 「継承せず、一からHTMLを組み立てる」
+    fresh.html が common/base.html を継承して差分だけ書いているのに対し、
+    こちらは全体を自分で書いています。要素の順番や入れ子を自由に決められる代わりに、
+    共通テーマの改良は自動では反映されません。
+
+  ● 見た目の方針: 余白を大きくとり、角を丸め、やわらかい影で要素を浮かせる。
+    タイトルは中央寄せで大きく見せ、サイドバーはカードとして分離しています。
+
+  ● ヘッダー（サイト名＋コマンド群）は持たない。コマンド・検索は
+    subbar内、目次の直後（menu2・menu1より前）に.subbar-commandsとして
+    置いている。subbar内の並びは 目次 → コマンド → menu2 → menu1。
+    site_titleはテキストとしては表示せず、代わりにpage-titleの右へ
+    headicon.svg（同梱、160x64のロゴ的なSVG）を添えている。
+
+  ● 変数は common/base.html と同じものが使えます（site_title, page_title,
+    topic_path, content, toc, menu1, menu2, base_url, theme_url ほか）。
+    site_titleは現在このテーマでは使っていない（上記の理由）。
+
+  ● common.js が動くために必要な目印（クラス名・属性）は残してあります:
+      .content[data-editable] … セクション編集
+      .search / .search-word / .search-scope / .page-search-nav … 検索
+      .search-options … 検索条件パネル
+      .page-search-panel … ページ内検索の結果一覧
+      .toc a[href^='#'] … 目次の現在位置ハイライト
+    これらのクラス名を変える場合は common.js も一緒に差し替えてください。
+
+  config/default.yaml で theme.default: bloom とすると有効になります。
+#}
+<!doctype html>
+{# menu1_mode/menu2_mode: theme.menu1_mode/theme.menu2_mode
+   （config/default.yaml、"ページ名,モード"のリスト）でページごとに指定する
+   "auto"（既定・狭い画面で帯として折りたたむ）/ "fix"（常時表示、従来どおり）。
+   base.htmlと同じ扱い。bloomはmenu1・menu2とも同じ.subbar1本に入るため、
+   どちらかがfixならその.subbar全体の折りたたみを解除する（common.css側）。 #}
+<html lang="ja"{% if menu1_mode == "fix" %} data-menu1-mode="fix"{% endif %}{% if menu2_mode == "fix" %} data-menu2-mode="fix"{% endif %}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ page_title }} - {{ site_title }}{% endblock %}</title>
+{# プラグインが使うCSSは基本的にプラグイン自身が持つ（plugin/note.css等）。
+   テーマ自身のCSSより先に読み込み、衝突時はテーマ側が優先されるようにする。 #}
+{% for url in plugin_styles %}<link rel="stylesheet" href="{{ url }}">
+{% endfor -%}
+{# 動きを持つプラグインは、そのJavaScriptも自分で連れてくる（plugin/ls.js等） #}
+{% for url in plugin_scripts %}<script src="{{ url }}" defer></script>
+{% endfor -%}
+{# common.css はどのテーマでも読み込む（common.js が作る部品の見た目）。
+   テーマ自身のCSSより先に読み込み、衝突時はテーマ側が優先されるようにする #}
+<link rel="stylesheet" href="{{ theme_url }}/common.css">
+{# コードブロックのシンタックスハイライト（Prism.js）は plugin/code.css・
+   plugin/code.js（このすぐ上のplugin_styles/plugin_scriptsのループ）。
+   理由はbase.html側の同じ箇所を参照 #}
+<link rel="stylesheet" href="{{ theme_url }}/bloom.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+
+{#
+  ヘッダ: サイト名を左、操作を右。標準テーマと違い、位置を固定していない
+  （ゆったり読ませたいので、スクロールで隠れてよいという判断）。
+  ただしページ内検索の前へ/次へはヘッダにあるため、
+  代わりに bloom.js が「上に戻る」ボタンを出す。
+#}
+{#
+  ページの顔。左端にheadicon.svg（.page-header-iconが高さ80pxの領域を
+  確保し、画像自体が小さくてもその中で縦中央に置く）、その右にタイトル+
+  TopicPathの縦積み（h1が上、TopicPathがその下）。この縦積みの高さも
+  アイコン領域と同じ80pxに揃えてある（.page-header-text、bloom.css参照）。
+#}
+<div class="page-header">
+  <span class="page-header-icon">
+    <img src="{{ theme_url }}/headicon.svg" alt="" width="160" height="64">
+  </span>
+  <div class="page-header-text">
+    <h1 class="page-title">{{ page_title }}{{ title_note }}</h1>
+    {% block breadcrumb %}
+    <nav class="page-path" aria-label="TopicPath">
+      <a href="{{ base_url }}/">ホーム</a>{% for item in topic_path %}<span class="sep">›</span>{% if item.url %}<a href="{{ item.url }}">{{ item.label }}</a>{% else %}<span class="current">{{ item.label }}</span>{% endif %}{% endfor %}
+    </nav>
+    {% endblock %}
+  </div>
+</div>
+
+<div class="layout">
+  <main class="content"{% if editable %} data-editable data-base-url="{{ base_url }}" data-page="{{ page }}"{% endif %}{% if editing %} data-draft="1"{% endif %}>
+    {% block content %}{{ content }}{% endblock %}
+  </main>
+
+  {#
+    サイドバー: それぞれを独立したカードにして浮かせる。
+    目次は本文を読みながら使うので、画面に貼り付く（sticky）のは目次カードだけ。
+
+    ヘッダー（サイト名＋コマンド群）を廃止し、コマンド・検索はこのsubbar内、
+    目次の直後（menu2・menu1より前）に移した。Wiki設計者からの要望
+    （2026-08-22、wikiSystem本体側セッション経由）による変更。
+  #}
+  <aside class="subbar">
+    {% if toc|length > 1 %}
+    <nav class="card toc" aria-label="目次">
+      <h2 class="card-title">目次</h2>
+      <ul>
+        {% for item in toc %}
+        <li class="toc-l{{ item.level }}"><a href="#{{ item.id }}">{{ item.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+
+    <div class="card subbar-commands">
+      <nav class="commands" aria-label="コマンド">
+        <span class="zoom-controls">
+          <button type="button" class="zoom-in" aria-label="表示を拡大"></button>
+          <input type="number" class="zoom-value" aria-label="表示倍率(%)" inputmode="decimal">
+          <button type="button" class="zoom-out" aria-label="表示を縮小"></button>
+        </span>
+        {#
+          マーカー（用語をページをまたいで色分け追跡する機能。Tech/MarkerSystem.md参照）の
+          操作。base.htmlと同じマークアップ（common.jsが.marker-controlsを目印に配線する）。
+          window.WikisysMarkers準備完了までhiddenで隠しておく。
+        #}
+        <span class="marker-controls" hidden>
+          <button type="button" class="command marker-panel-toggle">マーカー</button>
+          <label class="marker-toggle" title="表示切り替え">
+            <input type="checkbox" class="marker-toggle-input" aria-label="マーカー表示の切り替え">
+            <span class="marker-toggle-track"><span class="marker-toggle-thumb"></span></span>
+          </label>
+          <select class="marker-set-select" aria-label="マーカーセットの切り替え"></select>
+        </span>
+        <div class="command-links">
+          {# ログイン・トップ・編集・新規。本体が組み立てて渡す（common_menu。
+             wikilib.themes.common_menu_html）。出し分け・ホットキー属性・
+             「新規」ダイアログもここに含まれる。並びは bloom.css の
+             .common-menu で従来の見た目に合わせている（2026-09-24）。 #}
+          {{ common_menu }}
+          <button type="button" class="command search-modal-open">検索</button>
+        </div>
+      </nav>
+    </div>
+
+    {% if menu2 %}<section class="card menu2">{{ menu2 }}</section>{% endif %}
+    {% if menu1 %}<section class="card menu1">{{ menu1 }}</section>{% endif %}
+  </aside>
+</div>
+
+{#
+  検索モーダル: subbar内の「検索」コマンドで開閉する（bloom.js）。
+  common.jsが参照するクラス名（.search/.search-word/.search-scope/
+  .page-search-nav/.search-options）は変更していない。
+#}
+<div class="search-modal" hidden>
+  <div class="search-modal-backdrop"></div>
+  <div class="search-modal-panel" role="dialog" aria-modal="true" aria-label="検索">
+    <div class="search-modal-head">
+      <span class="search-modal-title">検索</span>
+      <button type="button" class="search-modal-close" aria-label="検索を閉じる">×</button>
+    </div>
+
+    <form class="search" id="site-search-form" action="{{ search_url }}" method="get" role="search">
+      <input class="search-word" type="search" name="q" value="{{ query }}"
+             placeholder="検索" aria-label="検索語">
+      <button class="search-scope" type="button" data-scope="site"
+              aria-pressed="false" aria-label="検索範囲を切り替え（現在: サイト全体）">サイト全体</button>
+      <button class="search-submit" type="submit">検索</button>
+      <span class="page-search-nav" hidden>
+        <button class="page-search-prev" type="button" aria-label="前の一致へ">‹</button>
+        <button class="page-search-next" type="button" aria-label="次の一致へ">›</button>
+        <span class="page-search-count" role="status" aria-live="polite"></span>
+      </span>
+    </form>
+    <p class="search-hotkey-hint">↑↓←→キーで検索ワードの候補を移動できます</p>
+
+    <div class="search-options" hidden>
+      <div class="search-options-row">
+        <label class="search-options-label" for="so-mode">条件</label>
+        <select id="so-mode" name="mode" form="site-search-form">
+          <option value="and"{% if mode == 'and' %} selected{% endif %}>すべての語を含む（AND）</option>
+          <option value="or"{% if mode == 'or' %} selected{% endif %}>いずれかの語を含む（OR）</option>
+        </select>
+      </div>
+      <div class="search-options-row">
+        <label class="search-options-label" for="so-target">対象</label>
+        <select id="so-target" name="target" form="site-search-form">
+          <option value="all"{% if target == 'all' %} selected{% endif %}>ページ名と本文</option>
+          <option value="name"{% if target == 'name' %} selected{% endif %}>ページ名だけ</option>
+          <option value="body"{% if target == 'body' %} selected{% endif %}>本文だけ</option>
+        </select>
+      </div>
+      <div class="search-options-row">
+        <label class="search-options-label" for="so-path">絞り込み</label>
+        <input id="so-path" type="search" name="path" value="{{ path_filter }}" form="site-search-form"
+               placeholder="例: Tech/* （* と ? が使えます）">
+      </div>
+      <div class="search-options-row search-options-actions">
+        <button type="submit" form="site-search-form">この条件で検索</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<aside class="page-search-panel" hidden aria-label="ページ内検索の結果">
+  <div class="page-search-panel-head">
+    <div class="page-search-panel-head-row">
+      <span class="page-search-panel-title">ページ内検索</span>
+      <button class="page-search-close" type="button" aria-label="検索を閉じる">×</button>
+    </div>
+    <p class="search-hotkey-hint">↑↓←→キーで検索ワードの候補を移動できます</p>
+  </div>
+  <ol class="page-search-list"></ol>
+  <p class="page-search-more" hidden></p>
+</aside>
+
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <span class="site-footer-name">{{ site_title }}</span>
+    {% if render_ms is defined %}<span class="render-time">Convert-time: {{ render_ms }}ms</span>{% endif %}
+    {% if source_mtime is defined %}<span class="source-mtime">Last-modified: {{ source_mtime }}</span>{% endif %}
+    {# disk_usage: ページ＋添付の合計サイズ。base.html 側のコメント参照。 #}
+    {% if disk_usage is defined %}<span class="disk-usage">{{ disk_usage.text }}</span>{% endif %}
+  {% if login_as is defined and login_as %}<span class="login-as">{{ login_as }}</span>{% endif %}
+    <span class="site-footer-note">Powered by wikiSystem</span>
+    <span class="site-version">{{ version }}</span>
+    <span class="site-copyright">&copy; {% if copyright_year is defined %}{{ copyright_year }} {% endif %}Yano Labo / AIT</span>
+  </div>
+</footer>
+
+{# common.js（検索・セクション編集・目次）に、このテーマ独自の bloom.js を足す #}
+<script src="{{ theme_url }}/common.js"></script>
+<script src="{{ theme_url }}/bloom.js"></script>
+</body>
+</html>

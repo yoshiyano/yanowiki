@@ -1,0 +1,850 @@
+/*! diffmerge v1.1.1 — build.py が生成。直接編集しないこと。
+ *  公開 API: version / compare / build / render / toHunks / toSingleLineHunks / applyMerge / compare3 / build3 / render3 / buildMerge3 / applyMerge3 / lowlevel
+ *  ソース: https://github.com/yoshiyano/diff-merge_3way (src/)  ライセンス: MIT
+ */
+
+/* diffmerge - 差分ビュー本体のスタイル（配布対象）。
+ *
+ * 組み込み先ページにこのファイルだけを読み込めば差分ビューが成立する。
+ * デモページ用の装飾は css/demo.css に分離してある。
+ *
+ * - クラス名はすべて `dm-` 接頭辞。既存スタイルとの衝突を避けている。
+ * - 配色は CSS 変数（--dm-*）。利用側で :root を上書きすればテーマ変更可能。
+ * - ダークモードは prefers-color-scheme に追従。:root[data-theme="light"|"dark"]
+ *   を明示すれば強制できる。
+ */
+
+:root {
+  --dm-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --dm-font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+    "Noto Sans JP", Meiryo, sans-serif;
+
+  --dm-border: #d0d7de;
+  --dm-bg: #ffffff;
+  --dm-bg-header: #f6f8fa;
+  --dm-fg: #1f2328;
+  --dm-lineno-fg: #6e7781;
+
+  --dm-ins-bg: #e6ffec;
+  --dm-ins-lineno-bg: #ccffd8;
+  --dm-del-bg: #ffebe9;
+  --dm-del-lineno-bg: #ffd7d5;
+  --dm-inline-ins-bg: #abf2bc;
+  --dm-inline-del-bg: #ff9ea8;
+  --dm-empty-bg: #f6f8fa;
+
+  --dm-stat-added: #1a7f37;
+  --dm-stat-removed: #cf222e;
+
+  /* 表示が長くなったときに tbody だけをスクロールさせる高さの上限。
+     thead はスクロール内で先頭に固定表示する（2 文書 / 3 文書共通）。 */
+  --dm-table-max-height: 70vh;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --dm-border: #30363d;
+    --dm-bg: #0d1117;
+    --dm-bg-header: #161b22;
+    --dm-fg: #e6edf3;
+    --dm-lineno-fg: #6e7681;
+
+    --dm-ins-bg: #12261e;
+    --dm-ins-lineno-bg: #1b4721;
+    --dm-del-bg: #25171c;
+    --dm-del-lineno-bg: #542426;
+    --dm-inline-ins-bg: #1f6f36;
+    --dm-inline-del-bg: #91282f;
+    --dm-empty-bg: #161b22;
+
+    --dm-stat-added: #3fb950;
+    --dm-stat-removed: #f85149;
+  }
+}
+
+:root[data-theme="dark"] {
+  --dm-border: #30363d;
+  --dm-bg: #0d1117;
+  --dm-bg-header: #161b22;
+  --dm-fg: #e6edf3;
+  --dm-lineno-fg: #6e7681;
+
+  --dm-ins-bg: #12261e;
+  --dm-ins-lineno-bg: #1b4721;
+  --dm-del-bg: #25171c;
+  --dm-del-lineno-bg: #542426;
+  --dm-inline-ins-bg: #1f6f36;
+  --dm-inline-del-bg: #91282f;
+  --dm-empty-bg: #161b22;
+
+  --dm-stat-added: #3fb950;
+  --dm-stat-removed: #f85149;
+}
+
+/* ---- 差分ビュー ----
+ * ルート要素は縦の flex コンテナにしてある。単体で置かれた場合は中身の
+ * 高さなりに収まる（従来どおり）が、親側が高さを与える flex/grid 文脈に
+ * 置かれた場合は自動でその高さいっぱいに広がり、.dm-wrapper だけが
+ * スクロール対象になる（viewH: 'auto' の挙動。詳細は .dm-wrapper 側）。 */
+.dm-file {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--dm-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--dm-bg);
+  color: var(--dm-fg);
+}
+
+.dm-file-header {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--dm-bg-header);
+  border-bottom: 1px solid var(--dm-border);
+  font-family: var(--dm-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 見出しのマージ単位切り替え（まとめて / 1 行ごと）。2 文書・3 文書で共用。 */
+.dm-sl-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 0 12px;
+  font-family: var(--dm-font-ui);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--dm-lineno-fg);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dm-sl-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.dm-sl-opt:hover {
+  color: var(--dm-fg);
+}
+
+.dm-sl-opt input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.dm-file-stats {
+  font-family: var(--dm-font-mono);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.dm-stat-added {
+  color: var(--dm-stat-added);
+}
+
+.dm-stat-removed {
+  color: var(--dm-stat-removed);
+  margin-left: 6px;
+}
+
+.dm-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: var(--dm-table-max-height);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--dm-font-mono);
+  font-size: 12.5px;
+  line-height: 20px;
+  tab-size: 4;
+}
+
+.dm-col-lineno {
+  width: 1%;
+}
+
+.dm-colhead th {
+  padding: 6px 12px;
+  text-align: left;
+  font-family: var(--dm-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dm-lineno-fg);
+  background: var(--dm-bg-header);
+  border-bottom: 1px solid var(--dm-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.dm-lineno {
+  padding: 0 10px;
+  text-align: right;
+  color: var(--dm-lineno-fg);
+  background: var(--dm-bg);
+  border-right: 1px solid var(--dm-border);
+  vertical-align: top;
+  white-space: nowrap;
+  user-select: none;
+  width: 1%;
+}
+
+.dm-code {
+  padding: 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+/* 3・4 列目（右文書）の左境界線 */
+.dm-table td:nth-child(3),
+.dm-table th:nth-child(3) {
+  border-left: 1px solid var(--dm-border);
+}
+
+/* 行タイプ別の背景 */
+.dm-row-delete td:nth-child(1),
+.dm-row-delete td:nth-child(2),
+.dm-row-replace td:nth-child(1),
+.dm-row-replace td:nth-child(2) {
+  background: var(--dm-del-bg);
+}
+.dm-row-delete td:nth-child(1),
+.dm-row-replace td:nth-child(1) {
+  background: var(--dm-del-lineno-bg);
+}
+
+.dm-row-insert td:nth-child(3),
+.dm-row-insert td:nth-child(4),
+.dm-row-replace td:nth-child(3),
+.dm-row-replace td:nth-child(4) {
+  background: var(--dm-ins-bg);
+}
+.dm-row-insert td:nth-child(3),
+.dm-row-replace td:nth-child(3) {
+  background: var(--dm-ins-lineno-bg);
+}
+
+/* 対向が存在しない側（フィラー） */
+.dm-code.dm-empty,
+.dm-lineno.dm-empty {
+  background: var(--dm-empty-bg);
+  background-image: linear-gradient(
+    45deg,
+    transparent 46%,
+    var(--dm-border) 46%,
+    var(--dm-border) 54%,
+    transparent 54%
+  );
+  background-size: 8px 8px;
+}
+
+/* インライン（語単位）差分マーク */
+.dm-inline-del {
+  background: var(--dm-inline-del-bg);
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.dm-inline-ins {
+  background: var(--dm-inline-ins-bg);
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+/* 「（末尾に改行なし）」マーカー行。行番号なし・薄い斜体で本文中に出す。 */
+.dm-code.dm-nonewline {
+  color: var(--dm-lineno-fg);
+  font-style: italic;
+  user-select: none;
+}
+
+/* ===== 2 文書マージ（左→右の取り込み操作） =====
+ * merge モードは中央に操作列（.dm-mgut）が入る。列は
+ *   1 左行番号 / 2 左コード / 3 操作 / 4 右行番号 / 5 右コード
+ * になるので、右文書まわりの nth-child 指定を 1 つずらす。 */
+
+.dm-col-mgut {
+  width: 1%;
+}
+
+/* 右文書の左境界は操作列の右側へ */
+.dm-merge .dm-table td:nth-child(3),
+.dm-merge .dm-table th:nth-child(3) {
+  border-left: none;
+}
+.dm-merge .dm-table td:nth-child(4),
+.dm-merge .dm-table th:nth-child(4) {
+  border-left: 1px solid var(--dm-border);
+}
+
+/* 行タイプ別の背景（右文書ぶん）を 4・5 列目へ付け直す */
+.dm-merge .dm-row-insert td:nth-child(3),
+.dm-merge .dm-row-insert td:nth-child(4),
+.dm-merge .dm-row-replace td:nth-child(3),
+.dm-merge .dm-row-replace td:nth-child(4) {
+  background: transparent;
+}
+.dm-merge .dm-row-insert td:nth-child(4),
+.dm-merge .dm-row-insert td:nth-child(5),
+.dm-merge .dm-row-replace td:nth-child(4),
+.dm-merge .dm-row-replace td:nth-child(5) {
+  background: var(--dm-ins-bg);
+}
+.dm-merge .dm-row-insert td:nth-child(4),
+.dm-merge .dm-row-replace td:nth-child(4) {
+  background: var(--dm-ins-lineno-bg);
+}
+/* 左文書ぶん（1・2 列目）はそのまま効く。操作列（3）だけ地色に戻す */
+.dm-merge .dm-row-delete td.dm-mgut,
+.dm-merge .dm-row-replace td.dm-mgut,
+.dm-merge .dm-row-insert td.dm-mgut {
+  background: var(--dm-bg-header);
+}
+
+.dm-mgut {
+  width: 1%;
+  padding: 0 4px;
+  background: var(--dm-bg-header);
+  border-left: 1px solid var(--dm-border);
+  border-right: 1px solid var(--dm-border);
+  text-align: center;
+  vertical-align: top;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dm-merge-ops,
+.dm-merge-history {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px 0;
+}
+
+/* 取り消し / やり直しは操作列の見出しに */
+.dm-colhead th.dm-mgut {
+  padding: 2px 4px;
+  vertical-align: middle;
+}
+
+.dm-mop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--dm-border);
+  border-radius: 4px;
+  background: var(--dm-bg);
+  color: var(--dm-lineno-fg);
+  cursor: pointer;
+}
+
+.dm-mop:hover:not(:disabled) {
+  border-color: #1f6feb;
+  color: #1f6feb;
+  background: var(--dm-bg-header);
+}
+
+.dm-mop:active:not(:disabled) {
+  background: var(--dm-ins-bg);
+}
+
+.dm-mop:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.dm-mop svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+/* マージビューの操作説明（表の下）。3 カラム版の .dm3-hint と同じ見た目。 */
+.dm-hint {
+  flex: none;
+  padding: 6px 12px;
+  font-family: var(--dm-font-ui);
+  font-size: 11px;
+  color: var(--dm-lineno-fg);
+  background: var(--dm-bg-header);
+  border-top: 1px solid var(--dm-border);
+}
+
+/* ===== 3 カラム（b / a / c）差分ビュー =====
+ * 中心は a。b か c の一方がアクティブで、a との差分を色付き行で見せる。
+ * 非アクティブ側は a の行に合わせて並べるだけで、差分は a セルの枠線寄りの
+ * 太いマーカーで示す。横スクロールは出さず、幅は JS が動的に配分する。 */
+
+:root {
+  --dm3-mark-w: 4px;
+
+  /* 非アクティブ側の差分は、アクティブの赤/緑とは別に青系で示す */
+  --dm3-off-ins: #0969da; /* 非アクティブに行が増えている */
+  --dm3-off-del: #375a7f; /* 非アクティブにその行が無い */
+  --dm3-off-rep: #218bff; /* 非アクティブでその行が変わっている */
+
+  --dm3-off-bg: #ddf4ff;        /* 非アクティブ列・差分行の背景 */
+  --dm3-off-lineno-bg: #b6e3ff; /* 同・行番号セル */
+  --dm3-off-inline-bg: #79c0ff; /* 同・語単位ハイライト */
+  --dm3-off-hatch: #9cc7f0;     /* 非アクティブにその行が無いときの斜線 */
+  --dm3-off-fg: #999999;        /* 非アクティブ列の本文文字色（中心・アクティブより控えめ） */
+
+  /* 見出しの背景。アクティブ＋中心は緑系、非アクティブはグレー系 */
+  --dm3-th-active-bg: #ccffd8;
+  --dm3-th-inactive-bg: #eaeef2;
+
+  /* マーカー（a セルの枠線寄りの太線）も同じ青系にそろえる */
+  --dm3-mark-ins: var(--dm3-off-ins);
+  --dm3-mark-del: var(--dm3-off-del);
+  --dm3-mark-rep: var(--dm3-off-rep);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --dm3-off-ins: #4184e4;
+    --dm3-off-del: #3d5a80;
+    --dm3-off-rep: #388bfd;
+    --dm3-off-bg: #0d2137;
+    --dm3-off-lineno-bg: #17324f;
+    --dm3-th-active-bg: #1b4721;
+    --dm3-th-inactive-bg: #21262d;
+    --dm3-off-inline-bg: #1f6feb;
+    --dm3-off-hatch: #2f5678;
+    --dm3-off-fg: #7d848c;
+  }
+}
+
+:root[data-theme="dark"] {
+  --dm3-off-ins: #4184e4;
+  --dm3-off-del: #3d5a80;
+  --dm3-off-rep: #388bfd;
+  --dm3-off-bg: #0d2137;
+  --dm3-off-lineno-bg: #17324f;
+  --dm3-off-inline-bg: #1f6feb;
+  --dm3-off-hatch: #2f5678;
+  --dm3-off-fg: #7d848c;
+  --dm3-th-active-bg: #1b4721;
+  --dm3-th-inactive-bg: #21262d;
+}
+
+/* ルートは .dm-file と同じく縦の flex コンテナ。親が高さを与える文脈に
+   置かれれば自動でそこまで広がり、.dm3-wrapper だけがスクロール対象になる
+  （viewH: 'auto' の挙動）。 */
+.dm3 {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--dm-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--dm-bg);
+  color: var(--dm-fg);
+}
+
+.dm3:focus {
+  outline: 2px solid #1f6feb;
+  outline-offset: -2px;
+}
+
+.dm3-header {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--dm-bg-header);
+  border-bottom: 1px solid var(--dm-border);
+  font-family: var(--dm-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dm3-stats {
+  font-family: var(--dm-font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.dm3-stat-added {
+  color: var(--dm-stat-added);
+}
+
+.dm3-stat-removed {
+  color: var(--dm-stat-removed);
+  margin-left: 6px;
+}
+
+.dm3-stat-off {
+  color: var(--dm-lineno-fg);
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+/* 横スクロールバーは出さない（幅は JS が配分し、足りなければ折り返す）。
+   縦は表示が長くなったら --dm-table-max-height を上限に tbody をスクロール対象にする。 */
+.dm3-wrapper {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: var(--dm-table-max-height);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dm3-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-family: var(--dm-font-mono);
+  font-size: 12.5px;
+  line-height: 20px;
+  tab-size: 4;
+}
+
+.dm3-th {
+  padding: 6px 10px;
+  text-align: left;
+  font-family: var(--dm-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dm-lineno-fg);
+  background: var(--dm-bg-header);
+  border-bottom: 1px solid var(--dm-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* thead は縦スクロール中も先頭に固定する（.dm3-gutter は tbody とも共有する
+   クラスなので、ここでは見出し行 .dm3-colhead 配下の th にだけ絞る）。 */
+.dm3-colhead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.dm3-th[data-side] {
+  cursor: pointer;
+}
+
+.dm3-th[data-side]:hover {
+  color: var(--dm-fg);
+}
+
+/* アクティブと中心は緑系、非アクティブはグレー系。文字色は本文色にする。 */
+.dm3-th-a,
+.dm3-th-act {
+  color: var(--dm-fg);
+  background: var(--dm3-th-active-bg);
+}
+
+.dm3-th-off {
+  color: var(--dm-lineno-fg);
+  background: var(--dm3-th-inactive-bg);
+}
+
+.dm3-no {
+  padding: 0 8px;
+  text-align: right;
+  color: var(--dm-lineno-fg);
+  background: var(--dm-bg);
+  vertical-align: top;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dm3-code {
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+/* カラム間の仕切り。将来ここにマージ操作（< >）のボタンを置く。 */
+.dm3-gutter {
+  padding: 0;
+  width: 0;
+  border-left: 1px solid var(--dm-border);
+}
+
+/* --- 行タイプ別の背景。a を基準（変更前）とみなす --- */
+.dm3-row-replace .dm3-no-a,
+.dm3-row-delete .dm3-no-a {
+  background: var(--dm-del-lineno-bg);
+}
+.dm3-row-replace .dm3-code-a,
+.dm3-row-delete .dm3-code-a {
+  background: var(--dm-del-bg);
+}
+
+.dm3-row-replace .dm3-no-act,
+.dm3-row-insert .dm3-no-act {
+  background: var(--dm-ins-lineno-bg);
+}
+.dm3-row-replace .dm3-code-act,
+.dm3-row-insert .dm3-code-act {
+  background: var(--dm-ins-bg);
+}
+
+/* --- 非アクティブ列の差分は青系で色付け（アクティブの赤/緑と区別する） --- */
+.dm3-omark-insert .dm3-no-off,
+.dm3-omark-replace .dm3-no-off {
+  background: var(--dm3-off-lineno-bg);
+}
+.dm3-omark-insert .dm3-code-off,
+.dm3-omark-replace .dm3-code-off {
+  background: var(--dm3-off-bg);
+}
+
+/* 非アクティブにその行が無い（mark=delete）ときは、空セルを青い斜線に */
+.dm3-omark-delete .dm3-code-off {
+  background-color: var(--dm-empty-bg);
+  background-image: linear-gradient(
+    45deg,
+    transparent 46%,
+    var(--dm3-off-hatch) 46%,
+    var(--dm3-off-hatch) 54%,
+    transparent 54%
+  );
+  background-size: 8px 8px;
+}
+
+/* 非アクティブ列の語単位ハイライトも青系 */
+.dm3-code-off .dm-inline-ins {
+  background: var(--dm3-off-inline-bg);
+}
+
+/* a とアクティブの間のフィラー（対応行なし）は斜線。
+   非アクティブ側は空行調整をしないので、ただの空セル。 */
+.dm3-filler {
+  background: var(--dm-empty-bg);
+  background-image: linear-gradient(
+    45deg,
+    transparent 46%,
+    var(--dm-border) 46%,
+    var(--dm-border) 54%,
+    transparent 54%
+  );
+  background-size: 8px 8px;
+}
+
+/* 非アクティブの挿入を知らせるために足した行（a とアクティブは行番号なしの空行） */
+.dm3-row-other-insert .dm3-blank {
+  background: var(--dm-bg);
+}
+
+/* --- 非アクティブ側の差分マーカー。a セルの枠線寄りに太線で出す --- */
+.dm3-code-a.dm3-mark {
+  position: relative;
+}
+
+.dm3-code-a.dm3-mark::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--dm3-mark-w);
+  background: var(--dm3-mark-color, transparent);
+}
+
+/* c が非アクティブ（= b がアクティブ）なら a の右寄り、逆なら左寄り */
+.dm3-active-b .dm3-code-a.dm3-mark::after {
+  right: 0;
+}
+.dm3-active-c .dm3-code-a.dm3-mark::after {
+  left: 0;
+}
+
+.dm3-mark-insert {
+  --dm3-mark-color: var(--dm3-mark-ins);
+}
+.dm3-mark-delete {
+  --dm3-mark-color: var(--dm3-mark-del);
+}
+.dm3-mark-replace {
+  --dm3-mark-color: var(--dm3-mark-rep);
+}
+
+/* 非アクティブ側で畳み込んだ行数 */
+.dm3-more {
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--dm-lineno-fg);
+  background: var(--dm-bg-header);
+  border: 1px solid var(--dm-border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* 非アクティブ文書の列は参照専用であることを示すため、
+   見出しの背景よりさらに薄いグレーで塗り、本文の文字色も控えめにする
+   （差分行は上の青系ルールが背景を上書きする） */
+.dm3-no-off,
+.dm3-code-off {
+  background: var(--dm-bg-header);
+}
+
+.dm3-code-off {
+  color: var(--dm3-off-fg);
+}
+
+/* 非アクティブ列は参照用なので、幅にかかわらず折り返さず省略記号で切る。
+   …+N バッジは切らずに残すため flex で本文だけを縮める。 */
+.dm3-code-off {
+  display: flex;
+  align-items: baseline;
+  overflow: hidden;
+}
+
+.dm3-code-off .dm3-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm3-code-off .dm3-more {
+  flex: none;
+}
+
+/* 下限（行番号＋先頭 6 文字）まで縮んだら …+N バッジも隠す */
+.dm3-clip .dm3-code-off .dm3-more {
+  display: none;
+}
+
+.dm3-nonewline {
+  color: var(--dm-lineno-fg);
+  font-style: italic;
+  user-select: none;
+}
+
+/* 「（末尾に改行なし）」の行は、狭い列でも折り返さず 1 行に収める */
+.dm3-row-nonewline .dm3-code {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm3-hint {
+  flex: none;
+  padding: 6px 12px;
+  font-family: var(--dm-font-ui);
+  font-size: 11px;
+  color: var(--dm-lineno-fg);
+  background: var(--dm-bg-header);
+  border-top: 1px solid var(--dm-border);
+}
+
+/* ===== 3 文書マージ（3 文書比較の画面をベースに、アクティブ側だけ操作パネルを出す） =====
+ * 操作パネルは B / A の間・A / C の間のどちらか、アクティブ側にだけ出す。
+ * もう一方の仕切りは compare と同じ幅 0 のまま（提示のみ）。 */
+
+/* マージビューは固定幅: 行番号 42px / 操作列（アクティブ側のみ）84px /
+   コード 3 列は残りを 3 等分。動的な列幅配分（applyWidths）は行わない。 */
+.dm3-merge .dm3-col-no {
+  width: 42px;
+}
+.dm3-merge .dm3-col-gut {
+  width: 0;
+}
+.dm3-merge .dm3-col-gut-active {
+  width: 84px;
+}
+.dm3-merge .dm3-col-code {
+  /* 行番号 42px×3 と 操作列 84px を引いた残りを 3 等分 */
+  width: calc((100% - 126px - 84px) / 3);
+}
+
+/* 1 行ごと（singleline）はボタンが 5 つになるので操作列を広げる。
+   22px×5 + gap 3px×4 + 左右パディング 4px×2 = 130px なので 132px 確保する。 */
+.dm3-merge.dm3-singleline .dm3-col-gut-active {
+  width: 132px;
+}
+.dm3-merge.dm3-singleline .dm3-col-code {
+  width: calc((100% - 126px - 132px) / 3);
+}
+.dm3-merge .dm3-code {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.dm3-merge .dm3-wrapper {
+  overflow-x: hidden;
+}
+
+/* アクティブ側の操作列（本文セル・見出しセル共通） */
+.dm3-gutter-active {
+  padding: 0 4px;
+  background: var(--dm-bg-header);
+  border-left: 1px solid var(--dm-border);
+  border-right: 1px solid var(--dm-border);
+  text-align: center;
+  vertical-align: top;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dm3-colhead th.dm3-gutter-active {
+  vertical-align: middle;
+}
+
+.dm3-merge-ops,
+.dm3-merge-history {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px 0;
+}
+
+.dm3-mop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--dm-border);
+  border-radius: 4px;
+  background: var(--dm-bg);
+  color: var(--dm-lineno-fg);
+  cursor: pointer;
+}
+
+.dm3-mop:hover:not(:disabled) {
+  border-color: #1f6feb;
+  color: #1f6feb;
+  background: var(--dm-bg-header);
+}
+
+.dm3-mop:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.dm3-mop svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}

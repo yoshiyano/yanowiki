@@ -1,0 +1,59 @@
+/* comment プラグインの見た目。
+   テーマ共通のカスタムプロパティにフォールバックを添えて使う。 */
+
+.comment-fieldset {
+  margin: 0.8rem 0;
+  padding: 0.6rem 0.8rem 0.8rem 0.8rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 6px);
+}
+.comment-fieldset legend {
+  padding: 0 0.4rem;
+  font-weight: bold;
+}
+.comment-divider {
+  border: none;
+  border-top: 1px solid var(--border, #ccc);
+  margin: 0.6rem 0;
+}
+
+/* 投稿済みコメント一覧（本体を展開した<ul>）の字下げを、既定の40pxから
+   半分の20pxに詰める（Wiki設計者の指示）。 */
+.comment-fieldset ul {
+  padding-inline-start: 20px;
+}
+
+/* フォーム自体は枠線で囲わない（囲みは.comment-fieldset側が持つ） */
+.comment-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.comment-form label {
+  font-size: 0.85rem;
+  color: var(--muted, #666);
+}
+.comment-form input[type="text"] {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 4px);
+  font: inherit;
+}
+.comment-form input[name="name"] {
+  width: 8rem;
+}
+.comment-form input[name="msg"] {
+  flex: 1 1 16rem;
+}
+.comment-form button {
+  padding: 0.3rem 0.9rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 4px);
+  background: var(--accent-soft, #e6f0ff);
+  color: var(--accent, #2a5db0);
+  cursor: pointer;
+}
+.comment-form button:hover {
+  border-color: var(--accent, #888);
+}

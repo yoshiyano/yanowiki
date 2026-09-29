@@ -1,0 +1,278 @@
+{#
+  wikiSystem 標準テーマ（3コラム構成: menu1が左、本文が中央、目次+menu2が右）
+
+  ● 個別Wiki（wikidata/<farm名>/theme/）へコピーするときのファイル
+    コピーするもの（このテーマ固有）:
+      base.html
+      base.css
+      base.js
+    コピー不要（そのWikiの theme/ に無ければ、共通の theme/ から読まれる）:
+      common.css・common.js … 全テーマ共通
+    ※ base.html をコピーしても、common/base.html を継承するテーマ（fresh・
+      pukiwiki_default・pkwk_wide）には効かない。base.css は @import で
+      それらのテーマにも効く。
+    ※ 依存ファイルもコピーすると、そのWikiではコピーしたほうが優先され、
+      同じファイルを使うほかのテーマにも効く（共通のものを直したいときだけ）。
+
+  このファイルを wikidata/<farm名>/theme/base.html にコピーすると、
+  そのwikiだけレイアウトを差し替えられます。
+
+  利用できる変数:
+    site_title  サイト名（config/default.yaml の theme.site_title）
+    page_title  ページタイトル（本文の最初のh1、無ければページ名）
+    farm        farm名
+    page        ページパス
+    topic_path  TopicPathの階層データ [{label, url}, ...]（urlがNoneなら現在地でリンクなし）
+    themefile    テーマ名（config/default.yaml の theme.themefile）
+    base_url    そのfarmのURL接頭辞（server.prefix + farm指定）
+    theme_url    テーマ資材のURL接頭辞（例: /.theme）
+    content     本文のHTML
+    toc         目次データ [{level, id, title}, ...]
+    menu1       menu1_page（既定: mainmenu）のHTML。該当ページが無ければ空
+    menu2       menu2_page（既定: submenu）のHTML。該当ページが無ければ空
+    menu1_mode  menu1の開閉モード（theme.menu1_mode、"ページ名,モード"の
+                リスト形式でページ単位指定。既定"auto"、常時表示は"fix"）
+    menu2_mode  menu2の開閉モード（theme.menu2_mode。menu1_modeと同じ形式）
+#}
+<!doctype html>
+{# menu1_mode/menu2_mode: theme.menu1_mode/theme.menu2_mode
+   （config/default.yaml、"ページ名,モード"のリスト）でページごとに指定する
+   "auto"（既定・狭い画面で帯として折りたたむ）/ "fix"（常時表示、従来どおり）。
+   menu1_page/menu2_page（menu1/menu2の中身に使うページ名）とは別の設定。 #}
+<html lang="ja"{% if menu1_mode == "fix" %} data-menu1-mode="fix"{% endif %}{% if menu2_mode == "fix" %} data-menu2-mode="fix"{% endif %}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ page_title }} - {{ site_title }}{% endblock %}</title>
+{# プラグインが使うCSSは、基本的にテーマではなくプラグイン自身が持つ（plugin/note.css等）。
+   このページで実際に使われたプラグインのぶんだけ、テーマ自身のCSSより先に読み込む。
+   同じセレクタが両方にあれば、後から読み込むテーマ側が優先される。 #}
+{% for url in plugin_styles %}<link rel="stylesheet" href="{{ url }}">
+{% endfor -%}
+{# 動きを持つプラグインは、そのJavaScriptも自分で連れてくる（plugin/ls.js等）。
+   defer なので、置き場所によらずDOMが揃ってから走る。 #}
+{% for url in plugin_scripts %}<script src="{{ url }}" defer></script>
+{% endfor -%}
+{# common.css はどのテーマでも読み込む（common.js が作る部品の見た目）。
+   テーマ自身のCSSより先に読み込み、衝突時はテーマ側が優先されるようにする #}
+<link rel="stylesheet" href="{{ theme_url }}/common.css">
+{# コードブロックのシンタックスハイライト（Prism.js）は、ここではなく
+   plugin/code.css・plugin/code.js として、そのページで#codeが実際に
+   使われたときだけ読み込まれる（plugin_styles/plugin_scriptsのループ、
+   このすぐ上）。以前はここで全ページ無条件に読み込んでいたが、
+   使わないページにまで配る無駄があったため移した（詳しくは
+   plugin/README.txt、theme/prism.build.py参照） #}
+{# styles/scriptsをブロックにしてあるので、このテーマを継承したテーマから
+   「共通のbase.cssをそのまま使う」「別のCSSに差し替える」を選べる #}
+{% block styles %}<link rel="stylesheet" href="{{ theme_url }}/{{ themefile }}.css">{% endblock %}
+{% block head %}{% endblock %}
+</head>
+<body>
+
+{% block header %}
+<header class="site-header">
+  <div class="site-title"><a href="{{ base_url }}/">{{ site_title }}</a></div>
+  {% block commands %}
+  <nav class="commands" aria-label="コマンド">
+    <span class="zoom-controls">
+      <button type="button" class="zoom-in" aria-label="表示を拡大"></button>
+      <input type="number" class="zoom-value" aria-label="表示倍率(%)" inputmode="decimal">
+      <button type="button" class="zoom-out" aria-label="表示を縮小"></button>
+    </span>
+    {% block marker_controls %}
+    {#
+      マーカー（用語をページをまたいで色分け追跡する機能。Tech/MarkerSystem.md参照）の
+      操作。本体（_sys/markers/markers.js）が全ページ末尾へ自動で差し込むJSが
+      window.WikisysMarkersを用意するまでは実体が無いため、hiddenで隠しておく
+      （common.jsがwindow.WikisysMarkers準備完了後にhiddenを外す）。
+    #}
+    <span class="marker-controls" hidden>
+      <button type="button" class="command marker-panel-toggle">マーカー</button>
+      <label class="marker-toggle" title="表示切り替え">
+        <input type="checkbox" class="marker-toggle-input" aria-label="マーカー表示の切り替え">
+        <span class="marker-toggle-track"><span class="marker-toggle-thumb"></span></span>
+      </label>
+      <select class="marker-set-select" aria-label="マーカーセットの切り替え"></select>
+    </span>
+    {% endblock %}
+    {# ログイン・トップ・編集・新規。本体が組み立てて渡す（common_menu。
+       wikilib.themes.common_menu_html）。出し分けもホットキー属性も新規ダイアログも
+       本体側にあるので、ここには置くだけ。 #}
+    {{ common_menu }}
+    {% block search_form %}
+    {#
+      検索窓。「検索語 → 範囲 → 検索ボタン」の並びで、ひとつづきの検索フォームだと
+      わかるようにしている。範囲ボタン(.search-scope)はクリックでトグル、押したまま
+      動かす（ドラッグ）と選択メニューが出て指を離した項目が選ばれる。メニュー自体は
+      common.js が組み立てる（選択肢がこの2つだけなので、テンプレートには足さない）。
+        サイト全体 … 検索ページへ移動する（詳しい条件はそちらのフォームで指定する）
+        このページ内 … 移動せず、本文の一致箇所を強調して前へ/次へで辿る
+      検索結果から ?q= 付きで開いたときは「このページ内」で始まるので、
+      同じ語のままページ内を辿れる。
+      範囲はサーバには送らない（page時はJavaScriptが送信そのものを止める）ため、
+      ボタンにname属性は付けていない。
+    #}
+    <form class="search" id="site-search-form" action="{{ search_url }}" method="get" role="search">
+      <input class="search-word" type="search" name="q" value="{{ query }}"
+             placeholder="検索" aria-label="検索語">
+      <button class="search-scope" type="button" data-scope="site"
+              aria-pressed="false" aria-label="検索範囲を切り替え（現在: サイト全体）">サイト全体</button>
+      <button class="search-submit" type="submit">検索</button>
+      <span class="page-search-nav" hidden>
+        <button class="page-search-prev" type="button" aria-label="前の一致へ">‹</button>
+        <button class="page-search-next" type="button" aria-label="次の一致へ">›</button>
+        <span class="page-search-count" role="status" aria-live="polite"></span>
+      </span>
+    </form>
+
+    {% block search_options %}
+    {#
+      サイト全体を検索するときの条件。検索窓を選ぶとフロートインする。
+      送信は通常どおり検索ページへ向かうので、結果のURLは共有できるまま。
+      .search は連結した見た目にするため overflow:hidden を掛けており、その中に
+      置くとフロート表示時にクリップされてしまうため、フォームの外に置き、
+      各項目は form="site-search-form" で元のフォームに結び付けている。
+    #}
+    <div class="search-options" hidden>
+      <div class="search-options-row">
+        <label class="search-options-label" for="so-mode">条件</label>
+        <select id="so-mode" name="mode" form="site-search-form">
+          <option value="and"{% if mode == 'and' %} selected{% endif %}>すべての語を含む（AND）</option>
+          <option value="or"{% if mode == 'or' %} selected{% endif %}>いずれかの語を含む（OR）</option>
+        </select>
+      </div>
+      <div class="search-options-row">
+        <label class="search-options-label" for="so-target">対象</label>
+        <select id="so-target" name="target" form="site-search-form">
+          <option value="all"{% if target == 'all' %} selected{% endif %}>ページ名と本文</option>
+          <option value="name"{% if target == 'name' %} selected{% endif %}>ページ名だけ</option>
+          <option value="body"{% if target == 'body' %} selected{% endif %}>本文だけ</option>
+        </select>
+      </div>
+      <div class="search-options-row">
+        <label class="search-options-label" for="so-path">絞り込み</label>
+        <input id="so-path" type="search" name="path" value="{{ path_filter }}" form="site-search-form"
+               placeholder="例: Tech/* （* と ? が使えます）">
+      </div>
+      <div class="search-options-row search-options-actions">
+        <button type="submit" form="site-search-form">この条件で検索</button>
+      </div>
+    </div>
+    {% endblock %}
+    {% endblock %}
+  </nav>
+  {% endblock %}
+</header>
+{% endblock %}
+
+{# 本文1行目のh1はタイトルとして取り出されているので、本文の外のこの枠で描画する #}
+{% block page_header %}
+<div class="page-header">
+  {% block page_heading %}<h1 class="page-title">{{ page_title }}{{ title_note }}</h1>{% endblock %}
+  {% block breadcrumb %}
+  <div class="page-path">TopicPath :
+    <a href="{{ base_url }}/">Top /</a>{% for item in topic_path %} {% if item.url %}<a href="{{ item.url }}">{{ item.label }} /</a>{% else %}{{ item.label }}{% endif %}{% endfor %}
+  </div>
+  {% endblock %}
+</div>
+{% endblock %}
+
+<div class="layout">
+
+  {% block menu1_sidebar %}
+  {#
+    menu1（既定: mainmenu）だけの左カラム。無ければ要素ごと出さない
+    （.layout側は :has(.mainbar) で2カラムに詰める。CSS参照）。
+    このブロックを継承先で空にすれば、左カラムを丸ごと無くせる
+    （fresh は右の1本のサイドバーにmenu1をまとめているため、ここは空にしている）。
+  #}
+  {% if menu1 %}
+  <aside class="mainbar">
+    <section class="panel menu1">{{ menu1 }}</section>
+  </aside>
+  {% endif %}
+  {% endblock %}
+
+  {% block main %}
+  {#
+    section-editorが使うページ情報。data-editable が無ければ機能しない
+    （検索結果・編集準備中ページなど、実体の無いページでは出さない）。
+  #}
+  <main class="content"{% if editable %} data-editable data-base-url="{{ base_url }}" data-page="{{ page }}"{% endif %}{% if editing %} data-draft="1"{% endif %}>
+    {% block content %}{{ content }}{% endblock %}
+  </main>
+  {% endblock %}
+
+  {% block sidebar %}
+  <aside class="subbar">
+    {% block toc %}
+    {% if toc|length > 1 %}
+    <nav class="panel toc" aria-label="目次">
+      <h2 class="panel-title">目次</h2>
+      <ul>
+        {% for item in toc %}
+        <li class="toc-l{{ item.level }}"><a href="#{{ item.id }}">{{ item.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+    {% endblock %}
+
+    {% if menu2 %}
+    <section class="panel menu2">{{ menu2 }}</section>
+    {% endif %}
+  </aside>
+  {% endblock %}
+
+</div>
+
+{% block page_search_panel %}
+{#
+  ページ内検索が有効なときにフロートインするパネル。
+  一致箇所の一覧を common.js が流し込む。項目をクリックするとその場所へ移動する。
+#}
+<aside class="page-search-panel" hidden aria-label="ページ内検索の結果">
+  <div class="page-search-panel-head">
+    <div class="page-search-panel-head-row">
+      <span class="page-search-panel-title">ページ内検索</span>
+      <button class="page-search-close" type="button" aria-label="検索を閉じる">×</button>
+    </div>
+    <p class="search-hotkey-hint">↑↓←→キーで検索ワードの候補を移動できます</p>
+  </div>
+  <ol class="page-search-list"></ol>
+  <p class="page-search-more" hidden></p>
+</aside>
+{% endblock %}
+
+{% block footer %}
+<footer class="site-footer">
+  {# render_ms: 本文平文をDBから取得後、HTML生成完了までの時間(ms)。
+     本体側が未実装/未設定のときはundefinedのままで、このifは安全に
+     falseになる（=何も表示しない）。 #}
+  {% if render_ms is defined %}<span class="render-time">Convert-time: {{ render_ms }}ms</span>{% endif %}
+  {# source_mtime: 本文平文ファイルの最終更新日時。render_msの右側に並べる。
+     本体側が未実装/未設定のときはundefinedのままで安全にfalseになる。 #}
+  {% if source_mtime is defined %}<span class="source-mtime">Last-modified: {{ source_mtime }}</span>{% endif %}
+  {# disk_usage: wiki/ 以下のページと attach/ 以下の添付の合計サイズ
+     （"DiskUsage: Page/Attached 1.2MB/349KB" の形）。参照した瞬間だけ
+     集計し結果は60秒使い回す（wikiSystem: _sys/wikilib/diskusage.py）。
+     本体側が未対応の間はundefinedのままで安全にfalseになる。 #}
+  {% if disk_usage is defined %}<span class="disk-usage">{{ disk_usage.text }}</span>{% endif %}
+  {% if login_as is defined and login_as %}<span class="login-as">{{ login_as }}</span>{% endif %}
+  <span>Powered by wikiSystem</span>
+  <span class="site-version">{{ version }}</span>
+  {# copyright_year: 本体側が未実装/未設定の間はundefinedのままで安全に
+     falseになり、年を出さず「© サイト名」だけになる。 #}
+  <span class="site-copyright">&copy; {% if copyright_year is defined %}{{ copyright_year }} {% endif %}Yano Labo / AIT</span>
+</footer>
+{% endblock %}
+
+{# common.js はどのテーマでも読み込む（検索・セクション編集・目次）。
+   base.js はこのテーマ独自の動き（menu1の階層開閉）を持つ。
+   このテーマを継承するテーマがこのブロックを上書きしなければ base.js も
+   ついてくるが、.mainbar .menu1 が無ければ何もしないので実害は無い
+   （継承しても構わないという判断は fresh.html 側のコメントを参照） #}
+{% block scripts %}<script src="{{ theme_url }}/common.js"></script>
+<script src="{{ theme_url }}/base.js"></script>{% endblock %}
+</body>
+</html>

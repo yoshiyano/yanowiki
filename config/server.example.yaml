@@ -1,0 +1,33 @@
+# これは雛形です。実際に読まれるのは config/server.yaml で、Gitの追跡対象外です。
+# 初回だけ、このファイルを server.yaml という名前でコピーしてください。
+#   cp config/server.example.yaml config/server.yaml
+# 書き換えても更新（git reset --hard）で戻りません。
+#
+# サービスの起動に関わる設定
+#
+# ここに書くのは「どのWikiを開くかが決まる前に要る値」だけです。
+# Wikiごとに変えようがないため、この1つだけを見ます。
+# 個別Wikiの config/default.yaml に書いても効きません。
+#
+# 個別Wikiの設定（page / markdown / theme）は default.yaml のほうです。
+
+# trueにすると、プラグインのエラーに詳細（トレースバック）を折りたたみで表示する。
+# 起動時に --debug を付けた場合も同じ扱いになる。
+debug: false
+
+server:
+  host: 127.0.0.1  # 待受ホスト（外部公開する場合は 0.0.0.0）。コマンドライン引数 --host が優先される
+  port: 8619        # 待受ポート。コマンドライン引数 --port が優先される
+  # サイトのルート以外に設置する場合のURL接頭辞。
+  # 例: https://foo.bar.com/abcd/efgh/ 以下をwikiにするなら /abcd/efgh を指定する。
+  # 既定は接頭辞なし（サイトのルートに設置）。
+  prefix: ""
+
+farm:
+  # localhost/ に直接アクセスした際に表示するデフォルトのWiki名（個別Wikiの1つ）
+  default: _system
+  # 全Wikiの一覧を出すページのURL名。既定は allwiki（/.allwiki で開ける）。
+  # 一覧はサーバーにどんなWikiがあるかを明かすので、見せたくない運用では
+  # 空にして止められる。既定の名前で当てられたくない場合は付け替える。
+  # 使えるのは英数字と - _ で、先頭は英数字（それ以外を書くと既定に戻る）。
+  allwiki: allwiki

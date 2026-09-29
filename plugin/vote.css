@@ -1,0 +1,49 @@
+/* vote プラグインの見た目。
+   テーマ共通のカスタムプロパティにフォールバックを添えて使う。 */
+
+.vote-box {
+  margin: 0.8rem 0;
+  max-width: 32rem;
+}
+.vote-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.vote-table td {
+  padding: 0.3rem 0.5rem;
+  vertical-align: middle;
+}
+.vote-label {
+  white-space: nowrap;
+}
+.vote-bar-cell {
+  width: 100%;
+  background: var(--panel-bg, #f0f0f0);
+  border-radius: var(--radius, 4px);
+  overflow: hidden;
+}
+.vote-bar {
+  display: block;
+  height: 0.9rem;
+  min-width: 2px;
+  background: var(--accent, #2a5db0);
+  border-radius: var(--radius, 4px);
+}
+.vote-count {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--muted, #666);
+  text-align: right;
+}
+.vote-action button {
+  padding: 0.2rem 0.7rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 4px);
+  background: var(--accent-soft, #e6f0ff);
+  color: var(--accent, #2a5db0);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vote-action button:hover {
+  border-color: var(--accent, #888);
+}

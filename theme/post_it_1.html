@@ -1,0 +1,252 @@
+{#
+  post_it_1 — PukiWiki（http://172.22.23.1/、1.5.4）の見た目を再現したテーマ。
+  継承せず一から書く方式。common.js / common.css（検索・セクション編集・
+  目次の現在位置ハイライトとその見た目）はどのテーマでも読み込む決まりのため
+  取り込む（theme/README.txt 参照）。common.css は var(--名前, 既定値) の
+  形で配色を参照するため、post_it_1.css 側で --panel-bg 等の変数を定義し、
+  PukiWiki配色になじむようにしている。
+
+  ● 個別Wiki（wikidata/<farm名>/theme/）へコピーするときのファイル
+    コピーするもの（このテーマ固有）:
+      post_it_1.html
+      post_it_1.css
+      post_it_1.js
+    コピー不要（そのWikiの theme/ に無ければ、共通の theme/ から読まれる）:
+      common.css・common.js … 全テーマ共通
+    ※ 依存ファイルもコピーすると、そのWikiではコピーしたほうが優先され、
+      同じファイルを使うほかのテーマにも効く（共通のものを直したいときだけ）。
+
+  検索（サイト全体/このページ内の切り替え・ページ内検索の強調とナビゲーション）
+  は common.js が受け持つ。common.js が目印にするクラス名（.search /
+  .search-word / .search-scope / .search-submit / .page-search-nav /
+  .search-options / .page-search-panel 等）は変えずに使うこと。
+  見た目だけ post_it_1.css で上書きしている。
+
+  PukiWiki本家は右上の小さな"."リンクで操作コマンド（.reserved）の表示を
+  トグルしていたが、このテーマではそのリンク自体を廃止した。以前は編集操作を
+  画面に出さず Alt+E 3連打（post_it_1.js）でだけ入れる独自仕様だったが、
+  他のテーマ（base/fresh/bloom）と操作を揃えるため廃止した（Wiki設計者の指示、
+  2026-09-24）。操作メニュー（ログイン/トップ/編集/新規）はヘッダ2行目の
+  <nav class="commands"> に、本体が渡す {{ common_menu }} を置いて常時表示する
+  （マークアップ・出し分け・data-hotkey は本体側。Alt+E単発は common.js）。
+  編集リンクを表に出すかどうかは、閲覧者の編集の権限から wikiSystem が決めて
+  editable に反映するため、このテーマ側で隠す処理は持たない。
+
+  ヘッダ（<header id="header">。以前は<div>だった。Wiki設計者の指示、2026-09-05）は
+  常時表示。デスクトップ〜タブレット幅では#header全体がposition: stickyで
+  画面上部に固定される（post_it_1.css参照）。
+
+  ヘッダの中身は .header-rows（2行）で、スタイルは post_it_1.css 側に
+  共通定義し pkwk.css はそれを引き継ぐ（Wiki設計者の指示、2026-09-05）。
+
+    1行目 .header-row-title … サイト名＋タイトル（左・下寄せ）／
+                              検索（右・上寄せ）
+    2行目 .header-row-path  … TopicPath（左）／ハンバーガー（右）
+
+  以前は「タイトル＋TopicPathの縦積み」と「検索＋ハンバーガーの縦積み」を
+  横に並べていたが、長くなりがちなTopicPathが幅の狭い列に閉じ込められ、
+  隣の列へ回り込めないぶん行の右側が空いても使えなかった。長いもの
+  （TopicPath）と短いもの（ハンバーガー）を同じ行に組み替えることで、
+  TopicPathが行の幅をめいっぱい使えるようにしている。
+
+  #rightbar（menu1/目次/menu2）は 700px（post_it_1.css の
+  @media (max-width: 700px)）を下回るとハンバーガー開閉のoff-canvas
+  パネルに切り替わる。既定で画面外へ退避し、ハンバーガーボタンのクリックで
+  .is-open を付けて右からスライドインする（post_it_1.js が開閉と
+  バックドロップのクリックで閉じる処理を担当）。以前は960px幅で
+  「本文の下に回って常時表示」という中間状態を挟んでいたが、意味が無い
+  ため廃止し、700px幅の時点で直接この開閉式に切り替わるようにした
+  （Wiki設計者の指示、2026-09-05。960px→800px→730px→700pxの順で調整した）。
+
+  620px（post_it_1.css の @media (max-width: 620px)）を下回ると、さらに
+  検索フォームが #rightbar の中へ移動し（post_it_1.js）、#header 自体の
+  固定は解除して、代わりにハンバーガーだけを position: fixed で画面右上に
+  残す。狭い画面では、タイトル＋TopicPath を常時見せる価値より本文に
+  使える縦幅のほうが大きいという判断（Wiki設計者の指示、2026-09-05）。
+
+  search.html がこのファイルを {% extends themefile + ".html" %} で継承するため、
+  breadcrumb / content の2ブロックは必須。
+#}
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ page_title }} - {{ site_title }}{% endblock %}</title>
+{% for url in plugin_styles %}<link rel="stylesheet" href="{{ url }}">
+{% endfor -%}
+{# 動きを持つプラグインは、そのJavaScriptも自分で連れてくる（plugin/ls.js等）。
+   defer なので、置き場所によらずDOMが揃ってから走る。base.htmlと同じ扱い
+   （2026-08-27、wikiPlugin側からの指摘: このループが丸ごと欠けていたため
+   post_it_1テーマではJSを持つプラグインが軒並み動いていなかった）。 #}
+{% for url in plugin_scripts %}<script src="{{ url }}" defer></script>
+{% endfor -%}
+{# common.css は common.js が作る要素の既定の見た目。post_it_1.css より先に
+   読み込み、後勝ちでこのテーマの配色（--panel-bg等のCSS変数）が効くようにする。 #}
+<link rel="stylesheet" href="{{ theme_url }}/common.css">
+<link rel="stylesheet" href="{{ theme_url }}/post_it_1.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="pi-all">
+<div class="pi-container">
+<div class="pi-base">
+
+<header id="header">
+  {#
+    ヘッダは2行構成（Wiki設計者の指示、2026-09-05）。
+      1行目 .header-row-title … サイト名＋タイトル（左・下寄せ）／検索（右・上寄せ）
+      2行目 .header-row-path  … TopicPath（左）／ハンバーガー（右）
+    長くなりがちなTopicPathを、幅の短いハンバーガーと同じ行に置いて、
+    行の幅をめいっぱい使えるようにするための組みかた。
+  #}
+  <div class="header-rows">
+    <div class="header-row header-row-title">
+      <div class="site-title"><a href="{{ base_url }}/">{{ site_title }}</a></div>
+      <h1 class="title"><a href="{{ base_url }}/{{ page }}">{{ page_title }}</a>{{ title_note }}</h1>
+      {#
+        検索。常時表示（隠す対象に含めない）。「検索語 → 範囲 → 検索ボタン」の並び。
+        範囲ボタン(.search-scope)はクリックでトグル、押したまま動かす（ドラッグ）と
+        選択メニューが出て指を離した項目が選ばれる（メニュー自体はcommon.jsが組み立てる）。
+          サイト全体   … 検索ページへ移動する（詳しい条件は.search-optionsで指定する）
+          このページ内 … 移動せず、本文の一致箇所を強調して前へ/次へで辿る
+                         （Escapeキー、または.page-search-closeで解除できる）
+        範囲はサーバには送らないため、ボタンにname属性は付けない。
+        620px幅を下回るとpost_it_1.jsが #rightbar の中へ移動させる。
+      #}
+      <form class="search" id="site-search-form" action="{{ search_url }}" method="get" role="search">
+        <input class="search-word" type="search" name="q" value="{{ query }}"
+               placeholder="検索" aria-label="検索語">
+        <button class="search-scope" type="button" data-scope="site"
+                aria-pressed="false" aria-label="検索範囲を切り替え（現在: サイト全体）">サイト全体</button>
+        <button class="search-submit" type="submit">検索</button>
+        <span class="page-search-nav" hidden>
+          <button class="page-search-prev" type="button" aria-label="前の一致へ">‹</button>
+          <button class="page-search-next" type="button" aria-label="次の一致へ">›</button>
+          <span class="page-search-count" role="status" aria-live="polite"></span>
+        </span>
+      </form>
+    </div>
+
+    <div class="header-row header-row-path">
+      {% block breadcrumb %}
+      <div class="page-path">TopicPath :
+        <a href="{{ base_url }}/">Top /</a>{% for item in topic_path %} {% if item.url %}<a href="{{ item.url }}">{{ item.label }} /</a>{% else %}{{ item.label }}{% endif %}{% endfor %}
+      </div>
+      {% endblock %}
+      {#
+        操作メニュー（ログイン/トップ/編集/新規）。本体が組み立てて渡す
+        （common_menu。wikilib.themes.common_menu_html）。出し分け・Alt+E用の
+        data-hotkey・「新規」ダイアログもここに含まれ、処理は common.js が受け持つ。
+        ズーム・マーカーの操作はこのテーマの対象外なので置かない。
+      #}
+      <nav class="commands" aria-label="コマンド">{{ common_menu }}</nav>
+      {#
+        ハンバーガーメニュー。700px幅を下回ると表示され、右カラム
+        （menu1/目次/menu2）をスライドインの off-canvas パネルとして開閉する
+        （post_it_1.js 参照）。700pxより広い画面では常に非表示。
+      #}
+      <button type="button" class="menu-toggle" id="menu-toggle"
+              aria-expanded="false" aria-controls="rightbar" aria-label="メニューを開く">
+        <span class="menu-toggle-bar" aria-hidden="true"></span>
+        <span class="menu-toggle-bar" aria-hidden="true"></span>
+        <span class="menu-toggle-bar" aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+
+  {#
+    サイト全体を検索するときの条件（mode/target/path）。検索窓にフォーカスすると
+    フロートインする。.search は連結した見た目にするためoverflow:hiddenを掛けており、
+    その中に置くとクリップされるため、フォームの外に置き各項目はform属性で結び付ける。
+  #}
+  <div class="search-options" hidden>
+    <div class="search-options-row">
+      <label class="search-options-label" for="so-mode">条件</label>
+      <select id="so-mode" name="mode" form="site-search-form">
+        <option value="and"{% if mode == 'and' %} selected{% endif %}>すべての語を含む（AND）</option>
+        <option value="or"{% if mode == 'or' %} selected{% endif %}>いずれかの語を含む（OR）</option>
+      </select>
+    </div>
+    <div class="search-options-row">
+      <label class="search-options-label" for="so-target">対象</label>
+      <select id="so-target" name="target" form="site-search-form">
+        <option value="all"{% if target == 'all' %} selected{% endif %}>ページ名と本文</option>
+        <option value="name"{% if target == 'name' %} selected{% endif %}>ページ名だけ</option>
+        <option value="body"{% if target == 'body' %} selected{% endif %}>本文だけ</option>
+      </select>
+    </div>
+    <div class="search-options-row">
+      <label class="search-options-label" for="so-path">絞り込み</label>
+      <input id="so-path" type="search" name="path" value="{{ path_filter }}" form="site-search-form"
+             placeholder="例: Tech/* （* と ? が使えます）">
+    </div>
+    <div class="search-options-row search-options-actions">
+      <button type="submit" form="site-search-form">この条件で検索</button>
+    </div>
+  </div>
+</header>
+
+{# ヘッダ直下にあった <hr class="full_hr"> は削除した（Wiki設計者の指示、
+   2026-09-05）。#header 自身が border-bottom を持っているので、
+   区切りはそれで足りる。フッタ手前の full_hr は残してある。 #}
+<div id="contents">
+  <div id="body">
+    <main class="content"{% if editable %} data-editable data-base-url="{{ base_url }}" data-page="{{ page }}"{% endif %}{% if editing %} data-draft="1"{% endif %}>
+      {% block content %}{{ content }}{% endblock %}
+    </main>
+  </div>
+
+  {#
+    #rightbar のバックドロップ。700px幅を下回ってハンバーガーメニューを
+    開いたときだけ表示され、クリックでメニューを閉じる（post_it_1.js 参照）。
+    それ以外の画面幅では常に非表示。
+  #}
+  <div class="menu-backdrop" id="menu-backdrop" hidden></div>
+
+  <div id="rightbar">
+    {% if menu1 %}<div class="panel menu1">{{ menu1 }}</div>{% endif %}
+
+    {% if toc|length > 1 %}
+    <nav class="panel toc" aria-label="目次">
+      <h2>目次</h2>
+      <ul>
+        {% for item in toc %}
+        <li class="toc-l{{ item.level }}"><a href="#{{ item.id }}">{{ item.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+
+    {% if menu2 %}<div class="panel menu2">{{ menu2 }}</div>{% endif %}
+  </div>
+</div>
+
+{#
+  ページ内検索が有効なときにフロートインするパネル。一致箇所の一覧を
+  common.js が流し込む。項目をクリックするとその場所へ移動する。
+#}
+<aside class="page-search-panel" hidden aria-label="ページ内検索の結果">
+  <div class="page-search-panel-head">
+    <span class="page-search-panel-title">ページ内検索</span>
+    <button class="page-search-close" type="button" aria-label="検索を閉じる">×</button>
+  </div>
+  <ol class="page-search-list"></ol>
+  <p class="page-search-more" hidden></p>
+</aside>
+
+<hr class="full_hr">
+<div id="footer">
+  <p><small>{% if render_ms is defined %}<span class="render-time">Convert-time: {{ render_ms }}ms</span> {% endif %}{% if source_mtime is defined %}<span class="source-mtime">Last-modified: {{ source_mtime }}</span> {% endif %}{% if disk_usage is defined %}<span class="disk-usage">{{ disk_usage.text }}</span> {% endif %}{% if login_as is defined and login_as %}<span class="login-as">{{ login_as }}</span> {% endif %}Powered by wikiSystem <span class="site-version">{{ version }}</span> <span class="site-copyright">&copy; {% if copyright_year is defined %}{{ copyright_year }} {% endif %}Yano Labo / AIT</span></small></p>
+</div>
+
+</div><!-- .pi-base -->
+</div><!-- .pi-container -->
+</div><!-- .pi-all -->
+
+{# common.js（検索・セクション編集・目次）に、このテーマ独自の post_it_1.js
+   （ハンバーガーメニュー・検索フォームの移動）を足す。 #}
+<script src="{{ theme_url }}/common.js"></script>
+<script src="{{ theme_url }}/post_it_1.js"></script>
+</body>
+</html>

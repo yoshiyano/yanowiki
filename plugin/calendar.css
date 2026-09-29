@@ -1,0 +1,124 @@
+/*
+ * カレンダー系プラグイン（calendar・calendar_edit・calendar_read・calendar2・
+ * calendar3・calendar_viewer）の共通の見た目。クラス名は本家PukiWikiのまま
+ * （style_calendar・style_td_*）。どのプラグインからも、このファイルが読み込まれる
+ * （plugin/_calendar.py の use_css）。
+ *
+ * 色はテーマの変数（--border・--muted・--accent・--panel-bg）を使い、無ければ
+ * 代わりの値にする。土日・今日の色は半透明にして、暗い配色でも文字が読めるように
+ * している。
+ */
+.content .style_calendar,
+.style_calendar {
+  /* テーマは本文の表を display: block（横スクロール用）にするので、表に戻す。
+     そのままだと表の背景（区切り線の色）が本文の幅いっぱいに広がる */
+  display: table;
+  width: auto;
+  border-collapse: separate;
+  border-spacing: 1px;
+  margin: 0.5em 0;
+  text-align: center;
+  background: var(--border, #ccd5dd);
+  font-size: 0.95em;
+}
+/* テーマの `.content th, .content td`（枠線・余白）より強くするため、要素名を付ける
+   （テーマのCSSはこのファイルより後に読み込まれ、強さが同じならテーマが勝つ） */
+table.style_calendar th,
+table.style_calendar td {
+  padding: 0.25em 0.4em;
+  background: var(--panel-bg, #f4f7fb);
+  border: 0;
+}
+.style_calendar .style_td_caltop,
+.style_calendar .style_td_caltop2 {
+  font-size: 0.85em;
+  font-weight: normal;
+  line-height: 1.6;
+}
+.style_calendar .style_td_week {
+  font-size: 0.8em;
+  font-weight: bold;
+  color: var(--muted, #555);
+}
+.style_calendar .style_td_sun { background: rgba(255, 90, 90, 0.14); }
+.style_calendar .style_td_sat { background: rgba(80, 120, 255, 0.14); }
+.style_calendar .style_td_today {
+  background: rgba(255, 210, 0, 0.3);
+  outline: 2px solid var(--accent, #d9a400);
+  outline-offset: -2px;
+}
+.style_calendar .style_td_blank { background: var(--panel-bg, #f4f7fb); opacity: 0.6; }
+.style_calendar .small { font-size: 0.85em; }
+.style_calendar a { text-decoration: none; }
+
+/* calendar2: カレンダーと今日のページの中身を横に並べる。狭い画面では縦に積む */
+.calendar2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  align-items: flex-start;
+}
+.calendar2 .calendar2-month { flex: 0 0 auto; }
+.calendar2 .calendar2-today { flex: 1 1 18em; min-width: 0; }
+.calendar2-edit button,
+.calendar-new button,
+.calendar_viewer-edit button {
+  font: inherit;
+  color: var(--accent, #0645ad);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.calendar2-edit { margin: 0; }
+.calendar-new { display: inline; margin: 0; }
+.style_calendar .calendar-new button { color: var(--accent, #0645ad); }
+.calendar2-new button { text-decoration: underline; }
+.calendar2-empty { margin: 0.5em 0; }
+
+/* calendar3: 予定を書き込む大きめの升目 */
+.content .calendar3,
+.calendar3 { width: 100%; max-width: 50em; table-layout: fixed; }
+table.calendar3 td { height: 5em; vertical-align: top; text-align: left; }
+.calendar3 td > strong { display: block; text-align: center; }
+.calendar3 .calendar3-items { font-size: 0.8em; line-height: 1.35; overflow-wrap: anywhere; }
+.calendar3 .calendar3-items span[title] { text-decoration: underline dotted; cursor: help; }
+.calendar3-frame.is-loading,
+.calendar2-frame.is-loading { opacity: 0.5; }
+
+/* calendar_viewer: 長い記事は約7行に抑える（calendar_viewer.js が is-clamped を付ける） */
+/* 先頭の見出しの上余白で「行」が減らないように詰める */
+.calendar_viewer-body > :first-child { margin-top: 0; }
+/* 見える本文が7行ほどになる高さ。記事の先頭には見出しが来ることが多いので、
+   その分（約3行）を足してある（calendar_viewer.py の技術資料「長い記事」） */
+.calendar_viewer-body.is-clamped {
+  max-height: calc(1.7em * 10);   /* lh 単位が使えないブラウザ向け */
+  max-height: 10lh;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent);
+  mask-image: linear-gradient(to bottom, #000 65%, transparent);
+}
+.calendar_viewer-more {
+  display: block;
+  margin: 0.2em 0 0.8em;
+  padding: 0;
+  font: inherit;
+  font-size: 0.9em;
+  color: var(--accent, #1a5fb4);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.calendar_viewer-more:hover { text-decoration: underline; }
+@media print {
+  .calendar_viewer-body.is-clamped { max-height: none; overflow: visible; mask-image: none; -webkit-mask-image: none; }
+  .calendar_viewer-more { display: none; }
+}
+
+/* calendar_viewer: 日付の見出しと、前後へのリンク */
+.calendar_viewer-edit { display: inline; margin: 0; }
+div.calendar_viewer {
+  display: flex;
+  justify-content: space-between;
+  margin: 1.2em 0 0.6em;
+}

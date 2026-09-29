@@ -1,0 +1,38 @@
+webFileDir（Web ブラウザからエクスプローラーのようにファイルを操作する部品）を、
+ファイル一覧（/.files/。wikilib.filesui）のために同梱しています。
+別途インストールする必要はありません。
+
+webFileDir は wikiSystem と同じ作者（Yano Labo / AIT）の著作物で、開発は別の
+リポジトリ（ClaudeWS/webFileDirs）で行っています。wikiSystem と同じ MIT License で
+配布します（wikiSystem の LICENSE）。使いかた・組み込みかたは
+同じ場所の EMBED.md と、webFileDir の Wiki（このwikiSystemでは /=webfiledir/ ファーム）を
+参照してください。
+
+  server/      webFileDir のサーバ（wikilib.filesui が webfiledir という名前で読み込む）
+  static/      画面の JS・CSS（webFileDir のアプリが /.files/static/… として配信する）
+  VERSION      同梱した版とコミット
+  EMBED.md     組み込みの手引き（webFileDir の配布物に入っているもの）
+  README.md    webFileDir の説明
+
+中身は webFileDir の配布物（tools/make_dist.py で作る tar.gz）から、上のものだけを
+そのままコピーしています。wikiSystem 側では書き換えません。
+
+## 更新するとき
+
+同梱しているのは **0.2 系**（webFileDirs の dev0 ブランチと、そのタグ v0.2.x。0.2 系は
+dev0 で続いている、と設計者から聞いている）。webFileDirs の dev は 1.0.0 系の作り直し
+（操作をサーバが宣言するコマンドにする）で、wikilib.filesui の組み込みとは互換が無いので、
+いまは取り込んでいない（クロコの判断。1.0.0 系へ移るかは設計者が決めていない）。
+0.2 系の文書は webFileDir の Wiki の ver.0/ にある。
+
+  1. 同梱する版のタグを一時ディレクトリに複製し、そこで配布物を作る
+     （webFileDirs の作業ツリーは dev のことがあるので、切り替えない）
+       git clone --branch v0.2.x ~/ClaudeWS/webFileDirs /tmp/wfd
+       cd /tmp/wfd && ./tools/make_dist.py --out /tmp/wfd-dist \
+           --wiki ~/ClaudeWS/wikiSystem/wikidata/webfiledir/wiki/ver.0/how_to_embed.md
+  2. 展開して、server/ static/ VERSION EMBED.md README.md をここへ置き換える
+     （古い server/・static/ は消してから置く。消えたファイルが残らないように）
+  3. wikiSystem のテスト（tests/test_filesui.py）を通し、サービスを再起動する
+
+開発中の webFileDir で試すときは、環境変数 WIKI_WEBFILEDIR_DIR にその場所を
+指定すると、同梱のものの代わりに使います（wikilib.paths.WEBFILEDIR_DIR）。

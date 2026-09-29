@@ -1,0 +1,320 @@
+/* アカウントまわりの画面の見た目（/.admin/accounts.css）。
+ *
+ *   /.admin/accounts   アカウントの一覧と編集
+ *   /.pwhash           ハッシュ値を作る道具
+ *
+ * 作りが同じ（ラベル＋入力欄が縦に並ぶだけ）なので、1枚で共有する。
+ * ログイン（旧 /.login）は #login プラグインに移り、見た目も
+ * plugin/login.css が別に持つ（Wiki設計者の指示、2026-09-11）。
+ *
+ * 色は自前で決めず、テーマが配るカスタムプロパティを使う（第2引数は、テーマが
+ * その変数を持っていなかったときの受け皿）。テーマ（theme/）は別プロジェクトの
+ * 持ち物なので、こちらから触らずに済ませるための持ちかた。 */
+
+.acct {
+  max-width: 44rem;
+}
+
+/* 一覧の表は幅を使う（共通の外枠は全幅。Wiki設計者の指示、2026-09-24） */
+.acct.acct-list {
+  max-width: none;
+}
+
+.acct-lead {
+  margin: 0 0 1.2rem;
+  color: var(--muted, #57606a);
+  font-size: 0.92rem;
+}
+
+.acct-h2 {
+  margin: 2rem 0 0.8rem;
+  font-size: 1.05rem;
+}
+
+/* ---- 知らせ ---- */
+
+.acct-notice {
+  margin: 0 0 1.2rem;
+  padding: 0.7em 1em;
+  border: 1px solid var(--border, #d0d7de);
+  border-left-width: 4px;
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg, #f6f8fa);
+}
+
+.acct-notice-error {
+  border-left-color: #cf222e;
+}
+
+/* ---- 入力欄 ---- */
+
+.acct-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* ラベルを左に固定幅で置き、入力欄が残りを取る。狭い画面では縦に折る */
+.acct-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.acct-row label {
+  flex: 0 0 8em;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.acct-row input {
+  flex: 1 1 16em;
+  min-width: 0;
+  padding: 0.45em 0.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: var(--fg, #1f2328);
+  font: inherit;
+}
+
+.acct-row input[readonly] {
+  background: var(--code-bg, #f6f8fa);
+  color: var(--muted, #57606a);
+}
+
+/* ハッシュ値は40桁の16進。折り返さずに読めるよう等幅にする */
+.acct-hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+/* 一覧のパスワード欄の右に付ける「パスワードとして入力」のチェック。
+   欄は残りの幅を使い、チェックは欄の右に折り返さず並べる（表の幅を超えない） */
+.acct-pw-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+.acct-pw-wrap .acct-f-pw {
+  flex: 1 1 0;
+  min-width: 8rem;
+}
+.acct-raw-label {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* 一覧の input は width:100% だが、チェックボックスには当てない */
+.acct-table input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+/* 狭い画面では、チェックを欄の下へ回す */
+@media (max-width: 720px) {
+  .acct-pw-wrap { flex-wrap: wrap; }
+  .acct-pw-wrap .acct-f-pw { flex-basis: 100%; }
+}
+
+.acct-hint {
+  margin: 0;
+  color: var(--muted, #57606a);
+  font-size: 0.85rem;
+}
+
+.acct-actions {
+  display: flex;
+  gap: 0.6em;
+}
+
+.acct-go {
+  padding: 0.45em 1.4em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--accent, #0969da);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.acct-go:hover {
+  filter: brightness(1.08);
+}
+
+/* ---- 一覧 ---- */
+
+.acct-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.acct-table th,
+.acct-table td {
+  padding: 0.5em 0.4em;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.acct-table th {
+  color: var(--muted, #57606a);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.acct-table input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.35em 0.5em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: var(--fg, #1f2328);
+  font: inherit;
+}
+
+.acct-num {
+  color: var(--muted, #57606a);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.acct-check-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ---- 一覧の上に集約した更新・削除ボタン（Wiki設計者の指示、2026-09-12） ---- */
+
+.acct-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0 0 0.8rem;
+}
+
+.acct-bulk-actions button {
+  padding: 0.4em 1.1em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg, #f6f8fa);
+  color: inherit;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.acct-bulk-actions button:hover:not(:disabled) {
+  border-color: var(--accent, #0969da);
+}
+
+.acct-bulk-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 消す操作だけは、押す前に色で分かるようにする */
+.acct-bulk-actions .acct-del:hover:not(:disabled) {
+  border-color: #cf222e;
+  color: #cf222e;
+}
+
+.acct-bulk-status {
+  color: var(--muted, #57606a);
+  font-size: 0.85rem;
+}
+
+.acct-bulk-status-error {
+  color: #cf222e;
+}
+
+/* ---- 認証できたとき ---- */
+
+.acct-done-lead {
+  margin: 0 0 0.6rem;
+  color: var(--muted, #57606a);
+}
+
+/* ---- 助手の操作の記録（/.admin/stafflog） ---- */
+
+.stafflog-table td:nth-child(-n+3),
+.stafflog-table td:last-child {
+  white-space: nowrap;
+}
+
+.stafflog-diff {
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ---- 管理の窓口（/.admin）と助手管理 ---- */
+
+.acct-tools td:first-child {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* 開けない道具は、隠さずに「開けない」と見せる */
+.acct-only {
+  margin-left: 0.4em;
+  padding: 0.1em 0.5em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 999px;
+  color: var(--muted, #57606a);
+  font-size: 0.75rem;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.acct-staff-mark {
+  text-align: center;
+  font-weight: 600;
+}
+
+.acct-staff-row {
+  background: rgba(9, 105, 218, 0.06);
+}
+
+.acct-admin-row {
+  color: var(--muted, #57606a);
+}
+
+/* ---- ロック中のアカウント ---- */
+
+.acct-locked {
+  background: rgba(207, 34, 46, 0.06);
+}
+
+.acct-lock-mark {
+  margin-left: 0.25em;
+}
+
+/* ---- 開けなかったとき（管理者だけの画面） ---- */
+
+.acct-denied .acct-notice {
+  margin-bottom: 1rem;
+}
+
+.acct-denied-link {
+  margin: 0 0 0.6rem;
+}
+
+/* 画面が狭いときは、ラベルを入力欄の上へ */
+@media (max-width: 520px) {
+  .acct-row label {
+    flex-basis: 100%;
+  }
+  .acct-table {
+    font-size: 0.82rem;
+  }
+}

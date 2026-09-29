@@ -1,0 +1,56 @@
+/* ref プラグインの見た目。
+   note.css と同じく、テーマの共通カスタムプロパティ（--accent, --panel-bg,
+   --border, --muted）だけを頼りに書いてあり、フォールバックも添えてある。
+   テーマ側で同じセレクタを書けば、そのテーマらしい見た目に上書きできる。 */
+
+.plugin-ref-image,
+img.plugin-ref-block {
+  max-width: 100%;
+  height: auto;
+}
+
+.plugin-ref-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.15em 0.6em 0.15em 0.15em;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 4px);
+  background: var(--panel-bg, #f6f6f6);
+  text-decoration: none;
+  color: inherit;
+}
+.plugin-ref-file:hover { border-color: var(--accent); }
+
+.plugin-ref-file.plugin-ref-block { display: inline-flex; }
+div.plugin-ref { margin: 0.6rem 0; }
+
+.plugin-ref-box {
+  display: inline-block;
+  padding: 0.6em;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 4px);
+  background: var(--panel-bg, #f6f6f6);
+}
+.plugin-ref-box img { display: block; }
+
+.ref-kind {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius, 4px);
+  background: var(--accent-soft, var(--panel-bg, #eee));
+  color: var(--accent);
+}
+.ref-name { text-decoration: underline; }
+.ref-info {
+  font-size: 0.8rem;
+  color: var(--muted, #777);
+}
+
+/* 持ち主のページを閲覧できない添付（ref.py 技術資料「閲覧の権限」）。
+   ふだんのファイルの札と同じ形で、リンクではないので下線を消し、控えめな色にする */
+.plugin-ref-denied { color: var(--muted, #777); cursor: default; }
+.plugin-ref-denied:hover { border-color: var(--border, #ccc); }
+.plugin-ref-denied .ref-name { text-decoration: none; }
+.ref-kind-denied { color: var(--muted, #777); }

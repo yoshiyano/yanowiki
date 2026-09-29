@@ -1,0 +1,86 @@
+/* ページ一覧のTreeView（/.treeview.css）。
+ *
+ * 要素には、使う場所ごとの名前（`rp-row` など）と、どこでも同じ共通の名前
+ * （`tv-row`）が並べて付く。**ここで見るのは共通のほうだけ。** 場所ごとの名前は、
+ * その画面だけの字下げや幅を足すために使う側が使う。
+ *
+ * 色は自前で決めず、テーマが配るカスタムプロパティを使う（第2引数はテーマが
+ * その変数を持っていなかったときの受け皿）。
+ */
+
+.tv-row {
+  display: flex;
+  gap: 0.3em;
+  align-items: center;
+  padding: 0.15em 0.3em;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.tv-row:hover { background: var(--code-bg, #f6f8fa); }
+
+/* 選ばれている行。**どれを選んだかが一目で分かる濃さ**にする
+   （薄いと、一覧の中で見失って選び直すことになる） */
+.tv-row.is-chosen {
+  background: var(--accent, #3178c6);
+  color: #fff;
+}
+
+.tv-row.is-chosen:hover { background: var(--accent, #3178c6); }
+
+/* キーボードで動かしているときの居場所。選択の色に重ねても見えるよう外側に出す */
+.tv-row:focus-visible {
+  outline: 2px solid var(--accent, #3178c6);
+  outline-offset: 1px;
+}
+
+/* 選ばれている行の中は、下地に負けないよう白で揃える */
+.tv-row.is-chosen .tv-label,
+.tv-row.is-chosen .tv-dirlabel,
+.tv-row.is-chosen .tv-nopage,
+.tv-row.is-chosen .tv-title { color: #fff; }
+
+/* 開閉の三角。**選ぶ操作と場所を分ける**ので、押し間違えない大きさにする
+   （文字の1.7倍。指でも押せるよう当たり判定も広げてある） */
+.tv-twisty {
+  flex: none;
+  width: 1.7em;
+  height: 1.7em;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font-size: 1em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tv-twisty:hover { background: var(--border, #d0d7de); }
+
+/* 子を持たない行。三角は出さないが、**幅は空けたままにする**
+   （名前の頭が階層ごとに揃わないと、どこに属しているのか読み取りにくい） */
+.tv-twisty.is-leaf {
+  cursor: default;
+  visibility: hidden;
+}
+
+/* フォルダの名前。中の index を兼ねているので、選べるものとして出す */
+.tv-dirlabel { font-weight: 600; }
+
+/* まだ実体の無いページ。選べるが、無いことが分かるようにする */
+.tv-nopage {
+  color: var(--muted, #999);
+  font-style: italic;
+}
+
+.tv-title {
+  overflow: hidden;
+  color: var(--muted, #666);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tv-node.is-folded > .tv-children { display: none; }
+.tv-node.is-hidden { display: none; }

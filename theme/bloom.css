@@ -1,0 +1,939 @@
+/*
+ * bloom — 薄オレンジ系の、ゆったりしたテーマ（サンプル）
+ *
+ * ● このCSSの書き方の特徴: 「共通CSSを読み込まず、一から書く」
+ *   fresh.css が @import で base.css を土台にしているのに対し、こちらは独立しています。
+ *   そのぶん、検索パネルやセクション編集など細かい部品の見た目も自分で用意する必要が
+ *   あります（このファイルの後半がそれです）。
+ *
+ * ● 見た目の方針
+ *   - 余白を大きく、行間も広めにとって、ゆったり読ませる
+ *   - 角を丸め、細い枠線とやわらかい影で要素をふんわり浮かせる
+ *   - 彩度を抑えた薄オレンジ〜ベージュ。強い色は差し色として少量だけ使う
+ */
+
+:root {
+  --bg: #fffdfb;
+  --fg: #40342c;
+  --muted: #9a897c;
+  --border: #f0e2d6;
+  --accent: #d9803f;
+  --accent-soft: #fbeee2;
+  --card-bg: #ffffff;
+  --panel-bg: #fdf6ef;
+  --code-bg: #fdf4ec;
+  --shadow: 0 2px 14px rgb(190 140 100 / 10%);
+  --shadow-lift: 0 8px 28px rgb(190 140 100 / 18%);
+  --radius: 14px;
+  --sidebar-width: 17rem;
+  --content-max: 44rem;
+  /* サイドバーの折りたたみ（common.css参照）のしきい値。bloomはmenu1を
+     独立させず.subbar1本なので、bp-narrower（common.cssで.subbarに
+     対応する側）だけを使う。62rem（旧来の折り返ししきい値）と同じ幅
+     になるよう、ブラウザ既定16px基準で換算した値にしてある。 */
+  --bp-narrower: 992px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1512;
+    --fg: #ece1d8;
+    --muted: #a8968a;
+    --border: #33291f;
+    --accent: #e79a63;
+    --accent-soft: #2a2018;
+    --card-bg: #211a15;
+    --panel-bg: #211a15;
+    --code-bg: #241c16;
+    --shadow: 0 2px 14px rgb(0 0 0 / 35%);
+    --shadow-lift: 0 8px 28px rgb(0 0 0 / 45%);
+  }
+}
+
+* { box-sizing: border-box; }
+/* [hidden]の手当てはcommon.cssに既にある（bloomが独立CSSでも
+   common.cssは全テーマ共通で読み込まれるため、ここで重ねる必要はない） */
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans JP", "Hiragino Sans", Meiryo, sans-serif;
+  line-height: 1.95;          /* ゆったり読ませるため広め */
+  letter-spacing: 0.02em;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- ヘッダは持たない ----
+   サイト名＋コマンド群の.site-headerは廃止した。コマンド・検索は
+   subbar内、目次の直後（.subbar-commands）に移してある
+   （Wiki設計者からの要望。2026-08-22）。 */
+.commands {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  flex-wrap: wrap;
+  position: relative;
+}
+.command { font-size: 0.85rem; color: var(--muted); text-decoration: underline; }
+.command:hover { color: var(--accent); }
+/* 「検索」はモーダルを開くbutton。見た目は他のcommand（a）と揃える */
+button.command.search-modal-open {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* subbar内に移したコマンド・検索の置き場。全体は縦に並べる
+   （拡大縮小 → リンク一覧 → 検索）が、リンク一覧・検索それぞれの
+   中身は横方向に広げる。 */
+.subbar-commands .commands {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.8rem;
+}
+.subbar-commands .zoom-controls { justify-content: center; }
+.subbar-commands .marker-controls { justify-content: center; flex-wrap: wrap; }
+
+/* リンク（トップ/編集/履歴/リネーム）は縦積みにせず、幅いっぱいで
+   折り返す横並びにする */
+.subbar-commands .command-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.4rem;
+  justify-content: center;
+}
+/* 本体が渡す共通メニュー（common_menu）。中身のリンクをそのまま .command-links の
+   フレックス項目として並べ（従来の並び・間隔のまま）、区切りの「/」は出さない。 */
+.subbar-commands .common-menu {
+  display: contents;
+}
+.subbar-commands .common-menu .command-sep {
+  display: none;
+}
+
+/* ---- ページの顔 ----
+   左端にアイコン、右にタイトル+TopicPathの縦積み。
+   アイコン領域（.page-header-icon）は高さ80px固定で、画像自体が
+   小さくてもこの高さぶんの領域を確保し、縦中央に置く。右側の
+   縦積み（.page-header-text）も同じ80pxに揃え、h1を上・TopicPathを
+   下（justify-content: space-between）に配置する。 */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.4rem;
+  max-width: calc(var(--content-max) + var(--sidebar-width) + 6rem);
+  margin: 0 auto;
+  padding: 0.3rem 2rem 1rem;
+  text-align: left;
+}
+.page-header-icon {
+  flex-shrink: 0;
+  height: 80px;
+  display: flex;
+  align-items: center;
+}
+.page-header-icon img {
+  display: block;
+  max-height: 100%;
+  width: auto;
+}
+.page-header-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 80px;
+  min-width: 0;
+}
+.page-path {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.page-path a { color: var(--muted); }
+.page-path a:hover { color: var(--accent); }
+.page-path .sep { margin: 0 0.45rem; opacity: 0.55; }
+.page-path .current { color: var(--fg); }
+.page-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+/* タイトルの下に短い飾り線を置く（囲まずに区切る。左寄せレイアウトに
+   合わせ、以前の中央寄せ(margin: 1rem auto 0)から左寄せへ変更） */
+.page-title::after {
+  content: "";
+  display: block;
+  width: 3rem;
+  height: 3px;
+  margin-top: 0.5rem;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+/* ---- レイアウト ---- */
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  gap: 3rem;
+  align-items: start;
+  max-width: calc(var(--content-max) + var(--sidebar-width) + 6rem);
+  margin: 0 auto;
+  padding: 0 2rem 5rem;
+}
+.subbar { grid-column: 1; grid-row: 1; }
+.content { grid-column: 2; grid-row: 1; min-width: 0; }
+
+/* .subbarの折りたたみ（帯→ドロワー）はhtml.bp-narrowerで判定するcommon.css
+   側の共通処理に任せる（position: fixedになるとグリッド上の位置指定は
+   意味を持たなくなる）。ここでは本文側の1カラム化だけ同じクラスで行う。 */
+html.bp-narrower .layout { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding: 0 1.2rem 3rem; }
+html.bp-narrower .content { grid-column: 1; grid-row: 1; }
+
+/* 帯の発動しきい値とは連動しない見た目調整（本文側の余白・タイトルの
+   文字サイズ）だけ、従来どおり静的な@mediaで行う（実害が無いため）。 */
+@media (max-width: 62rem) {
+  .page-header { padding: 1.8rem 1.2rem 1.4rem; }
+  .page-title { font-size: 1.6rem; }
+}
+
+/* ---- サイドバーのカード ---- */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.3rem;
+  margin-bottom: 1.4rem;
+  font-size: 0.9rem;
+}
+.card h1, .card h2, .card h3, .card-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin: 0 0 0.7rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed var(--border);
+}
+.card ul { margin: 0; padding-left: 1.1rem; }
+.card li { padding: 0.18rem 0; }
+.card a { color: var(--fg); }
+.card a:hover { color: var(--accent); }
+
+/* 目次だけは読みながら使うので画面に貼り付ける */
+.toc { position: sticky; top: 1.2rem; }
+.toc ul { list-style: none; padding-left: 0; }
+.toc li { padding: 0.2rem 0; }
+.toc .toc-l2 { padding-left: 1rem; }
+.toc .toc-l3 { padding-left: 2rem; font-size: 0.92em; }
+/* font-weight: 600はcommon.cssの既定（.toc a.current）と重複するため
+   ここでは色だけ上書きする */
+.toc a.current { color: var(--accent); }
+
+/* ---- 本文 ---- */
+.content h1, .content h2, .content h3, .content h4, .content h5, .content h6 {
+  scroll-margin-top: 1.5rem;
+  letter-spacing: 0.04em;
+}
+.content > :first-child { margin-top: 0; }
+.content h1 { font-size: 1.6rem; margin-top: 3rem; }
+.content h2 {
+  font-size: 1.3rem;
+  margin-top: 3rem;
+  padding: 0.3rem 0 0.3rem 0.9rem;
+  border-left: 4px solid var(--accent);
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent-soft), transparent 60%);
+}
+.content h3 { font-size: 1.1rem; margin-top: 2.2rem; color: var(--accent); }
+.content p { margin: 1.2rem 0; }
+.content img { max-width: 100%; border-radius: var(--radius); }
+
+.content pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+  line-height: 1.7;
+}
+/* font-family(monospace, sans-serif)はcommon.cssで指定済み。
+   font-sizeも縮めず本文と揃えている（半角文字は同じ数値でも小さく見えるため） */
+.content code {
+  background: var(--code-bg);
+  border-radius: 5px;
+  padding: 0.15em 0.45em;
+}
+.content pre code { background: none; padding: 0; }
+
+.content blockquote {
+  margin: 1.5rem 0;
+  padding: 0.6rem 1.4rem;
+  color: var(--muted);
+  background: var(--panel-bg);
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.content table {
+  border-collapse: separate;
+  border-spacing: 0;
+  display: block;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.content th, .content td { border-bottom: 1px solid var(--border); padding: 0.6rem 1rem; }
+.content tr:last-child td { border-bottom: none; }
+.content th { background: var(--panel-bg); font-weight: 600; text-align: left; }
+.content .contains-task-list { list-style: none; padding-left: 0.4rem; }
+
+/* ---- 注釈（脚注） ---- */
+.footnote-ref a {
+  text-decoration: none;
+  color: var(--accent);
+}
+.footnote-ref a:hover { text-decoration: underline; }
+.footnotes-sep {
+  margin: 2.5rem 0 1.2rem;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+.footnotes {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.footnotes-list { padding-left: 1.4rem; }
+.footnote-item { margin: 0.4rem 0; }
+.footnote-backref {
+  margin-left: 0.3rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.footnote-backref:hover { color: var(--accent); text-decoration: underline; }
+
+/* ---- 検索フォーム（ヘッダ内） ---- */
+.search {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;      /* 丸みを強くして柔らかい印象に */
+  overflow: hidden;
+}
+.search:focus-within { border-color: var(--accent); box-shadow: var(--shadow); }
+/* 型セレクタ（input, button）は使わない。詳細度が上がり、下の
+   .search-scope/.search-submit（border-left等）に負けなくなるよう
+   クラス名で直接指定する（/Tech/ChangeLog/themes/2026-08-17 参照）。 */
+.search-word, .search-scope, .search-submit {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+}
+.search-word { width: 11rem; max-width: 38vw; }
+.search-word:focus { outline: none; }
+.search-scope, .search-submit {
+  cursor: pointer;
+  white-space: nowrap;
+  border-left: 1px solid var(--border);
+}
+.search-scope { touch-action: none; }
+.search-scope:hover, .search-submit:hover { background: var(--accent-soft); color: var(--accent); }
+.search-scope[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+
+.search-scope-menu {
+  position: fixed;
+  /* サイドバーの折りたたみ帯・ドロワー（common.css、z-index: 40）・暗幕
+     （同35）、さらに検索モーダル本体（同50/51）より手前に出す
+     （このメニュー自体、検索モーダルの中の.searchから開くため）。 */
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  min-width: 9rem;
+  padding: 0.4rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+}
+.search-scope-item {
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+.search-scope-item.current { font-weight: 600; }
+.search-scope-item.hover { background: var(--accent-soft); border-color: var(--accent); }
+
+.page-search-nav { display: flex; gap: 0.25rem; align-items: center; padding-right: 0.5rem; }
+.page-search-nav button {
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+}
+.page-search-nav button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.page-search-nav button:disabled { opacity: 0.35; cursor: default; }
+.page-search-count { font-size: 0.78rem; color: var(--muted); min-width: 4.2rem; }
+
+/* ---- 検索条件パネル ---- */
+.search-options {
+  position: fixed;
+  /* .search-scope-menuと同じ理由（検索モーダルより手前に出す） */
+  z-index: 55;
+  width: 24rem;
+  max-width: calc(100vw - 2rem);
+  padding: 1rem 1.2rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+}
+.search-options-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+.search-options-row:last-child { margin-bottom: 0; }
+.search-options-label { width: 4.5rem; font-size: 0.85rem; color: var(--muted); }
+.search-options select, .search-options input, .search-options button {
+  flex: 1;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.search-options-actions { justify-content: flex-end; }
+.search-options-actions button {
+  flex: 0 0 auto;
+  cursor: pointer;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.search-options-actions button:hover { opacity: 0.9; }
+
+/* ---- 検索モーダル ----
+   subbar内の「検索」コマンド（.search-modal-open）で開く。開閉・ドラッグ
+   移動・重なり順（z-index）は全テーマ共通の操作としてcommon.css/
+   common.jsへ移した。ここにはbloom固有の見た目（配色・余白・角丸・
+   2行構成のレイアウト）だけを残している。 */
+.search-modal-backdrop {
+  /* 暗幕は出さない（Wiki設計者の指示。背後の本文が見えたままの方が良い
+     とのこと）。position/z-index/pointer-events: noneはcommon.css。 */
+  background: transparent;
+}
+.search-modal-panel {
+  /* position/z-indexはcommon.css。ここでは初期配置（上寄せ・中央）と
+     見た目だけ */
+  top: 4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26rem;
+  max-width: calc(100vw - 2rem);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+}
+.search-modal-head {
+  /* cursor: moveはcommon.css（ドラッグの目印） */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.search-modal-title { font-size: 0.9rem; font-weight: 600; }
+.search-modal-panel form.search,
+.search-modal-panel .search-options {
+  margin: 1.2rem;
+}
+/* .search-hotkey-hintの共通ルール（common.css）は左右marginが無い
+   （.page-search-panel-head側は親のpaddingで足りるため）。ここは
+   form.searchの左右margin(1.2rem)と揃える */
+.search-modal-panel .search-hotkey-hint {
+  margin: 0.3rem 1.2rem 0;
+}
+/* 検索窓は2行構成にする（1行目: 入力欄、2行目: 範囲切替+検索ボタン）。
+   .searchは元々1行の丸ピル形状なので、丸みを控えめにして折り返しても
+   不自然にならないようにする。 */
+.search-modal-panel .search {
+  width: calc(100% - 2.4rem);
+  flex-wrap: wrap;
+  border-radius: 10px;
+}
+.search-modal-panel .search-word {
+  width: auto;
+  max-width: none;
+  flex: 1 1 100%;
+  border-bottom: 1px solid var(--border);
+}
+.search-modal-panel .search-scope,
+.search-modal-panel .search-submit {
+  flex: 1 1 auto;
+  text-align: center;
+}
+.search-modal-close {
+  margin-left: auto;
+  font: inherit;
+  line-height: 1;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+.search-modal-close:hover { background: var(--accent-soft); color: var(--accent); }
+
+/* ---- 検索結果ページ ---- */
+.search-detail {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.8rem;
+}
+.search-detail-row {
+  display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.6rem;
+}
+.search-detail-row:last-child { margin-bottom: 0; }
+.search-detail-label { width: 10rem; font-size: 0.9rem; color: var(--muted); }
+.search-detail input, .search-detail select, .search-detail button {
+  font: inherit; font-size: 0.9rem; padding: 0.4rem 0.6rem;
+  color: var(--fg); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.search-detail-word { flex: 1; min-width: 12rem; }
+.search-hint { color: var(--muted); font-size: 0.9rem; }
+.search-summary code { background: var(--code-bg); border-radius: 5px; padding: 0.1em 0.45em; }
+.search-results { list-style: none; padding: 0; }
+.search-result { padding: 1rem 0; border-bottom: 1px solid var(--border); }
+.search-result-title { font-size: 1.05rem; font-weight: 600; }
+.search-result-path { color: var(--muted); font-size: 0.8rem; }
+.search-result-snippet { margin: 0.4rem 0 0; }
+.search-result-jump { color: inherit; }
+.search-result-jump:hover { color: var(--accent); }
+
+mark {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: inherit;
+  border-radius: 4px;
+  padding: 0 0.15em;
+}
+.search-hit.current {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---- ページ内検索のフロートパネル ---- */
+.page-search-panel {
+  position: fixed;
+  right: 1.2rem;
+  top: 5rem;
+  z-index: 20;
+  width: 22rem;
+  max-width: calc(100vw - 2.4rem);
+  max-height: 68vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lift);
+}
+/* display: block（見出し行+ホットキー案内の2段積み）・.page-search-panel-head-row
+   のflexレイアウト・.search-hotkey-hintの見た目はcommon.css側の既定を使う。
+   ここではbloom固有の余白・色・角丸だけ上書きする。 */
+.page-search-panel-head {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.page-search-panel-title { font-size: 0.9rem; font-weight: 600; }
+.page-search-close {
+  margin-left: auto; font: inherit; line-height: 1;
+  padding: 0.2rem 0.5rem; cursor: pointer;
+  color: var(--fg); background: transparent;
+  border: 1px solid transparent; border-radius: 999px;
+}
+.page-search-close:hover { background: var(--accent-soft); color: var(--accent); }
+.page-search-list {
+  margin: 0; padding: 0.5rem 0.5rem 0.5rem 2.4rem;
+  overflow-y: auto; font-size: 0.85rem;
+}
+.page-search-item {
+  display: block; width: 100%; text-align: left;
+  font: inherit; line-height: 1.6;
+  padding: 0.4rem 0.6rem; cursor: pointer;
+  color: var(--fg); background: transparent;
+  border: 1px solid transparent; border-radius: 8px;
+}
+.page-search-item:hover { background: var(--panel-bg); }
+.page-search-item.current { background: var(--accent-soft); border-color: var(--accent); }
+.page-search-more { margin: 0; padding: 0.4rem 1rem 0.7rem; color: var(--muted); font-size: 0.8rem; }
+
+/* ---- 存在しないページ ---- */
+.no-page {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--muted);
+}
+.no-page-icon { color: var(--border); margin-bottom: 0.8rem; }
+.no-page-message {
+  margin: 0.6rem 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.05em;
+}
+.no-page-path { margin: 0.6rem 0 1.8rem; }
+.no-page-hint { margin: 0.4rem 0; font-size: 0.9rem; }
+/* bloomらしく丸みと影を付ける（base.css の四角いボタンを上書き） */
+.no-page-actions { margin: 0 0 1.8rem; }
+.no-page-create {
+  display: inline-block;
+  padding: 0.6rem 1.8rem;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  text-decoration: none;
+}
+.no-page-create:hover { filter: brightness(1.06); box-shadow: var(--shadow-lift); }
+
+/* ---- プラグイン ---- */
+/* 標準では「** 名前 plugin error : 使いかた」の1行（色付き太字）だけ。
+   plugin.debug が有効なときだけ行末に [詳細] を足し、開いた中に理由と
+   _help()（無ければdocstring）を出す（base.css と同じ考えかた）。 */
+.plugin-error { margin: 0.6rem 0; font-size: 0.9rem; }
+.plugin-error-summary { color: #c0392b; font-weight: 700; }
+details.plugin-error-summary summary { cursor: default; list-style: none; }
+details.plugin-error-summary summary::-webkit-details-marker { display: none; }
+details.plugin-error-summary summary::marker { display: none; }
+details.plugin-error-summary[open] summary { margin-bottom: 0.4rem; }
+/* クリックできる範囲を [詳細]/[閉じる] の文字だけに絞る（行全体を
+   クリック対象にすると、理由を読もうとしただけで開閉してしまうため）。
+   summary自体はクリックを受け付けず、内側のtoggleだけ受け付け直す */
+details.plugin-error-summary summary { pointer-events: none; }
+.plugin-error-toggle { pointer-events: auto; cursor: pointer; text-decoration: underline; }
+/* 開いているかで [詳細]/[閉じる] を切り替える */
+.plugin-error-summary .is-open { display: none; }
+.plugin-error-summary[open] .is-closed { display: none; }
+.plugin-error-summary[open] .is-open { display: inline; }
+.plugin-error-message {
+  margin: 0 0 0.3rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.plugin-error-summary pre {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.plugin-error-detail { margin-top: 0.5rem; }
+.plugin-error-detail summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.plugin-error-detail pre {
+  margin: 0.4rem 0 0; font-size: 0.8rem;
+  white-space: pre-wrap; word-break: break-all;
+}
+.plugin-notice {
+  margin: 1rem 0;
+  padding: 0.6rem 1.1rem;
+  color: var(--muted);
+  background: var(--panel-bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+}
+
+/* note・contents・recent のCSSは、それぞれ plugin/note.css・plugin/contents.css・
+   plugin/recent.css に移した（プラグインが使うCSSは基本的にプラグイン自身が持つ）。
+   bloomらしい丸み・影・アクセントの効いた見た目にしたい場合は、同名セレクタを
+   ここに書けば上書きできる（プラグインCSSより後に読み込まれるため後勝ちで有効になる）。
+   例えば .contents に box-shadow: var(--shadow); border-radius: var(--radius); を
+   足すと、他のカードと揃った浮き上がりが付く。 */
+
+/* recent-title を .card h2/h3 と揃える一例（上のコメントの実演）。
+   plugin/recent.css の素朴な見た目（下線・通常の文字色）のままだと、
+   丸み・影・アクセント文字の効いたbloomのサイドバーだけ浮いてしまうため。 */
+.recent-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  border-bottom: 1px dashed var(--border);
+}
+
+/* ---- セクション編集: common.css との差分だけ ----
+   形と色は common.css が用意している。このテーマは余白を広めにとり、
+   角丸と影をカードの流儀（--radius / --shadow）に合わせる。 */
+.section-editor {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.section-editor-toolbar { margin-bottom: 0.6rem; }
+.section-editor-close { padding: 0.25rem 0.9rem; border-radius: 999px; }
+.section-editor-source {
+  min-height: 9rem;
+  padding: 0.8rem;
+  line-height: 1.7;
+  border-radius: 10px;
+}
+.section-editor-preview { margin-top: 0.8rem; padding-top: 0.8rem; }
+
+/* ---- 「上に戻る」ボタン（bloom.js が表示を切り替える） ---- */
+.to-top {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 15;
+  width: 2.8rem;
+  height: 2.8rem;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--accent);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  box-shadow: var(--shadow-lift);
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.to-top.visible { opacity: 1; transform: none; }
+.to-top:hover { background: var(--accent-soft); }
+@media (prefers-reduced-motion: reduce) {
+  .to-top { transition: none; }
+}
+
+/* ---- フッタ ---- */
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: var(--panel-bg);
+  padding: 2rem;
+}
+.site-footer-inner {
+  max-width: calc(var(--content-max) + var(--sidebar-width) + 6rem);
+  margin: 0 auto;
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.site-footer-name { font-weight: 600; color: var(--fg); }
+.site-footer-note { margin-left: auto; }
+
+/* ---- 再起動（/.restart） ---- */
+.restart {
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+.restart-message {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.restart-note,
+.restart-hint {
+  margin: 0.4rem 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.restart-form {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+.restart-go {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 1.6rem;
+  cursor: pointer;
+  color: #fff;
+  /* 押すと止まる操作なので、ふつうのボタンとは色を変えて注意を促す */
+  background: #b3261e;
+  border: 1px solid #b3261e;
+  border-radius: var(--radius, 6px);
+}
+.restart-go:hover { filter: brightness(1.1); }
+.restart-cancel { font-size: 0.9rem; }
+
+/* ---- 新しいWikiを作る（/.newwiki） ---- */
+.newwiki { max-width: 40rem; }
+.newwiki-lead { color: var(--muted); font-size: 0.92rem; }
+.newwiki-notice {
+  margin: 0 0 1rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+}
+.newwiki-notice-error {
+  background: rgb(217 131 36 / 12%);
+  border-color: rgb(217 131 36 / 40%);
+}
+.newwiki-form {
+  margin: 1.2rem 0;
+  padding: 1rem 1.2rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 6px);
+}
+.newwiki-row {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+.newwiki-row label { width: 11rem; font-size: 0.9rem; color: var(--muted); }
+.newwiki-row input {
+  flex: 1;
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.35rem 0.6rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.newwiki-row-checkbox label {
+  width: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--fg);
+}
+.newwiki-row-checkbox input { flex: none; width: auto; padding: 0; border: none; background: none; }
+.newwiki-hint { margin: 0.6rem 0; font-size: 0.85rem; color: var(--muted); }
+.newwiki-actions { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
+.newwiki-go {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.45rem 1.5rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 6px);
+}
+.newwiki-go:hover { filter: brightness(1.08); }
+.newwiki-cancel { font-size: 0.9rem; }
+.newwiki-existing h2 { font-size: 1rem; }
+.newwiki-existing ul { margin: 0.4rem 0; padding-left: 1.2rem; font-size: 0.92rem; }
+
+/* ---- 「新規」ダイアログ（コマンドバー） ---- */
+.new-page-dialog {
+  width: min(24rem, 90vw);
+  padding: 1.2rem;
+  color: var(--fg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow-lift);
+}
+.new-page-dialog::backdrop { background: rgba(64, 52, 44, 0.35); }
+.new-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+.new-page-title { font-size: 1rem; }
+.new-page-x {
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.1rem 0.4rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.new-page-x:hover { color: var(--fg); }
+.new-page-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+.new-page-input {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 14px);
+}
+.new-page-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+.new-page-cancel {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.new-page-cancel:hover { color: var(--fg); }
+.new-page-ok {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.45rem 1.4rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 14px);
+}
+.new-page-ok:hover:not(:disabled) { filter: brightness(1.08); }
+.new-page-ok:disabled { opacity: 0.5; cursor: not-allowed; }

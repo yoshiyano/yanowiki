@@ -1,0 +1,128 @@
+/* img プラグインの見た目。
+   note.css/ref.css と同じく、テーマの共通カスタムプロパティだけを頼りに
+   書いてあり、テーマ側で同じセレクタを書けば上書きできる。 */
+
+.plugin-img-inline,
+.plugin-img-block {
+  max-width: 100%;
+  height: auto;
+}
+
+div.plugin-img {
+  margin-bottom: 1em;
+}
+div.plugin-img img {
+  display: block;
+  margin: 0 0 0.3em 0;
+}
+
+.plugin-img-title {
+  font-size: 0.85rem;
+  color: var(--muted, #777);
+  text-align: center;
+}
+
+/* float+中身（回り込ませる文章）があるときだけ付く。中のfloatをここで
+   閉じ込めるので、外側にclear:bothを置く必要が無い。 */
+.plugin-img-wrap {
+  display: flow-root;
+}
+/* 回り込ませる（float）ときは、左右に1remずつ空ける（Wiki設計者の指示、2026-09-28）。
+   中身（{{ }}）で文章を渡す形でも、後ろの本文がそのまま回り込む形でも同じ。
+   以前は中身を渡す形だけ左右1emで、後ろの本文が回り込む形は余白が無く、
+   文章が画像に詰まって見えた */
+div.plugin-img.plugin-img-float,
+.plugin-img-wrap .plugin-img {
+  margin: 0 1rem 0.5em 1rem;
+}
+/* 回り込ませた文章の先頭要素（<p>等）は、テーマ側の既定の上marginを
+   持っていることが多く、そのままだと画像の上端より文章の開始位置が
+   下にずれて見える。画像divの直後（＝bodyの先頭要素）だけ打ち消す
+   （Wiki設計者の指摘）。bodyの先頭が<p>とは限らない（見出し・リスト等でも
+   起こりうる）ため、要素名を決め打ちせず隣接セレクタで指定する。 */
+.plugin-img-wrap .plugin-img + * {
+  margin-top: 0;
+}
+
+/* floatさせた画像の横に、Prism（#codeプラグイン）のコードブロックを
+   回り込ませると、画像が隠れてしまう問題への対処（2026-09-18、
+   Wiki設計者からの報告）。
+   `pre[class*="language-"]`はPrism側で`overflow:visible`が指定され
+   新しいブロック整形コンテキストを作らないため、ボックス自体（背景・
+   枠）はfloatを避けずコンテナの全幅に広がる（floatを避けるのは中身の
+   テキスト行だけ）。加えてPrismは`pre>code`に`position:relative;
+   z-index:1`を付けており、これにより通常は非positioned要素（float含む）
+   より後ろに来るはずの要素が、逆にfloatより前面に来てしまう。結果、
+   floatと重なった領域でコードの不透明な背景が画像の上に描画され、
+   画像が完全に隠れる（実機のスクリーンショットで確認・検証済み）。
+   `overflow: auto`でPre自身にBFCを作らせれば、floatを避けてボックスの
+   幅そのものが縮むため、上の2つの問題がまとめて解消する
+   （floatの回り込み本来の挙動に戻すだけで、z-indexを直接いじる
+   必要が無い）。 */
+.plugin-img-wrap pre[class*="language-"][class*="language-"] {
+  overflow: auto;
+}
+
+/* 拡大表示のダイアログ（img.js が <body> の末尾に作る）。
+   画面全体を覆い、どこをクリックしても閉じられるようにしている。
+   <dialog> の既定の枠・余白・大きさの上限はここで打ち消す。 */
+.plugin-img-dialog {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 1rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: zoom-out;
+  transition: opacity 0.3s ease;
+}
+/* display を上書きするのは開いているときだけ（閉じたときの
+   display:none をテーマ・作者スタイルで消さないため） */
+.plugin-img-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.plugin-img-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.8);
+  transition: opacity 0.3s ease;
+}
+/* 1回目のクリックから閉じるまでの間（ダブルクリックを待つ間）の
+   フェードアウト */
+.plugin-img-dialog.is-closing,
+.plugin-img-dialog.is-closing::backdrop {
+  opacity: 0;
+}
+.plugin-img-dialog-image {
+  display: block;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 5rem);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.plugin-img-dialog-caption {
+  margin: 0;
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.5;
+}
+.plugin-img-dialog-title {
+  display: block;
+  font-weight: bold;
+}
+/* タイトルが無いときは img.js が hidden を付ける。上の display:block が
+   ブラウザ既定の [hidden]{display:none} に勝ってしまうので明示する */
+.plugin-img-dialog-title[hidden] {
+  display: none;
+}
+.plugin-img-dialog-hint {
+  display: block;
+  color: rgba(255, 255, 255, 0.7);
+}

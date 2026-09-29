@@ -1,0 +1,75 @@
+/* pagediv プラグインの見た目。
+
+   並べかたは CSS グリッド。列の幅（--pd-cols）と各セルの位置（--pd-area）は
+   サーバー側で決めて、インラインの style に CSS変数として入れてある。値そのものを
+   grid-template-columns / grid-area に直接書かないのは、狭い画面で縦1列に
+   積み直す下の @media を !important 無しで効かせるため。
+
+   枠の形（セルの左と下の線・見出しの帯）は本家の pagediv の見た目を下敷きに、
+   色はテーマの変数から採る（無ければ本家に近いフォールバック）。 */
+
+.pagediv {
+  display: grid;
+  grid-template-columns: var(--pd-cols, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0.5rem 0;
+}
+
+.pagediv-cell {
+  grid-area: var(--pd-area, auto);
+  min-width: 0;
+  border-left: 2px solid var(--border, #888);
+  border-bottom: 2px solid var(--border, #888);
+  padding-left: 2px;
+}
+
+.pagediv-title {
+  text-align: center;
+  font-weight: bold;
+  background-color: var(--accent-soft, #fcc);
+  border: 1px solid var(--border, #eaa);
+  border-radius: var(--radius, 6px) var(--radius, 6px) 0 0;
+  padding: 0.1rem 0.4rem;
+}
+.pagediv-title a { color: inherit; text-decoration: none; }
+.pagediv-title a:hover { text-decoration: underline; }
+.pagediv-title form { display: contents; }
+.pagediv-title button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.pagediv-title button:hover { text-decoration: underline; }
+
+.pagediv-body {
+  padding: 5px 0 5px 4px;
+  overflow-wrap: anywhere;
+}
+/* 差し込んだページの先頭・末尾の余白で枠の中が間延びしないように */
+.pagediv-body > :first-child { margin-top: 0; }
+.pagediv-body > :last-child { margin-bottom: 0; }
+
+.pagediv-notice {
+  padding: 0.3rem 0.4rem;
+  color: #c00;
+  font-weight: bold;
+}
+
+/* cols・cols=N: 列（.pagediv-col）ごとに上から詰める。行の高さを揃えないので、
+   短いページの下に空きができない。列どうしの幅は上と同じ --pd-cols */
+.pagediv-cols { align-items: start; }
+.pagediv-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+@media (max-width: 40em) {
+  .pagediv:not(.pagediv-nostack) { grid-template-columns: minmax(0, 1fr); }
+  .pagediv:not(.pagediv-nostack) > .pagediv-cell { grid-area: auto; }
+}

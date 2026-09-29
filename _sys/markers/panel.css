@@ -1,0 +1,257 @@
+/* マーカー操作用ウィンドウ。独立したウィンドウなので、テーマには一切頼らず
+   ここで見た目を完結させる（ホストのWiki側テーマとは無関係）。 */
+
+:root {
+  color-scheme: light dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.mp-shell {
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.mp-setrow {
+  display: flex;
+  gap: 0.3rem;
+}
+.mp-set-select { flex: 1 1 auto; min-width: 0; }
+.mp-setrow button {
+  flex: 0 0 auto;
+  padding: 0.15rem 0.4rem;
+}
+
+.mp-terms {
+  /* 高さを制限しない（登録した用語は必ず全部見えるようにする）。
+     用語が多いときは、この下のヒント・一致件数がウィンドウの外に
+     押し出されるほうを許容する（ウィンドウ全体がスクロールすれば読める）。 */
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.mp-term {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.3rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+}
+.mp-term--active {
+  border-color: currentColor;
+  font-weight: 600;
+}
+
+.mp-term-key {
+  flex: 0 0 auto;
+  min-width: 1.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  cursor: pointer;
+}
+.mp-term-color {
+  flex: 0 0 auto;
+  width: 1.4em;
+  height: 1.4em;
+  padding: 0;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  border-radius: 0.2em;
+  cursor: pointer;
+}
+.mp-term-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mp-term-count {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  font-size: 0.85em;
+}
+.mp-term-remove {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.mp-term-remove:hover { opacity: 1; }
+
+.mp-add-form {
+  display: flex;
+  gap: 0.3rem;
+}
+.mp-add-term { flex: 1 1 auto; min-width: 0; }
+.mp-add-color {
+  flex: 0 0 auto;
+  width: 2rem;
+  padding: 0;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  border-radius: 0.2em;
+  cursor: pointer;
+}
+
+.mp-hint {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.mp-pageinfo {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  margin: 0;
+  min-height: 1.2em;
+}
+
+/* ---- 色ピッカー（32色パレット + HSVエディタ）のポップオーバー ----
+   32色 = プリセット20色（色相を均等割りした淡いトーン、編集不可）
+   + カスタム12色（ユーザーがHSVエディタで決めた色。localStorageに保存し、
+   次に開いたときも同じ色を再利用できる）。 */
+.mp-colorpicker {
+  position: fixed;
+  z-index: 1000;
+  width: 17rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 0.3rem 1rem rgba(0, 0, 0, 0.3);
+}
+
+.mp-cp-swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.25rem;
+}
+
+.mp-cp-swatch {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+.mp-cp-swatch--selected {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+.mp-cp-swatch--empty {
+  background:
+    linear-gradient(45deg, transparent 46%, rgba(128, 128, 128, 0.6) 46%, rgba(128, 128, 128, 0.6) 54%, transparent 54%),
+    linear-gradient(-45deg, transparent 46%, rgba(128, 128, 128, 0.6) 46%, rgba(128, 128, 128, 0.6) 54%, transparent 54%);
+}
+.mp-cp-swatch-edit {
+  position: absolute;
+  right: -0.3rem;
+  bottom: -0.3rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1.1rem;
+  font-size: 0.65rem;
+  text-align: center;
+  border-radius: 50%;
+  background: Canvas;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  opacity: 0;
+}
+.mp-cp-swatch:hover .mp-cp-swatch-edit,
+.mp-cp-swatch:focus-visible .mp-cp-swatch-edit {
+  opacity: 1;
+}
+
+.mp-cp-editor {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+.mp-cp-svpad {
+  position: relative;
+  width: 100%;
+  height: 8rem;
+  border-radius: 0.25rem;
+  touch-action: none;
+  cursor: crosshair;
+}
+.mp-cp-svpad-cursor {
+  position: absolute;
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-left: -0.4rem;
+  margin-top: -0.4rem;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.mp-cp-hue {
+  width: 100%;
+  margin-top: 0.5rem;
+  /* ネイティブのスライダーのつまみ以外は色相のグラデーションで塗る */
+  appearance: none;
+  height: 0.9rem;
+  border-radius: 0.45rem;
+  background: linear-gradient(to right,
+    hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%), hsl(180,100%,50%),
+    hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%));
+}
+.mp-cp-hue::-webkit-slider-thumb {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+.mp-cp-hue::-moz-range-thumb {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.mp-cp-previewrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.mp-cp-preview {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  flex: 0 0 auto;
+}
+.mp-cp-previewrow button {
+  flex: 1 1 auto;
+}

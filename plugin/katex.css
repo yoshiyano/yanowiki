@@ -1,0 +1,47 @@
+/* katex プラグインの見た目。
+   KaTeX本体の見た目はローカル同梱のkatex.min.cssが受け持つ。ここでは
+   組版前（JavaScript未実行時・本体読み込み中）の生LaTeXの見た目と、
+   独立した数式（ブロック）の余白・中央寄せだけを持たせる。 */
+
+.katex-source {
+  font-family: var(--mono-font, ui-monospace, SFMono-Regular, Consolas, monospace);
+  white-space: pre-wrap;
+}
+div.katex-source {
+  display: block;
+  text-align: center;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+.katex-source-error {
+  color: var(--error, #c00);
+  cursor: help;
+}
+
+/* JavaScriptが無効なため組版できないことを示す注記（<noscript>内。
+   JS有効時はDOMにすら現れないので、他の表示に影響しない）。 */
+.katex-noscript-notice {
+  display: block;
+  font-size: 0.85em;
+  color: var(--error, #c00);
+}
+
+/* KaTeXが自分の内部構造に使うクラス名（.base）が、テーマ側のクラス名と
+   偶然ぶつかることがある（実例: post_it_1テーマはページ全体の外枠に
+   .baseを使っており、太い左枠線・背景色を付けている。KaTeXの出力に
+   ある<span class="base">（数式の「まとまり」ごとに1つ）にまでその
+   左枠線・背景色が漏れて、縦棒のノイズに見えてしまっていた。実機で
+   確認・原因特定したうえでの対処。wikiThemes側にも報告済み）。
+
+   「プラグインCSS→テーマCSSの順で読み込み、同じ詳細度なら後勝ち＝
+   テーマが勝つ」という規約（Tech/dev_plugin参照）があるため、テーマの
+   `.base`（クラス1つ）と同じ詳細度で上書きしても、テーマの読み込み順が
+   後である限り負けてしまう。`.katex-source .base`（クラス2つ）にして
+   詳細度そのものでテーマ側を確実に上回るようにした（`pre.py`が
+   `.pre-box .pre-body`で同じ手当てをしているのと同じ考えかた）。 */
+.katex-source .base {
+  border: none;
+  background: none;
+  margin: 0;
+  padding: 0;
+}

@@ -1,0 +1,61 @@
+/* viewable_period — editors に載っている編集者にだけ出す
+   「ページ表示期間設定」パネルの見た目。
+
+   テーマ共通のカスタムプロパティ（--border, --panel-bg, --muted, --radius,
+   --shadow）を頼りに書いてあり、無い場合はフォールバック（第2引数）で
+   素朴な見た目になるだけで壊れない。プラグインCSS→テーマCSSの順で
+   読み込まれるので、テーマ側で同じセレクタを書けば後勝ちで上書きできる。
+
+   ステータスの緑（閲覧可能）／赤（閲覧不能）だけは意味を持つ色なので
+   直に指定する（note.css の .note-tip / .note-warn と同じ方針）。 */
+
+.viewable-period {
+  margin: 1.2rem 0;
+  padding: 0.4rem 1rem 0.9rem;
+  border: 1px solid var(--border, #bbb);
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg, transparent);
+  box-shadow: var(--shadow, none);
+}
+
+.viewable-period > legend {
+  padding: 0 0.4em;
+  font-weight: 600;
+}
+
+/* 先頭のステータス行。CSSが読み込まれなかった場合でも <strong> の文言
+   （閲覧可能／閲覧不能）で状態が分かるようにしてある。 */
+.viewable-period-status {
+  margin: 0.2rem 0 0.8rem;
+  padding: 0.35em 0.7em;
+  border-radius: var(--radius, 6px);
+  border: 1px solid currentColor;
+  font-size: 0.95em;
+}
+
+.viewable-period-status-open {
+  color: #1f7a3d;
+  background: rgba(46, 158, 107, 0.12);
+}
+
+.viewable-period-status-closed {
+  color: #b3261e;
+  background: rgba(217, 48, 37, 0.12);
+}
+
+.viewable-period-detail {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25em 0.9em;
+  margin: 0;
+}
+
+.viewable-period-detail dt {
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted, inherit);
+}
+
+.viewable-period-detail dd {
+  margin: 0;
+}

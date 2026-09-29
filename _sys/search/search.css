@@ -1,0 +1,143 @@
+/* 検索結果の一覧とページ送り（/.search.css）。
+ *
+ * 検索フォームの体裁はテーマ（common.css の .search-detail）が受け持ち、
+ * ここは結果の並びとページ送りだけを持つ。バックアップ管理画面と同じ考えかたで、
+ * 機能が自前の資材を持つことで、どのテーマでも同じように読める形を保つ。
+ *
+ * 色は自前で決めず、テーマが配るカスタムプロパティを使う。第2引数の既定値は
+ * テーマがその変数を持っていなかったときの受け皿。 */
+
+.search-summary {
+  margin: 1.2rem 0 0.6rem;
+}
+
+.search-summary strong {
+  font-size: 1.1em;
+}
+
+/* 「21〜40件目」。件数のあとに続けて出す小さめの補足 */
+.search-range {
+  margin-left: 0.5em;
+  font-size: 0.9em;
+  color: var(--muted, #666);
+}
+
+.search-results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.search-result {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+
+.search-result:last-child {
+  border-bottom: none;
+}
+
+.search-result-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.search-result-path {
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  color: var(--muted, #666);
+  word-break: break-all;
+}
+
+.search-result-snippet {
+  margin: 0.3rem 0 0;
+  line-height: 1.7;
+}
+
+.search-result-jump {
+  color: inherit;
+  text-decoration: none;
+}
+
+.search-result-jump:hover {
+  text-decoration: underline;
+}
+
+.search-empty {
+  margin: 1rem 0;
+  color: var(--muted, #666);
+}
+
+/* ---- ページ送り --------------------------------------------------------- */
+
+.search-pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  justify-content: center;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.search-pager a,
+.search-pager span {
+  display: inline-block;
+  min-width: 2.2em;
+  padding: 0.35em 0.6em;
+  border-radius: 5px;
+  font-size: 0.95rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.search-pager a {
+  border: 1px solid var(--border, #d0d7de);
+  color: inherit;
+}
+
+.search-pager a:hover {
+  border-color: var(--accent, #3178c6);
+  color: var(--accent, #3178c6);
+}
+
+/* いま見ているページ。押せないのではなく「ここに居る」ことを示す */
+.search-pager .is-current {
+  border-color: var(--accent, #3178c6);
+  background: var(--accent, #3178c6);
+  color: #fff;
+  font-weight: 600;
+}
+
+.search-pager .is-current:hover {
+  color: #fff;
+}
+
+/* 先頭で「前へ」、末尾で「次へ」。押せる先が無いので、リンクにせず淡く出す */
+.search-pager .is-disabled {
+  border: 1px solid transparent;
+  color: var(--muted, #999);
+  opacity: 0.6;
+}
+
+/* 飛ばしたページ番号のところに出す「…」 */
+.search-pager-gap {
+  min-width: 1.2em !important;
+  padding: 0.35em 0.2em !important;
+  color: var(--muted, #999);
+}
+
+/* 読み込み中。前のページを薄く出したまま差し替わるのを待たせる
+ * （消してしまうと、押した瞬間に画面が飛んで戻り先を見失うため） */
+.search-block.is-loading {
+  opacity: 0.5;
+  transition: opacity 0.12s ease-out;
+}
+
+@media (max-width: 30rem) {
+  .search-pager a,
+  .search-pager span {
+    min-width: 1.9em;
+    padding: 0.3em 0.4em;
+    font-size: 0.9rem;
+  }
+}

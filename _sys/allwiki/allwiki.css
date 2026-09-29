@@ -1,0 +1,76 @@
+/* Wikiの一覧（/.allwiki.css）。
+ *
+ * 名前・見出し・ページ数を1行に並べる。名前だけでは中身が分からないので、
+ * トップページの見出しを添えて選べるようにしている。
+ *
+ * 色は自前で決めず、テーマが配るカスタムプロパティを使う（第2引数はテーマが
+ * その変数を持っていなかったときの受け皿）。 */
+
+.allwiki-lead {
+  margin: 0 0 1.2rem;
+}
+
+.allwiki-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border, #d0d7de);
+}
+
+/* 1行1Wiki。名前を先に、数は右端に寄せる（数で見比べたいことがあるため） */
+.allwiki-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6em;
+  padding: 0.7rem 0.2rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+
+.allwiki-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.allwiki-title {
+  flex: 1 1 12em;
+  color: var(--muted, #666);
+  font-size: 0.92rem;
+}
+
+.allwiki-count {
+  color: var(--muted, #666);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 印。名前のすぐ隣に置いて、どれが表か・いまどこかが分かるようにする */
+.allwiki-default,
+.allwiki-here {
+  padding: 0.1em 0.5em;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.allwiki-default {
+  border: 1px solid var(--border, #d0d7de);
+  color: var(--muted, #666);
+}
+
+.allwiki-here {
+  background: var(--accent, #3178c6);
+  color: #fff;
+}
+
+.allwiki-empty,
+.allwiki-hint {
+  margin: 1rem 0 0;
+  color: var(--muted, #666);
+  font-size: 0.92rem;
+}
+
+@media (max-width: 32rem) {
+  .allwiki-count { flex-basis: 100%; }
+}

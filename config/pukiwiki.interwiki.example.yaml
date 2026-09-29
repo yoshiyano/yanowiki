@@ -1,0 +1,29 @@
+# PukiWiki記法（.txt）の InterWiki 登録表。
+# `[[登録名:ページ名]]` と書くと、登録名にひもづくURLへのリンクになる。
+# 本家PukiWikiは登録名の一覧を専用のページ（InterWikiName）に書くが、
+# こちらは他の管理者向け定義と同じく設定ファイルにしてある。
+#
+# **このファイル自身が実際に読まれます**（config/pukiwiki.interwiki.yaml
+# という別ファイルは用意しません。config/pukiwiki.extrarules.yaml と
+# 同じ扱いです）。全Wiki共通の既定として書き換えたい場合はこのファイルを
+# 直接編集してください。特定のWikiだけを変えたい場合は
+# wikidata/<Wiki名>/config/pukiwiki.interwiki.yaml を作ってください
+# （その場合、こちらは一切読まれず丸ごと入れ替わります）。
+#
+# 個別Wikiだけ変えたい場合は wikidata/<Wiki名>/config/pukiwiki.interwiki.yaml
+# に書くと、この共通の定義を配列ごと丸ごと上書きします。
+#
+# name   … [[name:ページ名]] と書いたときの name
+# url    … リンク先。"$1" のところにページ名が入る。"$1" が無ければ末尾に
+#          そのまま付け足す
+# encode … 省略時は std（ページ名をURLエンコードする）。raw にすると
+#          エンコードせずそのまま差し込む（URLの一部として安全な文字しか
+#          使わないと分かっている場合だけ）
+#
+# 例:
+#   [[Wikipedia:PukiWiki]] → https://ja.wikipedia.org/wiki/PukiWiki
+interwiki:
+  - name: Wikipedia
+    url: 'https://ja.wikipedia.org/wiki/$1'
+  - name: Google
+    url: 'https://www.google.com/search?q=$1'

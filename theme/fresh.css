@@ -1,0 +1,166 @@
+/*
+ * fresh — 薄緑系のすっきりしたテーマ（サンプル）
+ *
+ * ● このCSSの書き方の特徴: 「共通のbase.cssを土台にして、差分だけを書く」
+ *   先頭で base.css を読み込み、色（カスタムプロパティ）とレイアウトの一部だけを
+ *   上書きしています。検索パネルやセクション編集など細かい部品の見た目は
+ *   共通CSSのものがそのまま効くので、ここに書く必要がありません。
+ */
+@import url("base.css");
+
+/* ---- 配色: 薄緑。爽やかで主張しすぎない色に寄せる ---- */
+:root {
+  --bg: #ffffff;
+  --fg: #1f2a24;
+  --muted: #6b7d73;
+  --border: #dbe7e0;
+  --accent: #2f8f5b;
+  --panel-bg: #f4faf6;
+  /* 元は#f2f7f4（B>Rで、わずかに青寄りに見えていた）。R>Bにして緑寄りに寄せた */
+  --code-bg: #eef6ef;
+  --sidebar-width: 15rem;
+  --content-max: 46rem;
+  /* サイドバーの折りたたみ（common.css参照）は@importしたbase.cssの
+     --bp-narrow(1023px)/--bp-narrower(960px)をそのまま使う。freshは
+     .mainbarを持たないため--bp-narrowは実質無関係（一致する要素が
+     無い）で、.subbar一本の折りたたみだけが--bp-narrowerで発動する。
+     --drawer-topも同様にbase.cssの値（3.4rem）を継承する
+     （freshの.site-headerもposition: stickyのまま、base.css側の
+     指定を上書きしていない）。 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101613;
+    --fg: #dfe9e3;
+    --muted: #91a79b;
+    --border: #26332c;
+    --accent: #5fc98c;
+    --panel-bg: #161f1a;
+    --code-bg: #16211a;
+  }
+}
+
+body {
+  /* 行間を少し詰めて、情報が締まって見えるようにする */
+  line-height: 1.75;
+}
+
+/* ---- ヘッダ: 面ではなく線で区切る ---- */
+.site-header {
+  align-items: flex-end;
+  padding: 0.7rem 1.4rem 0.6rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.site-brand { display: flex; flex-direction: column; gap: 0.1rem; }
+.site-title { font-size: 1.15rem; letter-spacing: 0.01em; }
+
+/* ヘッダへ移したTopicPath。控えめな文字色で本文の邪魔をしない */
+.site-path { font-size: 0.75rem; color: var(--muted); }
+.site-path a { color: var(--muted); }
+.site-path a:hover { color: var(--accent); }
+.site-path .sep { margin: 0 0.15rem; opacity: 0.6; }
+
+/* ---- ページタイトル: 罫線を細く、余白で見せる ----
+   fresh では page-header を header の中（site-brand と commands の間）へ
+   入れている（fresh.html、Wiki設計者の指示）。本文外に単独で置くとき用の
+   base.css の幅制限・中央寄せ・余白（max-width / margin: 0 auto /
+   padding）はヘッダの中では邪魔になるので解除し、ヘッダの1要素として
+   素直に並ぶようにする。 */
+.site-header .page-header {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.page-title {
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent);
+}
+
+/* ---- レイアウト: サイドバーを右へ ---- */
+.layout {
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
+  gap: 2.5rem;
+}
+.content { grid-column: 1; }
+.subbar { grid-column: 2; }
+
+/* 狭い画面幅での1カラム化は、静的な@mediaではなくbase.cssから継承した
+   html.bp-narrow/bp-narrower（--bp-narrow/--bp-narrowerの値で発動、
+   拡大縮小ボタンの倍率と連動）に任せる。base.css側の
+   html.bp-narrower .layout { grid-template-columns: minmax(0, 1fr); }・
+   html.bp-narrower .content { grid-column: 1; grid-row: 1; } は
+   詳細度(0,2,0)がfresh自身の.layout（0,1,0）より高く@import順に関係なく
+   勝つため、freshが同じ内容を重ねて書く必要はない。.subbarは
+   html.bp-narrowerでcommon.css側がposition: fixedにする（帯→ドロワー）ため
+   グリッド上のgrid-row指定も不要になる。 */
+
+/* ---- サイドバー: 囲みを外して余白と細線だけで区切る ---- */
+.panel {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 1.8rem;
+}
+.panel h1, .panel h2, .panel h3, .panel-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border-bottom: none;
+  padding-bottom: 0.2rem;
+  margin: 0 0 0.4rem;
+}
+.panel ul { padding-left: 0; list-style: none; }
+.panel li { padding: 0.12rem 0; }
+.toc li { border-left: 2px solid var(--border); padding-left: 0.6rem; }
+.toc a.current { border-left-color: var(--accent); color: var(--accent); }
+.toc .toc-l2 { padding-left: 1.3rem; }
+.toc .toc-l3 { padding-left: 2rem; }
+
+/* ---- 本文: 見出しの罫線を減らし、余白で段落を作る ---- */
+.content h1, .content h2 { border-bottom: none; }
+.content h2 {
+  font-size: 1.25rem;
+  margin-top: 2.6rem;
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--accent);
+}
+/* h4以下と見分けやすいよう、h3だけ下線+左線を付ける */
+.content h3 {
+  font-size: 1.05rem;
+  color: var(--muted);
+  padding: 0.1rem 0 0.2rem 0.5rem;
+  border-left: 4px solid var(--border);
+  border-bottom: 2px solid var(--border);
+}
+/* h3(見出し+罫線)とはさらに分かるよう、h4は右へ字下げして頭に■を置く */
+.content h4 {
+  margin-left: 0.5em;
+}
+.content h4::before {
+  content: "■";
+  padding-right: 0.5em;
+}
+.content pre, .content code { border-radius: 4px; }
+.content blockquote { border-left-width: 2px; }
+.content th { background: var(--panel-bg); font-weight: 600; }
+
+/* ---- 検索窓: 枠を細く、角を丸めすぎない ---- */
+.search { border-radius: 4px; }
+.search-scope, .search-submit { font-size: 0.8rem; }
+
+/* ---- フッタ: 中央寄せの一行 ---- */
+.site-footer {
+  text-align: center;
+  border-top: 1px solid var(--border);
+  padding: 1.4rem 1.2rem;
+  font-size: 0.8rem;
+}

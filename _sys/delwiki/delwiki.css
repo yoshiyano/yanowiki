@@ -1,0 +1,186 @@
+/* Wikiを消す画面（/.delwiki.css）。
+ *
+ * 4段の手続きを1枚ずつ出す（wikilib/delwiki.py の冒頭を参照）。**取り返しの
+ * 付かない操作なので、見た目でもそう分かるようにしてある**——いま何段目かを
+ * 常に頭に出し、最後の「消す」だけ赤くする。
+ *
+ * 色は自前で決めず、テーマが配るカスタムプロパティを使う（第2引数はテーマが
+ * その変数を持っていなかったときの受け皿）。危ないことを伝える赤だけは、
+ * テーマが持っていないことが多いので受け皿を濃いめに取ってある。 */
+
+.delwiki-lead {
+  margin: 0 0 1.2rem;
+}
+
+.delwiki-target {
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+  background: var(--code-bg, #f0f2f5);
+}
+
+/* ---- 何段目か ------------------------------------------------------------ */
+
+.delwiki-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em 1.2em;
+  margin: 0 0 1.4rem;
+  padding: 0 0 0.8rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  list-style: none;
+  font-size: 0.9em;
+}
+
+.delwiki-step {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  color: var(--muted, #6a737d);
+}
+
+/* いまの段だけ濃く。「あと何段あるか」が同時に見える */
+.delwiki-step-now {
+  color: inherit;
+  font-weight: 600;
+}
+
+.delwiki-step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  height: 1.7em;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.85em;
+}
+
+/* ---- 入力 ---------------------------------------------------------------- */
+
+.delwiki-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5em 1em;
+  margin: 0 0 0.9rem;
+}
+
+.delwiki-row label {
+  min-width: 15em;
+  font-weight: 600;
+}
+
+.delwiki-row input[type="text"],
+.delwiki-row input[type="password"] {
+  flex: 1 1 16em;
+  padding: 0.4em 0.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+  background: var(--input-bg, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.delwiki-hint {
+  margin: 0 0 1rem;
+  color: var(--muted, #6a737d);
+  font-size: 0.9em;
+  line-height: 1.7;
+}
+
+/* 裏で書庫を作っている、という断り。読み飛ばされると困るので左に線を引く */
+.delwiki-working {
+  padding-left: 0.8em;
+  border-left: 3px solid var(--accent, #0969da);
+}
+
+/* ---- 消す前に見せる中身 -------------------------------------------------- */
+
+.delwiki-table {
+  width: 100%;
+  margin: 0 0 1.2rem;
+  border-collapse: collapse;
+}
+
+.delwiki-table th,
+.delwiki-table td {
+  padding: 0.5em 0.6em;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  text-align: left;
+  vertical-align: top;
+}
+
+.delwiki-table th {
+  width: 12em;
+  color: var(--muted, #6a737d);
+  font-weight: 600;
+}
+
+.delwiki-state-done { color: var(--ok, #1a7f37); }
+.delwiki-state-working { color: var(--accent, #0969da); }
+.delwiki-state-error,
+.delwiki-state-missing { color: #b42318; }
+
+.delwiki-restore {
+  margin: 0 0 1rem;
+  padding: 0.7em 0.9em;
+  overflow-x: auto;
+  border-radius: 4px;
+  background: var(--code-bg, #f0f2f5);
+}
+
+/* ---- ボタン -------------------------------------------------------------- */
+
+.delwiki-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1em;
+  margin-top: 1.4rem;
+}
+
+.delwiki-go {
+  padding: 0.5em 1.4em;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--accent, #0969da);
+  color: #fff;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* 最後の「消す」だけ赤。ここだけが取り返しの付かない一押しになる */
+.delwiki-danger {
+  background: #b42318;
+}
+
+/* 書庫ができるまでは押せない。押せないことが見て分かるようにする */
+.delwiki-go[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delwiki-cancel {
+  padding: 0.5em 0.6em;
+  border: none;
+  background: none;
+  color: var(--muted, #6a737d);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- 知らせ -------------------------------------------------------------- */
+
+.delwiki-notice {
+  margin: 0 0 1.2rem;
+  padding: 0.7em 0.9em;
+  border-left: 4px solid var(--ok, #1a7f37);
+  border-radius: 0 4px 4px 0;
+  background: var(--code-bg, #f0f2f5);
+}
+
+.delwiki-notice-error {
+  border-left-color: #b42318;
+}

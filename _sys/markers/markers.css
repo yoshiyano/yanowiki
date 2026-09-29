@@ -1,0 +1,18 @@
+/* マーカーシステム本体（全ページに自動で差し込まれる）。
+   色そのものは用語ごとにJS側がインラインstyleで当てるので、ここに書くのは
+   共通の形（角丸・下線的な見た目・現在位置の強調）だけにしてある。
+   テーマ非依存で崩れないよう、テーマのCSS変数には頼らない。 */
+
+.wikisys-mark {
+  border-radius: 0.2em;
+  padding: 0 0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* 今カーソルが当たっている一致（矢印キーで移動した先）。
+   背景色は用語ごとに違うため、枠線とスクロール位置合わせだけで示す */
+.wikisys-mark--current {
+  outline: 2px solid rgba(0, 0, 0, 0.55);
+  outline-offset: 1px;
+}

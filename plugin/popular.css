@@ -1,0 +1,36 @@
+/* popular プラグイン（人気ページ順位）の見た目。
+   recent.css と同じ考えかたで、周りのメニューに馴染む軽い見た目にする。
+   recentと違い「順位」を見せる一覧なので、<ol>の番号はそのまま残す。 */
+
+.popular { margin: 1rem 0; font-size: 0.92rem; }
+.popular-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.4rem 0;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border, #ccc);
+  color: var(--fg, inherit);
+}
+.popular ol {
+  margin: 0;
+  padding-inline-start: 1.4rem;
+}
+.popular li {
+  /* display: flex にすると<li>の既定表示(list-item)が上書きされ、
+     <ol>の番号が消えてしまうため使わない。件数側をfloatで右寄せする */
+  padding: 0.15rem 0;
+}
+.popular li a {
+  display: inline-block;
+  max-width: calc(100% - 3.5rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.popular-count {
+  float: right;
+  font-size: 0.8rem;
+  color: var(--muted, #777);
+}
+.popular-empty { color: var(--muted, #777); }

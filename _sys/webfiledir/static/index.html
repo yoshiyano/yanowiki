@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>webFileDir</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="static/css/app.css">
+  <style>
+    html, body { height: 100%; margin: 0; }
+  </style>
+</head>
+<body>
+  <main id="app"></main>
+  <script type="module">
+    // 二画面モードの枠。画面を 1 つだけ組み込むときは main.js の createApp を直接使う。
+    // ?disable=rename,dnd のように書くと、その画面の機能を出さない（features.js。API は止めない）
+    import { featuresFromQuery } from "./static/js/features.js";
+    import { createShell } from "./static/js/shell.js";
+    const app = document.getElementById("app");
+    try {
+      createShell(app, { features: featuresFromQuery(location.search) });
+    } catch (err) {
+      app.textContent = err.message; // 知らない機能の名前など
+    }
+  </script>
+</body>
+</html>

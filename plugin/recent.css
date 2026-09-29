@@ -1,0 +1,29 @@
+/* recent プラグイン（最近更新されたページ）の見た目。
+
+   サイドバーに置く想定なので枠は付けず、周りのメニューに馴染む軽い見た目にしている。
+   幅が足りないページ名は省略記号で切る（全体は title 属性のツールチップで読める）。
+
+   タイトル（recent-title）は本物の見出し（h2/h3）にはしていない。#recent() は本文の
+   好きな場所に置ける前提のプラグインで、固定の見出しレベルを埋め込むと置き場所によって
+   文書のアウトラインや #contents() の目次と噛み合わなくなるため（#contents が見出しでは
+   なく nav で目次を作っているのと同じ理由）。そのぶん、隣に並ぶ実見出し（.panel h2/h3。
+   下線付き・通常の文字色）と見比べても見劣りしないよう、専用の見た目で重みを合わせている。 */
+
+.recent { margin: 1rem 0; font-size: 0.92rem; }
+.recent-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.4rem 0;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+}
+.recent ul { list-style: none; margin: 0; padding-left: 0; }
+.recent li { padding: 0.15rem 0; }
+.recent li a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-empty { color: var(--muted); }

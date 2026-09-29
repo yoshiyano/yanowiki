@@ -1,0 +1,124 @@
+/*
+ * 編集の競合を統合する画面のスタイル（/.conflict.css）。
+ *
+ * 編集画面・バックアップ管理画面と同じ考えかたで、テーマの theme/ ではなく
+ * この機能自身が持つ。どのテーマを選んでいても同じ操作感で使えるようにするため。
+ *
+ * **テーマは読み込まない独立したページ**（バックアップ管理画面と同じ理由）。
+ * 突き合わせているのは生のテキストで、テーマの見た目を確かめる場所ではない
+ * うえ、テーマの表向けの指定がdiffmergeの表と衝突する。
+ * 色はテーマのカスタムプロパティ（--bg 等）に合わせ、無ければ既定値を使う。
+ */
+
+/* ---- ページ全体の骨組み ---- */
+.cf-body {
+  margin: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  /* 画面まるごとはスクロールさせない。伸び縮みするのは3カラムの中身だけ
+     （そうしないとdiffmergeの見出し固定が効かない） */
+  overflow: hidden;
+}
+.cf-body a { color: var(--accent, #0969da); }
+/* テーマ（base.css）の `* { box-sizing: border-box; }` に頼れないので自前で持つ
+   （editor.css・backup.css と同じ手当て） */
+.cf-body * { box-sizing: border-box; }
+.cf-body [hidden] { display: none !important; }
+
+.cf-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  background: var(--panel-bg, #f6f8fa);
+}
+.cf-home { font-weight: 600; text-decoration: none; color: inherit; }
+.cf-head-title { font-size: 0.9rem; color: var(--muted, #656d76); }
+.cf-target { font-size: 0.9rem; font-weight: 600; }
+
+.cf-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.8rem 1.2rem 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- 知らせ（保存を断ったとき・また更新されたとき） ---- */
+.cf-notice {
+  flex: 0 0 auto;
+  margin: 0 0 0.7rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  border-radius: var(--radius, 6px);
+  color: var(--fg, #1f2328);
+  background: var(--warn-bg, #fff8c5);
+  border: 1px solid var(--warn-border, #d4a72c);
+}
+
+.cf {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cf-lead {
+  flex: 0 0 auto;
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  color: var(--muted, #656d76);
+}
+.cf-lead strong { color: var(--fg, #1f2328); }
+
+/* diffmergeの描画先。色・レイアウト・スクロールはすべてdiffmerge.cssに任せる。
+   **自前で overflow を持たない**（`viewH: 'auto'` が親から高さをもらって
+   内側だけをスクロールさせ、見出し行を固定するため。外にも overflow が
+   あると二重にスクロールが出て見出しの固定が効かない）。
+   **表への打ち消しCSSも当てない**（行の色分けと余白がtd側にあるため）。
+   どちらもバックアップ画面で実際に不具合を起こしている */
+.cf-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cf-view :where(.dm-file, .dm3) { margin: 0; }
+/* diffmergeの既定の高さ上限（--dm-table-max-height: 70vh）を外し、
+   この画面が与える高さいっぱいまで使わせる */
+.cf { --dm-table-max-height: none; }
+
+/* ---- 下のボタン列 ---- */
+.cf-buttons {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.7rem;
+}
+.cf-actions, .cf-back { margin: 0; }
+.cf-save, .cf-back button {
+  font: inherit;
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius, 6px);
+  border: 1px solid var(--border, #d0d7de);
+  background: var(--panel-bg, #f6f8fa);
+  color: inherit;
+  cursor: pointer;
+}
+.cf-save {
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent, #0969da);
+  border-color: var(--accent, #0969da);
+}
+.cf-save:disabled { opacity: 0.5; cursor: default; }
+.cf-save:not(:disabled):hover { filter: brightness(1.08); }
+.cf-back button:hover { background: var(--bg, #ffffff); }
+.cf-hint { font-size: 0.85rem; color: var(--muted, #656d76); }

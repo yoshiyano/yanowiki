@@ -1,0 +1,115 @@
+# PukiWiki記法（.txt）の「ユーザ定義ルール」「フェイスマーク定義ルール」。
+# 本家PukiWikiの default.ini.php にある $line_rules / $facemark_rules に
+# 相当する、管理者が自由に書き換えられる置換の定義です。
+#
+# **このファイル自身が実際に読まれます**（config/pukiwiki.extrarules.yaml
+# という別ファイルは用意しません。config/default.yaml と同じ扱いです）。
+# 全Wiki共通の既定として書き換えたい場合はこのファイルを直接編集して
+# ください。特定のWikiだけを変えたい場合は
+# wikidata/<Wiki名>/config/pukiwiki.extrarules.yaml を作ってください
+# （その場合、こちらは一切読まれず丸ごと入れ替わります）。
+#
+# 個別Wikiだけ変えたい場合は wikidata/<Wiki名>/config/pukiwiki.extrarules.yaml
+# に書くと、この共通の定義を配列ごと丸ごと上書きします（項目単位のマージは
+# しません）。
+#
+# 書式は pattern（正規表現）と replace（置換後の文字列）の組です。
+# replace では Python の re.Match.expand() の書式が使えます
+# （\1 や \g<name> で、正規表現の丸括弧が捉えた文字列を差し込めます）。
+# 置換の結果は**そのままHTMLとして**出力されます（さらにインライン記法として
+# 解釈し直したりエスケープしたりはしません）。危険な内容を書けてしまうので、
+# ここに書くのは管理者だけにしてください。
+#
+# 一致した位置が他の記法（(( )) の注釈など）と重なった場合、ここでの定義が
+# 優先されます（例: facemark_rules に "&smile;" を定義していれば、HTML5の
+# 文字実体参照名との衝突判定より先にこちらが使われます）。
+
+# ---- フェイスマーク定義ルール ------------------------------------------------
+# 本家は顔アイコンの画像（face/*.png）で表現しますが、画像を用意しなくても
+# 使えるよう、対応する絵文字を割り当てています。気に入らなければここを
+# 書き換えて構いません。
+#
+# config/default.yaml の pukiwiki.facemark を false にすると、このルールの
+# 一覧ごと一括で無効にできます（本家の $usefacemark に相当）。
+facemark_rules:
+  - {pattern: '&smile;',    replace: '😊'}
+  - {pattern: '&bigsmile;', replace: '😄'}
+  - {pattern: '&huh;',      replace: '😕'}
+  - {pattern: '&oh;',       replace: '😲'}
+  - {pattern: '&wink;',     replace: '😉'}
+  - {pattern: '&sad;',      replace: '😢'}
+  - {pattern: '&worried;',  replace: '😟'}
+  - {pattern: '&heart;',    replace: '❤️'}
+
+  # 携帯電話向けの押しボタン（本家は画像ではなく [1] のような角括弧の
+  # 文字列でしたが、ここでは絵文字のキーキャップを割り当てています）
+  - {pattern: '&pb1;', replace: '1️⃣'}
+  - {pattern: '&pb2;', replace: '2️⃣'}
+  - {pattern: '&pb3;', replace: '3️⃣'}
+  - {pattern: '&pb4;', replace: '4️⃣'}
+  - {pattern: '&pb5;', replace: '5️⃣'}
+  - {pattern: '&pb6;', replace: '6️⃣'}
+  - {pattern: '&pb7;', replace: '7️⃣'}
+  - {pattern: '&pb8;', replace: '8️⃣'}
+  - {pattern: '&pb9;', replace: '9️⃣'}
+  - {pattern: '&pb0;', replace: '0️⃣'}
+  - {pattern: '&pb#;', replace: '#️⃣'}
+
+  # その他のアイコン（同じく本家は角括弧の文字列）
+  - {pattern: '&zzz;',     replace: '💤'}
+  - {pattern: '&man;',     replace: '🚹'}
+  - {pattern: '&clock;',   replace: '🕐'}
+  - {pattern: '&mail;',    replace: '✉️'}
+  - {pattern: '&mailto;',  replace: '📩'}
+  - {pattern: '&phone;',   replace: '☎️'}
+  - {pattern: '&phoneto;', replace: '📲'}
+  - {pattern: '&faxto;',   replace: '📠'}
+
+  # 本家には、文中に ":)" のような顔文字を直接書くと絵文字になる仕組みも
+  # あります（前に半角空白が要る）。誤爆しやすい（"XD" のような英字列が
+  # 巻き込まれる）ため、既定では入れていません。要る場合は次のように
+  # 加えてください（\s は直前の空白1文字、$1相当は \1）。
+  #
+  # - {pattern: '\s(:\))',    replace: ' 😊'}
+  # - {pattern: '\s(:D)',     replace: ' 😄'}
+  # - {pattern: '\s(\(\^\^\))', replace: ' 😊'}
+
+# ---- ユーザ定義ルール --------------------------------------------------------
+# 本家の $line_rules は COLOR()/SIZE() のような色・文字サイズの指定や、
+# 強調・取消線をここで定義していますが、このシステムでは強調（'' '''）・
+# 取消線（%%）は最初から組み込みです。COLOR・SIZE・BGCOLOR・BOLD は
+# 本家では表組みのセル書式（LEFT:/CENTER:/RIGHT:/BGCOLOR()/COLOR()/SIZE()/
+# BOLD:、表組みの節を参照）としてのみ使えますが、地の文でも同じ感覚で
+# 使えたほうが自然なので、ここに「標準の設定」として最初から用意している。
+#
+# COLOR・SIZE・BGCOLOR・BOLD は2つの書きかたがある。`{ }` で閉じる形（範囲が
+# はっきりする）と、`:` のあと行末（または次の同じ記法）まで続く形
+# （本家 $line_rules・表組みのセル書式と同じ書きかた）の両方。`{ }` の形を
+# 先に判定するので、迷わず使えるならそちらを勧める。
+#
+# `{ }` の中身は、1階層までのネスト（`SIZE(20){ COLOR(red){文字列} }` の
+# ような重ね書き）を許すパターンにしてある。マッチした中身は、埋め込む前に
+# もう一度このルール一式へかけ直すので（wikilib.extrarules）、内側の
+# COLOR/BGCOLOR/SIZE/BOLDも展開される。2階層以上の深いネストは対応外。
+line_rules:
+  # COLOR(色){文字列} / COLOR(色):文字列（行末まで、または次のCOLOR()の前まで）
+  - {pattern: 'COLOR\(((?:[a-zA-Z]{1,20})|(?:#[0-9a-fA-F]{3,6}))\)\{((?:[^{}]|\{[^{}]*\})*)\}',
+     replace: '<span style="color:\1">\2</span>'}
+  - {pattern: 'COLOR\(((?:[a-zA-Z]{1,20})|(?:#[0-9a-fA-F]{3,6}))\):((?:(?!COLOR\([^)]+\):).)*)',
+     replace: '<span style="color:\1">\2</span>'}
+
+  # BGCOLOR(色){文字列} / BGCOLOR(色):文字列
+  - {pattern: 'BGCOLOR\(((?:[a-zA-Z]{1,20})|(?:#[0-9a-fA-F]{3,6}))\)\{((?:[^{}]|\{[^{}]*\})*)\}',
+     replace: '<span style="background-color:\1">\2</span>'}
+  - {pattern: 'BGCOLOR\(((?:[a-zA-Z]{1,20})|(?:#[0-9a-fA-F]{3,6}))\):((?:(?!BGCOLOR\([^)]+\):).)*)',
+     replace: '<span style="background-color:\1">\2</span>'}
+
+  # SIZE(px数){文字列} / SIZE(px数):文字列
+  - {pattern: 'SIZE\((\d{1,2})\)\{((?:[^{}]|\{[^{}]*\})*)\}',
+     replace: '<span style="font-size:\1px">\2</span>'}
+  - {pattern: 'SIZE\((\d{1,2})\):((?:(?!SIZE\([^)]+\):).)*)',
+     replace: '<span style="font-size:\1px">\2</span>'}
+
+  # BOLD{文字列} / BOLD:文字列。'' で囲むのと同じ見た目（<strong>）になる
+  - {pattern: 'BOLD\{((?:[^{}]|\{[^{}]*\})*)\}', replace: '<strong>\1</strong>'}
+  - {pattern: 'BOLD:((?:(?!BOLD:).)*)', replace: '<strong>\1</strong>'}

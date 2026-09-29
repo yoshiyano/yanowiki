@@ -1,0 +1,33 @@
+/* tasklist プラグイン。チェックボックスの並び・保存失敗時の知らせかた。
+   弾丸記号を消す .contains-task-list は theme/base.css・theme/bloom.css
+   に既にある（plugin/tasklist.pyの技術資料参照）。 */
+
+.task-list-item {
+  list-style: none;
+}
+
+.task-list-item .task-list-item-checkbox {
+  margin: 0 0.4em 0 -1.4em;
+  vertical-align: middle;
+}
+
+/* 保存中（POST中）だけ一時的にdisabledになる（plugin/tasklist.js）。 */
+.task-list-item .task-list-item-checkbox:disabled {
+  cursor: wait;
+}
+
+/* #tasklist(sync) が無いページの、状態だけを示す絵文字アイコン
+   （plugin/tasklist.js）。絵文字は自前の色を持つので、disabled表示の
+   ような色抜け（視認性の低下）が起きない。 */
+.task-list-item .task-list-item-icon {
+  display: inline-block;
+  margin: 0 0.4em 0 -1.4em;
+  vertical-align: middle;
+}
+
+/* 保存に失敗したときだけ、一瞬だけ縁取る（plugin/tasklist.js）。 */
+.task-list-item-error {
+  outline: 2px solid #d33;
+  outline-offset: 2px;
+  transition: outline-color 0.3s ease-out;
+}

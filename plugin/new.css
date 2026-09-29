@@ -1,0 +1,14 @@
+/*
+ * new — 新しさの印（本家PukiWikiのスキンと同じクラス名 new1・new5）。
+ * 暗い配色でも読めるよう、色は明るめのものを使う。
+ */
+span.new1 {
+  color: #e0313e;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+span.new5 {
+  color: #2e9e4f;
+  font-size: 0.75em;
+}
+span.__plugin_new[title] { cursor: help; }

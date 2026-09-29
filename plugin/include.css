@@ -1,0 +1,36 @@
+/* include プラグインの見た目。
+
+   案内文（差し込み済み・ページ無し・上限超過）は note-warn に近い、控えめな
+   注意書きとして表示する。テーマの --accent 系変数だけを頼りに書いてあるので、
+   どのテーマでもそれなりに馴染む（無ければフォールバックで素朴な見た目になる）。 */
+
+.include-notice {
+  margin: 1rem 0;
+  padding: 0.5rem 0.9rem;
+  border-left: 4px solid var(--muted, #999);
+  border-radius: 0 var(--radius, 6px) var(--radius, 6px) 0;
+  background: var(--panel-bg, transparent);
+  color: var(--muted, inherit);
+  font-size: 0.9rem;
+}
+.include-notice a { color: inherit; }
+
+.include-title {
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border, currentColor);
+}
+.include-title a { text-decoration: none; }
+.include-title a:hover { text-decoration: underline; }
+.include-title form { display: contents; }
+.include-title button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.include-title button:hover { text-decoration: underline; }

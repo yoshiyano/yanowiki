@@ -1,0 +1,1028 @@
+/*
+  post_it_1 — PukiWiki本家（http://172.22.23.1/）の配色をほぼ忠実に再現。
+  ただし見出しの色帯は本家の負マージン(枠外はみ出し)ハックを使わず、
+  padding-left ベースで作り直している（レイアウト前提が異なるため）。
+  幅も本家の 800px から広げてある（配色の忠実さを優先し、幅はwikiSystemの
+  表・コードブロックを想定して1100px程度にした意図的な逸脱）。
+*/
+
+:root {
+  --pi-outer-bg: #d3d3d3;
+  --pi-container-border: #111;
+  --pi-container-bg: #bfc6d6;
+  --pi-base-border: #d3daed;
+  --pi-base-bg: #f9f9f9;
+  --pi-text: #333;
+  --pi-link: #215dc6;
+  --pi-link-visited: #a63d21;
+  --pi-link-hover-bg: #CCDDEE;
+  --pi-heading-bg: #ffffed;
+  --pi-heading-border: #ccc;
+  --pi-h2-bar: #fe1212;
+  --pi-h3-bar: #429ec9;
+  --pi-h4-bar: #8cc06c;
+
+  /* common.css が var(--名前, 既定値) で参照する変数。ここで定義することで
+     common.css が作る要素（.section-editor 等）もPukiWiki配色になじむ。 */
+  --panel-bg: #eef5ff;
+  --accent: var(--pi-link);
+  --muted: #666;
+  --fg: var(--pi-text);
+  --bg: var(--pi-base-bg);
+  --border: #ccc;
+  /* common.cssの.content thead td（PukiWiki記法の|||h見出し行）が使う。
+     .content th の背景（下の.content th参照）と揃えるため、--panel-bgとは
+     別の値にしてある */
+  --table-header-bg: #e0e8f0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/*
+  iOS Safari は狭い画面の複数行テキストを読みやすくしようと自動でフォントを
+  拡大する（Text Autosizing）。CSSで指定したサイズより実際の表示が大きくなり、
+  結果として1画面に入る情報量が減る。このテーマはフォントサイズをpx/%で
+  明示的に管理しているため、自動拡大は無効化する。
+*/
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  /* 上下は0.5em（Wiki設計者の指示）。左右は従来の1emのまま。 */
+  padding: 0.5em 1em;
+  background: var(--pi-outer-bg);
+  color: var(--pi-text);
+  font-family: verdana, arial, helvetica, sans-serif;
+  /* common.cssのroot font-size(85%)と掛け合わさるため、他テーマ(実質85%)より
+     気持ち小さい80.75%(85%×95%)程度になるよう95%にしてある */
+  font-size: 95%;
+  line-height: 1.4;
+}
+
+/* クラス名は pi- で始める（テーマ固有のプレフィックス）。.base 等の
+   汎用的な名前だと、第三者ライブラリ・プラグインの出力内部クラス名と
+   衝突することがある（例: KaTeXが数式の各「まとまり」にclass="base"を
+   使っており、無印だと縦棒状のノイズが漏れて見えた。2026-09-01、
+   wikiPluginセッションのkatexプラグイン動作確認より）。 */
+.pi-all {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.pi-container {
+  border: 1px solid var(--pi-container-border);
+  background: var(--pi-container-bg);
+  padding: 0;
+}
+
+.pi-base {
+  border-left: .6em solid var(--pi-base-border);
+  background: var(--pi-base-bg);
+  margin: 0;
+  padding: 1em 1.2em;
+}
+
+a:link {
+  color: var(--pi-link);
+  background-color: inherit;
+  text-decoration: none;
+}
+a:visited {
+  color: var(--pi-link-visited);
+  background-color: inherit;
+  text-decoration: none;
+}
+a:hover {
+  color: var(--pi-link);
+  background-color: var(--pi-link-hover-bg);
+  text-decoration: underline;
+}
+a:active {
+  color: var(--pi-link);
+  background-color: var(--pi-link-hover-bg);
+}
+
+/*
+  ヘッダ: サイト名・ページタイトル・検索フォームを横並びに。
+  タグは<header>（Wiki設計者の指示。以前は<div id="header">だった。#header の
+  ID自体は変えていないので、このファイル内のセレクタはそのまま効く）。
+
+  常時表示（Wiki設計者の指示）。position: sticky で画面上部に固定し、スクロール
+  しても隠れないようにする。back groundを敷いておかないと、固定された
+  ヘッダの下を本文がすり抜けて見えてしまう。base.cssの.site-headerと
+  同じ考えかた（このテーマは継承していないので、ここで自前に定義する）。
+
+  620pxを下回る幅（下の @media (max-width: 620px)）ではこの固定を打ち消し、
+  代わりにハンバーガー（.menu-toggle）だけを画面右上に固定する。
+  狭い画面では、タイトル＋TopicPathを常時見せる価値より本文に使える
+  縦幅のほうが大きいという判断（Wiki設計者の指示、2026-09-05）。
+*/
+#header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  /* row-gap（折り返した行どうしの間隔）.1em / column-gap（横に並ぶ項目
+     どうしの間隔）1.2em（Wiki設計者の指示、2026-09-05） */
+  gap: .1em 1.2em;
+  padding-bottom: .5em;
+  border-bottom: 1px solid #ccc;
+  position: sticky;
+  top: 0;
+  z-index: 120;
+  background: var(--pi-base-bg);
+}
+#header .site-title {
+  font-size: 85%;
+}
+#header .site-title a {
+  font-weight: bold;
+}
+#header h1.title {
+  font-size: 30px;
+  font-weight: bold;
+  margin: 0;
+  /* 縦の余白は持たせない。2行構成では .header-rows 側の gap が行間を
+     受け持つため、ここで余白を足すと行が間延びする。 */
+  padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#header h1.title a {
+  color: inherit;
+}
+
+/*
+  ヘッダの2行（Wiki設計者の指示、2026-09-05）。post_it_1・pkwk共通のパターンなので
+  ここに定義し、pkwk.cssは上書きせずそのまま引き継ぐ（pkwkはこの左に
+  ロゴを置き、2行にまたがらせる）。
+
+    1行目 .header-row-title … サイト名＋タイトル（左・下寄せ）／検索（右・上寄せ）
+    2行目 .header-row-path  … TopicPath（左）／ハンバーガー（右）
+
+  以前は「タイトル＋TopicPathの縦積み」と「検索＋ハンバーガーの縦積み」を
+  横に並べる作りだった。しかしTopicPathは長くなりがちなのに対し、その組は
+  幅の広いタイトル側の列に閉じ込められており、隣の列（検索）へ回り込めない
+  ため、行の右側が空いていても使えなかった。**長いもの（TopicPath）と
+  短いもの（ハンバーガー）を同じ行に組み替える**ことで、TopicPathが行の幅を
+  めいっぱい使えるようにしている（Wiki設計者の指摘）。
+*/
+.header-rows {
+  display: flex;
+  flex-direction: column;
+  gap: .15em;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.header-row {
+  display: flex;
+  gap: .4em 1.2em;
+  min-width: 0;
+}
+/* 1行目: タイトルは行の下端、検索は行の上端に揃える（Wiki設計者の指示）。
+   行の高さは丈の高いタイトル側で決まるので、既定を flex-end にして
+   検索だけ align-self で上へ戻す。 */
+.header-row-title {
+  align-items: flex-end;
+}
+.header-row-title .search {
+  align-self: flex-start;
+  margin-left: auto;   /* 右寄せ */
+}
+/* 2行目: TopicPathに行の余りを与える（長くても折り返して使えるように）。
+   ハンバーガーは右端。 */
+.header-row-path {
+  align-items: center;
+}
+.header-row-path .page-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+.header-row-path .menu-toggle {
+  margin-left: auto;
+}
+
+/*
+  ハンバーガーメニュー。700px幅を下回ると表示され、#rightbarの
+  スライドイン開閉をトグルする（post_it_1.js。表示条件自体は
+  @media (max-width: 700px) 側）。700pxより広い画面では常に非表示。
+*/
+.menu-toggle {
+  display: none;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 2.2em;
+  height: 2.2em;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: .3em;
+  background: #fff;
+  cursor: pointer;
+}
+.menu-toggle-bar {
+  display: block;
+  width: 1.1em;
+  height: 2px;
+  background: var(--pi-text);
+}
+
+/*
+  検索フォーム。常時表示。枠線+角丸の一体型デザイン。
+  common.js が .search-scope（サイト全体/このページ内の切り替え）と
+  .page-search-nav（ページ内検索の前へ/次へ）を制御する。
+  クラス名はcommon.js側の目印なので変えないこと（post_it_1.html参照）。
+
+  ここから先、common.css と同じプロパティは書かない（後勝ちで上書きされる
+  ので二重に書く必要が無い）。common.css の .search-word/.search-scope/
+  .search-submit は型セレクタではなくこれらのクラス名そのものを対象にして
+  いるため、同名クラスでの上書きは詳細度を気にせず効く。
+*/
+.search {
+  flex: 0 0 auto;
+  border-radius: .3em;
+}
+
+.search-word {
+  padding: .35em .6em;
+  font-size: 90%;
+  min-width: 10em;
+  /*
+    common.css の width:50%/max-width:40vw（% 指定）は、.search 自身の
+    幅が定まっている前提で成り立つ（common.css冒頭のコメント参照）。
+    このテーマは .search を flex: 0 0 auto（中身に合わせた幅、上記）に
+    しており .search 自身の幅が確定しないため、% 指定のままだと
+    「幅を計算する時点」と「実際に描画する時点」で .search-word の
+    幅がずれ、.search-submit の右側に空白が残っていた（Chromeで実測、
+    検索ボタンの右に最大24px前後の空白）。固定値に置き換えて解消する。
+    フォーカス時に広がる挙動（common.css の
+    .search:focus-within .search-word）はこのテーマでも変更していない
+    ため、そのまま効く。
+  */
+  width: 10em;
+}
+.search-word:focus {
+  outline: 2px solid var(--pi-link);
+  outline-offset: -2px;
+}
+.search-scope,
+.search-submit {
+  background: #eef5ff;
+  padding: .35em .8em;
+  font-size: 90%;
+  white-space: nowrap;
+}
+.search-scope:hover,
+.search-submit:hover {
+  background: var(--pi-link-hover-bg);
+}
+.search-scope[aria-pressed="true"] {
+  background: var(--pi-link-hover-bg);
+  font-weight: bold;
+}
+
+/* .search-scope をドラッグしたときに出る選択メニュー（common.js が生成） */
+.search-scope-menu {
+  position: fixed;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  min-width: 9em;
+  padding: .3em;
+  background: #fff;
+  border-radius: .3em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+.search-scope-item {
+  font: inherit;
+  font-size: 90%;
+  text-align: left;
+  padding: .4em .6em;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: .2em;
+}
+.search-scope-item.current {
+  font-weight: bold;
+}
+.search-scope-item.hover {
+  background: var(--pi-link-hover-bg);
+  border-color: var(--pi-link);
+}
+
+/* ページ内検索の前へ/次へ/件数（このページ内スコープで検索語があるときだけ表示） */
+.page-search-nav {
+  display: flex;
+  align-items: center;
+  gap: .2em;
+  padding: 0 .5em;
+  background: #eef5ff;
+  border-left: 1px solid #ccc;
+}
+.page-search-nav button {
+  font: inherit;
+  font-size: 90%;
+  line-height: 1;
+  padding: .3em .4em;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+.page-search-nav button:hover:not(:disabled) {
+  background: var(--pi-link-hover-bg);
+}
+.page-search-nav button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+.page-search-count {
+  font-size: 80%;
+  color: #555;
+  min-width: 3.4em;
+  text-align: center;
+}
+
+/*
+  サイト全体検索の詳細条件（mode/target/path）。検索窓にフォーカスすると
+  フロートインする（common.jsがdocument.body直下へ移して位置を計算する）。
+*/
+.search-options {
+  position: fixed;
+  z-index: 300;
+  width: 20em;
+  max-width: calc(100vw - 2em);
+  padding: .8em 1em;
+  background: #fff;
+  border-radius: .3em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+.search-options-row {
+  display: flex;
+  align-items: center;
+  gap: .5em;
+  margin-bottom: .5em;
+}
+.search-options-row:last-child {
+  margin-bottom: 0;
+}
+.search-options-label {
+  flex: 0 0 4em;
+  font-size: 85%;
+  color: #555;
+}
+.search-options select,
+.search-options input,
+.search-options button {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 85%;
+  padding: .3em .5em;
+  border-radius: .2em;
+}
+.search-options-actions {
+  justify-content: flex-end;
+}
+.search-options-actions button {
+  flex: 0 0 auto;
+  cursor: pointer;
+  background: var(--pi-link);
+  border-color: var(--pi-link);
+  color: #fff;
+}
+.search-options-actions button:hover {
+  opacity: .9;
+}
+
+/* ページ内検索での一致強調。common.css等が mark を持たない前提の既定値 */
+mark {
+  background: #ffff66;
+}
+mark.search-hit.current {
+  background: #ffb300;
+  outline: 2px solid #cc7a00;
+  outline-offset: 1px;
+}
+
+/*
+  ページ内検索の結果一覧パネル（フロート）。common.jsが一致件数ぶんの
+  ボタンを流し込む。displayを無条件に指定してよいのは、common.css の
+  [hidden] { display: none !important; } が閉じるほうを担保しているため。
+*/
+.page-search-panel {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  right: 1.2em;
+  top: 5em;
+  z-index: 180;
+  width: 20em;
+  max-width: calc(100vw - 2.4em);
+  max-height: 68vh;
+  background: #fff;
+  border-radius: .3em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+.page-search-panel-head {
+  display: flex;
+  align-items: center;
+  gap: .5em;
+  padding: .6em .8em;
+  background: #eef5ff;
+  border-radius: .3em .3em 0 0;
+}
+.page-search-panel-title {
+  font-size: 90%;
+  font-weight: bold;
+}
+.page-search-close {
+  margin-left: auto;
+  font: inherit;
+  line-height: 1;
+  padding: .2em .5em;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: .3em;
+}
+.page-search-close:hover {
+  background: var(--pi-link-hover-bg);
+}
+.page-search-list {
+  margin: 0;
+  padding: .4em;
+  overflow-y: auto;
+  font-size: 85%;
+  list-style: none;
+}
+.page-search-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  line-height: 1.6;
+  padding: .4em .5em;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: .2em;
+}
+.page-search-item:hover {
+  background: #eef5ff;
+}
+.page-search-item.current {
+  background: var(--pi-link-hover-bg);
+  border-color: var(--pi-link);
+}
+.page-search-more {
+  margin: 0;
+  padding: .4em .8em .6em;
+  color: #555;
+  font-size: 80%;
+}
+
+/* TopicPath */
+.page-path {
+  font-size: 85%;
+  padding: .5em 0;
+  color: #555;
+}
+
+/*
+  操作メニュー（ログイン/トップ/編集/新規。本体が渡す common_menu）。ヘッダ2行目、
+  TopicPathとハンバーガーの間に並べる。.command / .command-sep / .command-form と
+  「新規」ダイアログの基本の見た目は common.css が持つ。
+*/
+.header-row-path .commands {
+  margin-left: auto;
+  font-size: 85%;
+  text-align: right;
+}
+.header-row-path .commands .command-sep {
+  margin: 0 .4em;
+}
+.header-row-path .commands + .menu-toggle {
+  margin-left: .6em;
+}
+
+hr.full_hr {
+  border-style: ridge;
+  border-color: #333;
+  border-width: 1px 0;
+  margin: .8em 0;
+}
+
+/* 本文＋サイドバーの2カラム。サイドバーは右 */
+#contents {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: flex-start;
+  gap: 1.2em;
+}
+
+#body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#rightbar {
+  flex: 0 0 14em;
+  max-width: 14em;
+  font-size: 90%;
+}
+
+/*
+  見出し: 本家同様に色帯+クリーム背景。padding-leftベースで作り直し。
+  hoverでは中身ごと要素全体を左へ動かす（枠も文字も一緒に移動する見せ方）。
+  margin の左右を打ち消し合わせてシフトさせることもできるが、それだと
+  ブラウザにレイアウトの再計算（reflow）をさせてしまう。見た目の位置だけを
+  ずらしたいので、他要素の配置に影響しない transform（合成のみで完結し、
+  reflowを伴わない）で表現する。
+*/
+.content h2,
+.content h3,
+.content h4 {
+  font-weight: normal;
+  line-height: 1.8;
+  background: var(--pi-heading-bg);
+  border-right: 1px solid var(--pi-heading-border);
+  border-bottom: 1px solid var(--pi-heading-border);
+  margin: 1em 0 .5em 0;
+  transition: transform .12s ease;
+}
+.content h2 {
+  font-size: 120%;
+  padding: .1em 1em .1em 1.2em;
+  /* 開始位置を左へずらす。border-right側は動かさないので、見出しバーが
+     左へ伸びる形になる。 */
+  margin-left: -20px;
+  border-left: 2.04em solid var(--pi-h2-bar);  /* 1.2em × 1.7 */
+}
+.content h3 {
+  font-size: 112%;
+  padding: .1em 1em .1em 1em;
+  margin-left: -12px;
+  border-left: 1.53em solid var(--pi-h3-bar);  /* .9em × 1.7 */
+}
+.content h4 {
+  font-size: 106%;
+  padding: .1em 1em .1em .8em;
+  margin-left: -5px;
+  border-left: 1.02em solid var(--pi-h4-bar);  /* .6em × 1.7 */
+}
+.content h2:hover { transform: translateX(-.8em); }
+.content h3:hover { transform: translateX(-.7em); }
+.content h4:hover { transform: translateX(-.6em); }
+
+/*
+  h5・h6 はUA既定だと本文より小さくなる（0.83em/0.67em）ため、本文以上の
+  大きさまで引き上げる。h2〜h4の縮小系列（120/112/106%）を引き継ぎつつ、
+  下限は「本文より小さくしない」＝100%（h6）に固定し、h5はその一段上に置いて
+  二者の差を出す。h5はブロック幅いっぱいのborder-bottomでh2〜h4と同じ長さの
+  下線を引く（text-decorationだとテキスト分の長さにしかならないため）。
+  h6は下線なしで太字のみの区別とする。
+*/
+.content h5 {
+  font-size: 102%;
+  font-weight: bold;
+  border-bottom: 1px solid var(--pi-heading-border);
+  margin: 1em 0 .5em 0;
+}
+.content h6 {
+  font-size: 100%;
+  font-weight: bold;
+  margin: 1em 0 .5em 0;
+}
+
+/*
+  画像はコンテナ幅を超えさせず、幅に合わせて高さも追従させる。原寸のまま
+  貼られた画像でも、フォント・余白と同じく画面が狭くなるほど比例して
+  縮小して表示される（本文・サイドバーどちらの画像にも適用）。
+*/
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.content pre {
+  border: 1px solid #ddddee;
+  border-right-color: #888899;
+  border-bottom-color: #888899;
+  padding: .5em;
+  background: #f0f8ff;
+  overflow-x: auto;
+}
+
+.content table {
+  border-collapse: collapse;
+}
+.content th,
+.content td {
+  border: 1px solid #aab5bb;
+  padding: .3em .6em;
+}
+.content th {
+  background: #e0e8f0;
+}
+
+/* ---- 注釈（脚注） ---- */
+.footnote-ref a {
+  text-decoration: none;
+  color: var(--accent);
+}
+.footnote-ref a:hover { text-decoration: underline; }
+.footnotes-sep {
+  margin: 2rem 0 1rem;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+.footnotes {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.footnotes-list { padding-left: 1.4rem; }
+.footnote-item { margin: 0.3rem 0; }
+a.footnote-backref {
+  margin-left: 0.3rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+a.footnote-backref:hover { color: var(--accent); text-decoration: underline; }
+
+/* サイドバー: パネルとその中の見出し */
+#rightbar .panel {
+  margin-bottom: 1.2em;
+}
+/* 620px幅を下回ると検索フォームがここへ移動してくる（post_it_1.js/
+   pkwk.js参照）。.panelクラスは持たないため、同じ間隔を個別に指定する。 */
+#rightbar .search {
+  margin-bottom: 1.2em;
+}
+/*
+  メニュー内（#rightbar、幅18em前後）では「検索語 → 範囲 → 検索ボタン」の
+  3つが1行に収まらず折り返す。素のままだと入力欄と「サイト全体」が1行目、
+  「検索」だけが2行目に落ち、その右に空白が残っていた（Wiki設計者の指摘、
+  2026-09-05）。入力欄に単独の行を与え、ボタン2つで次の行を分け合わせて
+  空白を埋める。
+  「サイト全体」ボタンは押すと「このページ内」に変わり、文字数が増えて
+  幅も変わるが、どちらも flex: 1 1 auto で伸縮するため崩れない。
+*/
+#rightbar .search-word {
+  flex: 1 1 100%;
+}
+#rightbar .search-scope,
+#rightbar .search-submit {
+  flex: 1 1 auto;
+}
+#rightbar h2,
+#rightbar h3,
+#rightbar h4 {
+  font-weight: normal;
+  line-height: 1.8;
+  background: var(--pi-heading-bg);
+  border-right: 1px solid var(--pi-heading-border);
+  border-bottom: 1px solid var(--pi-heading-border);
+  margin: 0 0 .5em 0;
+}
+#rightbar h2 {
+  font-size: 100%;
+  padding-left: .4em;
+  border-left: 1em solid var(--pi-h2-bar);
+}
+#rightbar h3 {
+  font-size: 95%;
+  padding-left: .4em;
+  border-left: .6em solid var(--pi-h3-bar);
+}
+#rightbar h4 {
+  font-size: 90%;
+  padding-left: .4em;
+  border-left: .4em solid var(--pi-h4-bar);
+}
+#rightbar ul {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+/* 目次 */
+.toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.toc li {
+  line-height: 1.5;
+}
+.toc-l1 { padding-left: 0; }
+.toc-l2 { padding-left: 1em; }
+.toc-l3 { padding-left: 2em; }
+.toc-l4 { padding-left: 3em; }
+.toc-l5 { padding-left: 4em; }
+.toc-l6 { padding-left: 5em; }
+
+#footer {
+  font-size: 75%;
+  color: #666;
+  padding-top: .5em;
+}
+
+/* search.html の検索専用フォーム（.search-detail系）向けの最低限の見た目 */
+.search-detail {
+  margin-bottom: 1.2em;
+  padding: .8em 1em;
+  background: #eef5ff;
+  border: 1px solid #ccd5dd;
+}
+.search-detail-row {
+  display: flex;
+  align-items: center;
+  gap: .6em;
+  margin-bottom: .5em;
+}
+.search-detail-label {
+  flex: 0 0 8em;
+  font-size: 90%;
+}
+.search-detail-word {
+  flex: 1 1 auto;
+  padding: .3em .5em;
+}
+.search-hint {
+  color: #555;
+}
+.search-summary {
+  margin-bottom: 1em;
+}
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.search-result {
+  padding: .6em 0;
+  border-bottom: 1px dashed #ccc;
+}
+.search-result-title {
+  font-size: 105%;
+  font-weight: bold;
+}
+.search-result-path {
+  font-size: 80%;
+  color: #777;
+}
+.search-result-jump {
+  color: inherit;
+}
+.search-result-jump:hover {
+  color: var(--pi-link);
+}
+
+/*
+  目次の現在位置ハイライト（.toc a.current）とセクション編集UI
+  （.section-editor 一式）は common.css が既定の見た目を提供する。
+  色は上の :root で定義した --panel-bg / --accent / --muted / --fg / --bg /
+  --border 経由でPukiWiki配色になじむため、ここでは重ねて定義しない。
+  common.css には無い、このテーマ独自の強調だけ足す。
+*/
+.toc a.current {
+  color: var(--pi-h3-bar);
+}
+
+/*
+  レスポンシブ: サイドバー（#rightbar）の開閉式（off-canvas）化。
+
+  以前は960px（60rem）を下回ると「本文の下に回って常時表示」、480px
+  （のちに560px→620pxへ変更）を下回るとさらに「ハンバーガー開閉」という2段階
+  だったが、本文の下に回るだけの中間状態は意味が無い（Wiki設計者の指示、
+  2026-09-05）ため廃止し、この1段階（700px）で直接ハンバーガー
+  開閉に切り替える。
+
+  #rightbarをposition: fixedにすると通常のflowから外れるため、
+  #contents側（display:flex）の指定はそのままで#bodyが自動的に
+  幅いっぱいまで広がる（#contents/#bodyを個別に上書きする必要が無い）。
+
+  開閉状態は post_it_1.js が #rightbar への .is-open クラス付け外しで
+  制御する。post_it_1.js側も同じ700px（window.matchMedia）を見て、
+  画面がこの境界を超えて広がったときに開閉状態をリセットするため、
+  ここを変えたら post_it_1.js / pkwk.js 側の値も合わせて変えること。
+*/
+@media (max-width: 700px) {
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  /* 既定では画面外へ退避させ、.is-openで右からスライドイン */
+  #rightbar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 85%;
+    max-width: 18em;
+    overflow-y: auto;
+    background: var(--pi-base-bg);
+    box-shadow: -2px 0 10px rgba(0, 0, 0, .3);
+    padding: 1em;
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    z-index: 200;
+  }
+  #rightbar.is-open {
+    transform: translateX(0);
+  }
+  #rightbar .panel {
+    margin-bottom: .6em;
+  }
+
+  /* バックドロップ: メニューを開いている間だけ表示し、クリックで閉じる */
+  .menu-backdrop {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: rgba(0, 0, 0, .4);
+    z-index: 150;
+  }
+}
+
+/*
+  スマートフォン向け（iPhone縦画面等）。デスクトップ基準で作った余白・
+  見出しのline-height/paddingは狭い画面だと1画面に収まる情報量を大きく
+  削ってしまうため、フォントサイズ・余白をもう一段階詰める。
+  あわせて、検索フォームを #rightbar（メニューの中）へ移し
+  （post_it_1.js）、ハンバーガーだけを画面右上に固定する。
+  #rightbarのハンバーガー開閉自体は上の @media (max-width: 700px) で
+  既に有効になっている。ここはさらに画面が狭いときの追加調整。
+*/
+@media (max-width: 620px) {
+  body {
+    padding: .5em .4em;
+  }
+  .pi-base {
+    padding: .5em .5em;
+  }
+
+  /* ヘッダ全体の固定（基本ルールのposition: sticky）はこの幅では解除する。
+     狭い画面では、タイトル＋TopicPathを常時見せる価値より本文に使える
+     縦幅のほうが大きいという判断（Wiki設計者の指示、2026-09-05）。
+     代わりにハンバーガーだけをposition: fixedで画面右上に残し、
+     スクロール位置に関わらずメニューを開けるようにする。 */
+  #header {
+    position: static;
+  }
+  /*
+    ハンバーガーだけを画面右上に固定する。
+    z-indexはバックドロップ(150)より下にしてある。メニューを開いている
+    間はバックドロップに覆われて押せなくなるが、閉じる操作はバックドロップ
+    のクリックとEscapeキーで足りる（post_it_1.js）。
+    .menu-toggle自身が白背景＋枠線＋角丸を持つため、本文の上に浮いても
+    そのまま読める。
+  */
+  .menu-toggle {
+    position: fixed;
+    top: .5em;
+    right: .5em;
+    z-index: 130;
+  }
+  /* 固定したハンバーガーはヘッダの通常フローから外れるため、そのままだと
+     1行目の右端（この幅では検索も#rightbarへ抜けてタイトルだけが残る）が
+     ボタンの下へ潜り込む。ボタンの幅（2.2em）＋余白ぶんを空けておく。 */
+  .header-row-title {
+    padding-right: 3em;
+  }
+  .header-row-title .site-title {
+    display: none;
+  }
+  #header h1.title {
+    font-size: 20px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  /* .menu-toggleの表示切り替え自体は @media (max-width: 700px) 側で
+     既に行っている。ここでは追加調整はしない。 */
+  /*
+    「サイト全体」「検索」ボタンは常に固定幅・右寄せのまま崩さず、
+    残りの幅を入力欄が伸縮して埋める（折り返しには頼らない）。
+    折り返しを許すと、ボタン側だけが2行目に落ちたときに1行目の右側が
+    空白のまま残ってしまう（480px未満で発生した不具合）。
+    .page-search-nav（このページ内検索時のみ表示）だけは、それでも
+    収まりきらない場合に備えてflex-wrapで2行目に落とせるようにしておく。
+  */
+  .search {
+    flex-wrap: wrap;
+    margin: .5em 0;
+  }
+  .search-word {
+    min-width: 2.5em;
+    flex: 1 1 auto;
+  }
+  /*
+    flex: 1 1 100% で幅いっぱいに広げていたため、前へ/次へ/件数の小さな
+    かたまりの周りに背景色付きの余白が大きく余っていた（検索のあとの
+    「無駄なスペース」）。幅は中身に合わせ、折り返した時だけ区切り線を
+    上に付ける。
+  */
+  .page-search-nav {
+    border-left: 0;
+    border-top: 1px solid #ccc;
+  }
+
+  /* TopicPathは以前ここで非表示にしていたが、#rightbarが700px幅から
+     既にハンバーガー開閉（既定で隠れる）になったため、情報密度優先で
+     TopicPathまで削る根拠が弱くなった。常時表示に戻す（Wiki設計者の指示、
+     2026-09-05）。 */
+
+  .content h2,
+  .content h3,
+  .content h4 {
+    line-height: 1.3;
+    margin: .6em 0 .3em 0;
+  }
+  .content h2 {
+    padding: .1em .5em .1em .6em;
+  }
+  .content h3 {
+    padding: .1em .5em .1em .5em;
+  }
+  .content h4 {
+    padding: .1em .5em .1em .4em;
+  }
+  .content h5,
+  .content h6 {
+    margin: .6em 0 .3em 0;
+  }
+
+  /* 表は列を圧縮せず、はみ出した分を横スクロールさせて可読性を優先する */
+  .content table {
+    display: block;
+    overflow-x: auto;
+  }
+  .content th,
+  .content td {
+    padding: .2em .3em;
+  }
+
+  /* #rightbar のoff-canvas化・.menu-backdropは @media (max-width: 700px)
+     側で既に行っている（幅を問わずここから先も有効なまま）。 */
+}
+
+/* ---- プラグインが実行できないときの表示（base.css/bloom.cssと同じ考えかた） ----
+   標準では「** 名前 plugin error : 使いかた」の1行（色付き太字）だけ。
+   plugin.debug が有効なときだけ行末に [詳細] を足し、開いた中に理由と
+   _help()（無ければdocstring）を出す。 */
+.plugin-error { margin: 0.5rem 0; font-size: 0.9rem; }
+.plugin-error-summary { color: #d93025; font-weight: 700; }
+/* [詳細]/[閉じる] という文字自体が開閉の目印なので、ブラウザ既定の
+   三角マーカーは重複するため消す（Firefox・Chrome/Safari両対応） */
+details.plugin-error-summary summary { cursor: default; list-style: none; }
+details.plugin-error-summary summary::-webkit-details-marker { display: none; }
+details.plugin-error-summary summary::marker { display: none; }
+details.plugin-error-summary[open] summary { margin-bottom: 0.4rem; }
+/* クリックできる範囲を [詳細]/[閉じる] の文字だけに絞る（行全体を
+   クリック対象にすると、理由を読もうとしただけで開閉してしまうため）。
+   summary自体はクリックを受け付けず、内側のtoggleだけ受け付け直す */
+details.plugin-error-summary summary { pointer-events: none; }
+.plugin-error-toggle { pointer-events: auto; cursor: pointer; text-decoration: underline; }
+/* 開いているかで [詳細]/[閉じる] を切り替える */
+.plugin-error-summary .is-open { display: none; }
+.plugin-error-summary[open] .is-closed { display: none; }
+.plugin-error-summary[open] .is-open { display: inline; }
+.plugin-error-message {
+  margin: 0 0 0.3rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.plugin-error-summary pre {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+/* トレースバック（server.yamlのdebug）。plugin.debug（上の[詳細]）とは別口 */
+.plugin-error-detail { margin-top: 0.5rem; }
+.plugin-error-detail summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.plugin-error-detail pre {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.plugin-notice {
+  margin: 0.8rem 0;
+  padding: 0.5rem 0.9rem;
+  color: var(--muted);
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px dashed var(--border, #d0d7de);
+}

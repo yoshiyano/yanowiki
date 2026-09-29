@@ -1,0 +1,115 @@
+PukiWiki記法の''リンク''の書きかたです。書きかたの枠のすぐ下に、その表示が並びます。
+
+#contents
+
+* リンク [#link]
+
+** このWikiのページへ
+
+''[['' と '']]'' でページ名を囲みます。
+
+#code(pukiwiki){{
+[[UsageGuide]]
+[[使ってみよう>UsageGuide]]
+}}
+
+↓ こう表示されます
+
+[[UsageGuide]]
+[[使ってみよう>UsageGuide]]
+
+''>'' の左が画面に出る文字、右が飛び先です。裸のページ名（例: ''UsageGuide''）は、どのページに書いても''ルートから''の同じページを指します。
+
+** となりのページへ（相対リンク）
+
+''{['' と '']}'' で囲むと、''いま開いているページの下''を指します。
+
+#code(pukiwiki){{
+{[Sub]}
+{[サブページへ>Sub]}
+}}
+
+''Tech/PukiWiki'' からこう書くと ''Tech/PukiWiki/Sub'' へのリンクになります（''[[Sub]]'' ならルート直下の ''Sub''）。
+''[[…]]'' の中に ''./''・''../'' を書いても相対になります（[[共通の書きかた>/Syntax/Common]]）。
+
+** まだ無いページへも書ける
+
+''リンク先のページは、無くても構いません。''
+
+#code(pukiwiki){{
+[[まだ無いページ]]
+}}
+
+↓ こう表示されます
+
+[[まだ無いページ]]
+
+たどった先の「''このページを作る''」から、その名前でページを作れます。
+
+** 同じページの中へ [#anchor]
+
+飛び先を ''#名前'' にします。見出しの文字がそのまま名前になります。
+
+#code(pukiwiki){{
+[[よそのサイトへの節へ>#よそのサイトへ]]
+}}
+
+↓ こう表示されます
+
+[[よそのサイトへの節へ>#よそのサイトへ]]
+
+見出しの行末に ''[#名前]'' と書いた場合はその名前で飛びます。見出し以外の場所は
+[[&aname>/Syntax/Plugin/aname]] で名前を付けます。
+
+** よそのサイトへ
+
+URLやメールアドレスは書くだけでリンクになります。表示する文字は ''表示名:URL'' の形で変えます。
+
+#code(pukiwiki){{
+https://pukiwiki.osdn.jp/
+[[本家PukiWiki:https://pukiwiki.osdn.jp/]]
+}}
+
+↓ こう表示されます
+
+https://pukiwiki.osdn.jp/
+[[本家PukiWiki:https://pukiwiki.osdn.jp/]]
+
+** 登録名でリンクする（InterWiki）
+
+あらかじめ登録した''名前''で、よそのサイトを指せます。
+
+#code(pukiwiki){{
+[[Wikipedia:PukiWiki]]
+[[本家の解説>Wikipedia:PukiWiki]]
+}}
+
+↓ こう表示されます
+
+[[Wikipedia:PukiWiki]]
+[[本家の解説>Wikipedia:PukiWiki]]
+
+登録名は設定ファイル（config/pukiwiki.interwiki.example.yaml、Wikiごとなら wikidata/<Wiki名>/config/pukiwiki.interwiki.yaml）にあります。
+登録していない名前は、ふつうのページ名になります。
+
+** CamelCaseは自動でリンクになる（WikiName）
+
+''英大文字で始まる語をつなげた書きかた''は、囲まなくてもリンクになります。
+
+#code(pukiwiki){{
+FrontPage
+}}
+
+↓ こう表示されます
+
+FrontPage
+
+リンクにしたくないときは、語を分けるなどしてください。
+
+** 画像を貼る
+
+''リンク先が画像なら、画像として埋め込まれます。'' ファイル名だけなら、そのページの添付です。
+
+#code(pukiwiki){{
+[[説明の文字>photo.jpg]]
+}}

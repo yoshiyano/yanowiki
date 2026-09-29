@@ -1,0 +1,112 @@
+{#
+  fresh — 薄緑系のすっきりしたテーマ（サンプル）
+
+  ● 個別Wiki（wikidata/<farm名>/theme/）へコピーするときのファイル
+    コピーするもの（このテーマ固有）:
+      fresh.html
+      fresh.css
+    コピー不要（そのWikiの theme/ に無ければ、共通の theme/ から読まれる）:
+      common/base.html … 継承元。"common/" 付きなので常に共通のものが使われる
+      base.css         … このテーマの .css が @import で読む
+      common.css・common.js … 全テーマ共通
+    ※ 依存ファイルもコピーすると、そのWikiではコピーしたほうが優先され、
+      同じファイルを使うほかのテーマにも効く（共通のものを直したいときだけ）。
+
+  ● このテーマの書き方の特徴: 「共通テーマを継承して、必要な部分だけ差し替える」
+    ファイルはこれだけ。レイアウトの大枠・検索まわりの部品は common/base.html を
+    そのまま使い、変えたいブロックだけを上書きしています。
+    JavaScriptも共通の common.js だけで足りるので fresh.js は作っていません。
+
+  ● 見た目の方針: 枠線と影を減らし、余白と細い区切り線で整理する。
+    サイドバーを右に置き、本文が画面の左端から始まるようにして読みやすくしています。
+
+  config/default.yaml で theme.default: fresh とすると有効になります。
+#}
+{% extends "common/base.html" %}
+
+{#
+  scripts: common.js だけを読み込む。base.html 側は既定で base.js（menu1の
+  階層開閉）も足すが、それは .mainbar .menu1（base 独自のマークアップ）
+  向けの機能で、freshのmenu1は右の1本サイドバー（.subbar .menu1）にあり対象外。
+  読み込んでも実害は無いが、要らないスクリプトなので明示的に外している。
+  fresh 独自の動きは無いので fresh.js は用意しない。
+#}
+{% block scripts %}<script src="{{ theme_url }}/common.js"></script>{% endblock %}
+
+{#
+  ヘッダ: 中に site-brand → page-header → commands の順で入れる（Wiki設計者の指示）。
+    - site-brand … サイト名の下にTopicPathを小さく置く
+    - page-header … ページタイトル。base 標準では header の外
+      （page_header ブロック）に出るが、fresh では header の中へ移し、
+      標準の位置は下で空にしている。中身（h1）は base の page_heading の
+      定義を super() で引き継ぐ。TopicPath は site-brand 側に出しているので
+      page-header 内の breadcrumb は空のまま。
+    - commands … 共通テーマのものをそのまま使う
+#}
+{% block header %}
+<header class="site-header">
+  <div class="site-brand">
+    <div class="site-title"><a href="{{ base_url }}/">{{ site_title }}</a></div>
+    <div class="site-path">
+      <a href="{{ base_url }}/">/</a>{% for item in topic_path %}{% if item.url %}<a href="{{ item.url }}">{{ item.label }}</a>{% else %}<span>{{ item.label }}</span>{% endif %}{% if not loop.last %}<span class="sep">/</span>{% endif %}{% endfor %}
+    </div>
+  </div>
+  <div class="page-header">
+    {% block page_heading %}{{ super() }}{% endblock %}
+  </div>
+  {% block commands %}{{ super() }}{% endblock %}
+</header>
+{% endblock %}
+
+{# タイトルは header の中へ移したので、base 標準の位置では出さない #}
+{% block page_header %}{% endblock %}
+
+{# TopicPathはヘッダの site-brand に出しているので、タイトル下の breadcrumb は空 #}
+{% block breadcrumb %}{% endblock %}
+
+{#
+  base.html は menu1 を左カラムに独立させたが、freshは元どおり
+  右の1本のサイドバーに目次・menu1・menu2をまとめる（下のsubbarブロック参照）。
+  そのため左カラムのブロックは空にする（空にしないと base.html 側の
+  既定の中身が出て、menu1が2か所に重複表示されてしまう）。
+#}
+{% block menu1_sidebar %}{% endblock %}
+
+{#
+  サイドバー: 目次を先頭に置く（読んでいる最中に使う頻度が高いものを上に）。
+  パネルの囲みは外し、見出しと余白だけで区切る。
+#}
+{% block sidebar %}
+<aside class="subbar">
+  {% block toc %}
+  {% if toc|length > 1 %}
+  <nav class="panel toc" aria-label="目次">
+    <h2 class="panel-title">目次</h2>
+    <ul>
+      {% for item in toc %}
+      <li class="toc-l{{ item.level }}"><a href="#{{ item.id }}">{{ item.title }}</a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+  {% endif %}
+  {% endblock %}
+
+  {% if menu1 %}<section class="panel menu1">{{ menu1 }}</section>{% endif %}
+  {% if menu2 %}<section class="panel menu2">{{ menu2 }}</section>{% endif %}
+</aside>
+{% endblock %}
+
+{% block footer %}
+<footer class="site-footer">
+  {% if render_ms is defined %}<span class="render-time">Convert-time: {{ render_ms }}ms</span>{% endif %}
+  {% if source_mtime is defined %}<span class="source-mtime">Last-modified: {{ source_mtime }}</span>{% endif %}
+  {# disk_usage: ページ＋添付の合計サイズ。base.html 側のコメント参照。 #}
+  {% if disk_usage is defined %}<span class="disk-usage">{{ disk_usage.text }}</span>{% endif %}
+  {% if login_as is defined and login_as %}<span class="login-as">{{ login_as }}</span>{% endif %}
+  <span>Powered by wikiSystem</span>
+  <span class="site-version">{{ version }}</span>
+  {# 元は<span>{{ site_title }}</span>だけだったが、copyright表示に
+     サイト名を含めたため、隣り合って重複しないようこちらへ統合した。 #}
+  <span class="site-copyright">&copy; {% if copyright_year is defined %}{{ copyright_year }} {% endif %}Yano Labo / AIT</span>
+</footer>
+{% endblock %}

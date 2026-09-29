@@ -1,0 +1,23 @@
+/* attachls プラグインの見た目。
+
+   1つ1つのファイルは ref プラグインの出力（ref.css）そのままなので、ここでは
+   並べかただけを決める。ふつうの箇条書き（点つきの <ul>）として並べる
+   （Wiki設計者の指示、2026-09-27。以前は点を消して flex で縦に並べていた）。
+   点のぶんの余白は ls.css と同じく padding-left に取る。画像（showimg）は、
+   行の中で大きくなりすぎないよう、ref と同じく横幅いっぱいまでに収める。 */
+
+ul.attachls {
+  list-style: disc;
+  padding-left: 1.2em;
+  margin: 0.6rem 0;
+}
+ul.attachls > .attachls-item { margin: 0.2rem 0; max-width: 100%; }
+/* 画像（showimg）の行で点が画像の下端に付かないよう、画像を行の上端に揃える
+   （点は行の基準線に揃うため、背の高い画像の行では下に来てしまう） */
+ul.attachls > .attachls-item img { vertical-align: top; }
+
+.attachls-empty {
+  margin: 0.6rem 0;
+  color: var(--muted, #777);
+  font-size: 0.9rem;
+}

@@ -1,0 +1,81 @@
+# 環境依存（PCごとに再生成、コピー禁止）
+/_venv/
+__pycache__/
+*.pyc
+
+# 実行中のサーバーのPID記録（実行時の状態、Git管理不要）
+/.pid/
+
+# 実際に読まれる設定はサイトごとの手元の値なのでGit管理対象外とする。
+# 雛形（config/*.example.yaml）だけを追跡する。
+# こうしておかないと、更新（git reset --hard）のたびに手元の設定が
+# 追跡対象の内容へ戻ってしまう。
+# server.yaml 以外は 2026-09-04 に廃止済み（雛形をそのまま既定値として読む）だが、
+# 廃止前に作られた手元のファイルを取り込まないよう、行は残してある。
+/config/server.yaml
+/config/default.yaml
+/config/pukiwiki.extrarules.yaml
+/config/pukiwiki.interwiki.yaml
+
+# wikidata/ 以下はサンプルの "_system" インスタンスのみをGit管理対象とする
+/wikidata/*
+!/wikidata/_system/
+
+# 個別Wikiのconfig/も、共通のconfig/と同じ理由（サイトごとの手元の値）で
+# yamlは対象外とする（README.txtは対象外にしない）。
+# 無ければ雛形（config/*.example.yaml）が既定値としてそのまま読まれる。
+/wikidata/_system/config/*.yaml
+# ページごとのアクセス制限。設置ごとの中身なので追跡しない（users.db と同じ扱い）
+/wikidata/_system/config/privileges
+/wikidata/_system/config/privileges.plugin
+/wikidata/_system/config/privileges*.tmp
+/wikidata/_system/config/privileges.bak
+# 利用者アカウント（config/users.db）。パスワードのハッシュ値が入るので
+# 絶対に追跡しない。無ければ最初にアカウント画面を開いたときに作られる。
+# "/" を含むパターンは .gitignore の位置からの相対で固定されるので、
+# どの階層の config/ でも効くように ** を付ける
+**/config/users.db
+# 認証の合言葉に混ぜる、この設置に固有の文字列。漏れると合言葉を作られる
+/config/secret.txt
+
+# "_system" インスタンス内でもログの実ファイルは対象外（説明ファイルのみ残す）
+/wikidata/_system/log/*
+!/wikidata/_system/log/README.txt
+
+# ページに付随する記録（pageinfo/）も実行時の状態なので、実ファイルは対象外
+# （バックアップの差分・書きかけの一時保存・分けて送られている途中。
+#   説明ファイルのみ残す）
+/wikidata/_system/pageinfo/backup/*
+!/wikidata/_system/pageinfo/backup/README.txt
+/wikidata/_system/pageinfo/draft/*
+!/wikidata/_system/pageinfo/draft/README.txt
+/wikidata/_system/pageinfo/upload/*
+!/wikidata/_system/pageinfo/upload/README.txt
+# ページ本文のDB（平文から作り直せる写しなので追跡しない）
+/wikidata/_system/pageinfo/wikiall.db
+/wikidata/_system/pageinfo/wikiall.db-*
+# 2つのDBの控え（1日1回、アクセスをきっかけに取り直す。dbbackup.py参照）。
+# 実行時に作られるものなので、DB本体と同じく追跡しない
+/wikidata/_system/pageinfo/wikiall.db.zip
+/wikidata/_system/pageinfo/backup.db.zip
+# 控えを作る途中の一時ファイル。プロセスごと止められると残ることがあり、
+# 起動時に消す（dbbackup.sweep_leftovers）
+/wikidata/_system/pageinfo/dbbackup-*
+
+# 保存時の差分バックアップのDB（2026-08-31にファイルから移した）。
+# 上の backup/ 配下と同じく実行時の記録なので追跡しない
+/wikidata/_system/pageinfo/backup.db
+/wikidata/_system/pageinfo/backup.db-*
+
+# 本家PukiWikiの実装を参照するために置いた手元のファイル。
+# 第三者の著作物（GPL）なので、このリポジトリには含めない
+/_reffile/
+
+# チャットでのやり取り（トークン節約用）の道具置き場。リポジトリ本体とは
+# 無関係で、動く先の環境ごとに要不要が変わるため追跡しない
+/_sys/_tools/
+
+# 調査のたびに調べ直さずに済むよう残しておくメモ（Claude向け）。
+# コードそのものではなく調査結果の写しなので、正本（コード・ドキュメント）と
+# 食い違ったときのために追跡対象には含めない
+/_memos/

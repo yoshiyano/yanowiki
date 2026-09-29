@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 64" width="160" height="64" role="img" aria-hidden="true">
+  <!-- 小枝 -->
+  <path d="M4 50 C 40 46, 70 40, 96 30 S 140 14, 156 8"
+        fill="none" stroke="#b9793f" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- 葉 -->
+  <path d="M40 44 C 34 36, 40 28, 50 30 C 46 38, 44 42, 40 44 Z" fill="#8fae6e"/>
+  <path d="M100 26 C 96 18, 102 12, 110 15 C 105 22, 103 25, 100 26 Z" fill="#8fae6e"/>
+
+  <!-- 花1（小） -->
+  <g transform="translate(24,50)" fill="#d9803f">
+    <ellipse cx="0" cy="-6" rx="3.6" ry="5.2"/>
+    <ellipse cx="0" cy="6" rx="3.6" ry="5.2"/>
+    <ellipse cx="-6" cy="0" rx="5.2" ry="3.6"/>
+    <ellipse cx="6" cy="0" rx="5.2" ry="3.6"/>
+  </g>
+  <circle cx="24" cy="50" r="2.6" fill="#ffffff"/>
+
+  <!-- 花2（中） -->
+  <g transform="translate(66,36)" fill="#d9803f">
+    <ellipse cx="0" cy="-8" rx="4.6" ry="6.6"/>
+    <ellipse cx="0" cy="8" rx="4.6" ry="6.6"/>
+    <ellipse cx="-8" cy="0" rx="6.6" ry="4.6"/>
+    <ellipse cx="8" cy="0" rx="6.6" ry="4.6"/>
+    <ellipse cx="-5.7" cy="-5.7" rx="4.6" ry="6.6" transform="rotate(-45 -5.7 -5.7)"/>
+    <ellipse cx="5.7" cy="5.7" rx="4.6" ry="6.6" transform="rotate(-45 5.7 5.7)"/>
+    <ellipse cx="5.7" cy="-5.7" rx="4.6" ry="6.6" transform="rotate(45 5.7 -5.7)"/>
+    <ellipse cx="-5.7" cy="5.7" rx="4.6" ry="6.6" transform="rotate(45 -5.7 5.7)"/>
+  </g>
+  <circle cx="66" cy="36" r="3.4" fill="#fbeee2"/>
+  <circle cx="66" cy="36" r="1.8" fill="#d9803f"/>
+
+  <!-- 花3（大・主役） -->
+  <g transform="translate(122,20)" fill="#d9803f">
+    <ellipse cx="0" cy="-11" rx="6.2" ry="9"/>
+    <ellipse cx="0" cy="11" rx="6.2" ry="9"/>
+    <ellipse cx="-11" cy="0" rx="9" ry="6.2"/>
+    <ellipse cx="11" cy="0" rx="9" ry="6.2"/>
+    <ellipse cx="-7.8" cy="-7.8" rx="6.2" ry="9" transform="rotate(-45 -7.8 -7.8)"/>
+    <ellipse cx="7.8" cy="7.8" rx="6.2" ry="9" transform="rotate(-45 7.8 7.8)"/>
+    <ellipse cx="7.8" cy="-7.8" rx="6.2" ry="9" transform="rotate(45 7.8 -7.8)"/>
+    <ellipse cx="-7.8" cy="7.8" rx="6.2" ry="9" transform="rotate(45 -7.8 7.8)"/>
+  </g>
+  <circle cx="122" cy="20" r="6.8" fill="#fbeee2"/>
+  <circle cx="122" cy="20" r="3.6" fill="#d9803f"/>
+</svg>

@@ -1,0 +1,433 @@
+/*
+ * pkwk_wide — pukiwiki_default.css のコピー。本文（.layout）の最大幅の上限を
+ * 外し、画面の横幅全体を使う（Wiki設計者の指示、2026-09-27）。変更点は
+ * 下の「横幅いっぱいに使う」の節と、空の .subbar 用ルールの max-width だけ。
+ *
+ * pukiwiki_default — PukiWiki 1.5系 の既定スキン（skin/pukiwiki.css）の
+ * 見た目を base.css を土台に再現する。
+ *
+ * ● 書き方: 先頭で base.css を読み込み、配色（カスタムプロパティ）・
+ *   見出し・pre・本文フォントだけを上書きする。検索パネルやセクション編集
+ *   など細かい部品の見た目は共通CSSのものがそのまま効く。
+ *
+ * ● 参考にした元CSSの主な値:
+ *     薄青          #DDEEFF
+ *     リンク        #215dc6 / 訪問済 #a63d21 / hover背景 #CCDDEE
+ *     pre 背景      #F0F8FF   pre枠 左上 #DDDDEE / 右下 #888899
+ *     見出しフォント verdana, arial, helvetica, Sans-Serif
+ *     本文フォント  monospace, verdana, arial, helvetica, Sans-Serif（90%）
+ */
+@import url("base.css");
+
+/* ---- 配色: PukiWiki 既定スキンの薄青系 ---- */
+:root {
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: #555555;
+  --border: #ddeeff;
+  --accent: #215dc6;
+  /* PukiWiki のサイドバー・ヘッダは白地。青(#DDEEFF)が付くのは見出し帯だけ
+     なので、パネル全体の下地は白にし、青は .panel-title 等へ個別に当てる。 */
+  --panel-bg: #ffffff;
+  --code-bg: #f0f8ff;
+  /* menu1（左）・目次+menu2（右）の共通幅。base 既定の 17rem から少し広げた
+     （Wiki設計者の指示 2026-09-04）17.5rem を、さらに 85% へ狭める
+     （Wiki設計者の指示 2026-09-21）。17.5rem × 0.85 = 14.875rem。 */
+  --sidebar-width: 14.875rem;
+  /* レスポンシブでメニューを帯へ閉じる2つのしきい値（base.css の
+     1023px / 960px を上書き。common.js が読む。Wiki設計者の指示 2026-09-21。
+     左は当初 960px の指示だったが、同日中に 950px へ改められた）。
+       --bp-narrow   : menu1（左）が帯へ折りたたまれる幅  1023px → 950px
+       --bp-narrower : 右カラム（目次+menu2）も帯へ折りたたまれる幅  960px → 800px
+     base.css 側は変えない（base / fresh へ波及させないため）。 */
+  --bp-narrow: 950px;
+  --bp-narrower: 800px;
+}
+/* PukiWiki 既定スキンはライト専用。base.css のダークモード上書きを打ち消し、
+   どの環境でも同じ薄青系で表示する。 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #ffffff;
+    --fg: #000000;
+    --muted: #555555;
+    --border: #ddeeff;
+    --accent: #215dc6;
+    --panel-bg: #ffffff;
+    --code-bg: #f0f8ff;
+  }
+}
+:root { color-scheme: light; }
+
+/* ---- 本文: monospace 優先・やや小さめ・行間詰めめ ---- */
+body {
+  font-family: monospace, verdana, arial, helvetica, "Noto Sans JP", sans-serif;
+  font-size: 90%;
+  line-height: 1.4;
+}
+
+/* ---- リンク: 訪問済みは錆色、hover で薄青の下地 ---- */
+a { color: var(--accent); }
+a:visited { color: #a63d21; }
+a:hover { background-color: #ccddee; text-decoration: underline; }
+
+/* ---- ページタイトル ---- */
+.page-title {
+  font-family: verdana, arial, helvetica, "Noto Sans JP", sans-serif;
+  font-size: 2.3rem;
+  font-weight: bold;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.page-path { color: #555555; }
+
+/* ---- ヘッダ再構成（pkwk に揃える。Wiki設計者の指示 2026-09-04） ----
+   base 標準ではタイトル+TopicPath が header の外（.page-header）にあり、
+   コマンド nav は横1段。pukiwiki_default では pukiwiki_default.html 側で
+   タイトル+TopicPath を header の中（.header-body > .header-titles）へ入れ、
+   nav を2段（.commands-row-primary / -secondary）にしている。ここはその
+   受け皿のレイアウト。
+
+   .header-body は横1列。左に .header-titles（タイトル+TopicPath）、
+   右に .commands を寄せる（Wiki設計者の指示 2026-09-04）。.commands の中は
+   縦2段のまま（上: マーカー+検索、下: 倍率+トップ/編集/履歴/リネーム）。 */
+.site-header {
+  /* ロゴ・.header-body をヘッダの下辺（二重線）へ揃える（Wiki設計者の指示
+     2026-09-04。center より見栄えが良いとの判断）。上の余白がやや広く、
+     内容が下線に沿って落ち着く。 */
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  border-bottom: 3px double #333333;   /* 旧 .page-header の下線をヘッダ全体の下へ移設 */
+}
+.header-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.6rem 2rem;
+  flex-wrap: wrap;   /* 狭い画面ではタイトルの下へ折り返す */
+}
+.header-titles {
+  flex: 0 1 auto;
+}
+.header-titles .page-path { margin-top: 0.15rem; }
+
+/* コマンド nav: .header-body の右端へ寄せ、中は縦2段（各段は右寄せ） */
+.commands {
+  margin-left: auto;         /* .header-body の中で右へ寄せる */
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+.commands-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem 1rem;
+  flex-wrap: wrap;
+}
+
+/* ヘッダ内のリンクは mouse over のハイライト（薄青の下地・下線）をしない
+   （Wiki設計者の指示 2026-09-04）。検索の <button>（.search-scope /
+   .search-submit）はリンクではないので対象外＝従来どおり hover する。 */
+.site-header a:hover {
+  background-color: transparent;
+  text-decoration: none;
+}
+
+/* ---- menu1（左）を畳んだ幅（html.bp-narrow）のコマンド配置 ----
+   （Wiki設計者の指示 2026-09-21）
+   1) ログイン〜リネームのリンク列（.command-links）はヘッダから消し、
+      代わりにメニューの先頭へ埋めた複製を出す。埋める先は menu2 があれば
+      右メニュー（.subbar-commands）、menu2 が無く menu1 があれば左メニュー
+      （.mainbar-commands）、どちらも無ければ右メニュー（pkwk_wide.html の
+      toc ブロック参照。Wiki設計者の指示 2026-09-29）。
+      広い幅ではどちらも出さず、.command-links はそのままヘッダに並ぶ
+      （display:contents で、ラッパーが無かったときと同じレイアウトのまま）。
+   2) ヘッダに残るマーカー・拡大率・検索は、1段目「マーカー｜拡大率」を横並び、
+      2段目「検索」に並べ替える。DOM 上は 1段目=マーカー+検索、2段目=拡大率+
+      リンク列なので、段の箱（.commands-row）を display:contents で外し、
+      .commands をグリッドにして各部品を明示的に配置する。
+      マーカーは JS が準備できるまで hidden なので、その間は拡大率だけが 1段目。 */
+.command-links { display: contents; }
+.subbar-commands,
+.mainbar-commands { display: none; }
+
+/* ヘッダ側は<dialog>を残したままリンクだけ隠す。common.js の「新規」は最初の
+   .new-page-dialog（=ヘッダ側）を全ボタンで共有するため、その祖先を display:none
+   にするとダイアログが開かなくなる。 */
+html.bp-narrow .commands .command-links,
+html.bp-narrow .commands .common-menu { display: contents; }
+html.bp-narrow .commands .common-menu > :not(dialog) { display: none; }
+html.bp-narrow .subbar-commands,
+html.bp-narrow .mainbar-commands {
+  display: block;
+  padding-bottom: 0.5rem;
+}
+html.bp-narrow .subbar-commands .common-menu,
+html.bp-narrow .mainbar-commands .common-menu { display: contents; }
+html.bp-narrow .subbar-commands .command-links,
+html.bp-narrow .mainbar-commands .command-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+}
+
+html.bp-narrow .commands {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  align-items: center;
+  gap: 0.3rem 1rem;
+}
+html.bp-narrow .commands-row { display: contents; }
+html.bp-narrow .commands .marker-controls { grid-row: 1; grid-column: 1; }
+html.bp-narrow .commands .zoom-controls   { grid-row: 1; grid-column: 2; }
+html.bp-narrow .commands .search {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+/* ---- サイドバー（.subbar / .mainbar）の表示条件（Wiki設計者の指示 2026-09-04、
+   pukiwiki_default のみ） ----
+   base.html は menu1_page / menu2_page の有無に関わらず、menu1 があれば
+   <aside class="mainbar">、そして常に <aside class="subbar"> を描画する。
+   .subbar は目次（toc|length > 1）も menu2 も無いと中身が空になり、
+   幅 --sidebar-width の空カラムだけが残る。pukiwiki_default では
+   「中身が空の .subbar は列ごと消す」。
+
+     - 目次が2項目以上、または menu2 がある … .subbar を出す（base 既定のまま）
+     - どちらも無い … .subbar を display:none にしてグリッドから外す
+         menu1 が無ければ本文1カラム（全幅）、menu1 があれば menu1＋本文の2カラム
+
+   base.html は空でも <aside class="subbar"> を描画するので、その中に
+   要素の子が無いこと（:not(:has(.subbar > *))）で「空」を判定する
+   （:has() は入れ子にできないためこの形）。ただし .subbar-commands
+   （ログイン〜リネームの複製。下の節）は数えない。これは bp-narrow のときだけ
+   見せる部品で、広い幅では display:none なので、空判定に含めると
+   目次・menu2 が無いページでも空カラムが残ってしまう。
+
+   grid-template-columns の変更は通常幅（html:not(.bp-narrow):not(.bp-narrower)）
+   のときだけに絞る。狭い幅では base.css / common.js 側の折りたたみ処理へ
+   委ねる（絞らないと :not(:has()) の詳細度が bp-* ルールを上回って
+   狭い幅でも列指定が復活してしまう）。 */
+
+/* 空の .subbar は幅に関わらず列ごと消す
+   （狭い幅で空のドロワー帯 html.bp-narrower .subbar が出るのも防ぐ） */
+html:not(.bp-narrow) .layout:not(:has(.subbar > :not(.subbar-commands))) .subbar {
+  display: none;
+}
+
+/* 通常幅: 空の .subbar のぶん右カラムを畳む */
+html:not(.bp-narrow):not(.bp-narrower) .layout:not(:has(.subbar > :not(.subbar-commands))) {
+  /* menu1 あり: menu1 ＋ 本文の2カラム（.mainbar は base.css で grid-column:1、
+     .content も base.css の既定で grid-column:2 のまま流用できる） */
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  max-width: none;   /* pkwk_wide: 上限を外す（pukiwiki_default は calc(...)） */
+}
+html:not(.bp-narrow):not(.bp-narrower) .layout:not(:has(.mainbar)):not(:has(.subbar > :not(.subbar-commands))) {
+  /* menu1 なし: 本文1カラム（全幅）。上のルールを打ち消す */
+  grid-template-columns: minmax(0, 1fr);
+  max-width: none;   /* 「横幅最大で使わせたい」＝上限を外す */
+}
+
+/* bp-narrow（menu1 は帯へ折りたたみ済み・.subbar はまだ通常配置）では、
+   .subbar-commands（ログイン〜リネーム）が .subbar に入っていれば、それを
+   見せるために .subbar を残す。ただし menu2 が無く menu1 があるページでは
+   コマンドは .mainbar 側へ入るので、目次も無ければ .subbar は子を1つも
+   持たない。そのときは列ごと消して本文1カラムにする。
+   bp-narrower では base.css 側で .subbar が position:fixed の帯になり
+   グリッドは既に1カラムなので、帯（空のドロワー）を消すだけでよい。 */
+html.bp-narrow .layout:not(:has(.subbar > *)) .subbar {
+  display: none;
+}
+html.bp-narrow:not(.bp-narrower) .layout:not(:has(.subbar > *)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---- 横幅いっぱいに使う（pkwk_wide の本体。Wiki設計者の指示 2026-09-27） ----
+   base.css は .layout（3カラム/2カラムとも）と .page-header に
+   calc(var(--content-max) + サイドバー幅…) の max-width を付け、広い画面では
+   中央に寄せた一定幅に収める。pkwk_wide ではこの上限を外し、画面の横幅全体を
+   本文に使う（サイドバーは --sidebar-width のまま、本文列 1fr が伸びる）。
+   base.css の同じセレクタより後に読まれるので、詳細度が同じでもこちらが勝つ。
+   .page-header はこのテーマでは中身を header へ移して空だが、念のため揃える。
+   --content-max 自体は書き換えない（ほかの用途で参照されても意味が変わらない
+   ようにするため）。ヘッダ・フッタは元から幅の上限が無い。
+   ※ menu1 が無いときの .page-header 用ルールは、base.css に合わせて
+   body:not(:has(.mainbar)) .page-header:has(~ .layout) と書く。以前の
+   base.css の .page-header:has(~ .layout:not(:has(.mainbar))) は :has() の
+   入れ子で無効なセレクタで、並べるとセレクタの並び全体が無効になり、この
+   ルールごと効かなくなった（2026-09-27 に base.css 側も直した）。 */
+.layout,
+.layout:not(:has(.mainbar)),
+.page-header,
+body:not(:has(.mainbar)) .page-header:has(~ .layout) {
+  max-width: none;
+}
+
+/* ---- 本文の見出し ---- */
+.content h1,
+.content h2,
+.content h3,
+.content h4,
+.content h5,
+.content h6 {
+  font-family: verdana, arial, helvetica, "Noto Sans JP", sans-serif;
+  color: #000000;
+  margin: 1.4em 0 0.5em 0;
+}
+/* h1/h2: 薄青の下地、枠なし。base.css の border-bottom を消す */
+.content h1,
+.content h2 {
+  background-color: #ddeeff;
+  padding: 0.3em;
+  border: 0;
+}
+.content h1 { font-size: 1.5rem; }
+.content h2 { font-size: 1.3rem; }
+/* h3: 白地に細い青の4辺ボーダー */
+.content h3 {
+  font-size: 1.12rem;
+  background-color: #ffffff;
+  padding: 0.3em;
+  border-top: 1px solid #ddeeff;
+  border-right: 5px solid #ddeeff;
+  border-bottom: 3px solid #ddeeff;
+  border-left: 10px solid #ddeeff;
+}
+/* h4: 白地に太い左ボーダー */
+.content h4 {
+  font-size: 1.05rem;
+  background-color: #ffffff;
+  padding: 0.3em;
+  border: 0;
+  border-left: 18px solid #ddeeff;
+}
+/* h5/h6: 薄青の下地 */
+.content h5,
+.content h6 {
+  background-color: #ddeeff;
+  padding: 0.3em;
+  border: 0;
+}
+.content h5 { font-size: 1rem; }
+.content h6 { font-size: 0.95rem; }
+
+/* ---- pre: 薄い青白。左上は淡く、右下は濃いめの1pxボーダー ---- */
+.content pre {
+  background: #f0f8ff;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #ddddee #888899 #888899 #ddddee;
+  border-radius: 0;
+  padding: 0.5em;
+  margin-left: 1em;
+  margin-right: 2em;
+}
+
+/* ---- 表: 見出しセルを薄青寄りに ---- */
+.content th { background: #e0e8f0; }
+
+/* ---- サイドバー（menu1 / 目次 / menu2）の見出しを PukiWiki 風の薄青帯に ---- */
+.panel-title {
+  background-color: #ddeeff;
+  color: #000000;
+  font-size: 1rem;
+  padding: 0.3em 0.5em;
+  border: 0;
+}
+
+/* ---- フッタ ---- */
+.site-footer {
+  border-top: 3px double #333333;
+  font-size: 0.8rem;
+}
+
+/* ---- ヘッダのロゴ ----
+   参照サイト（_1ev-py）は img#logo { width:80px; height:80px } で本家ロゴを
+   出している。.site-header は base.css で display:flex; align-items:center
+   なので、floatは使わず縦中央揃えに任せる。
+   大きさは 72×72（Wiki設計者の指示、2026-09-29。以前は 56×56）。 */
+.pukiwiki-logo-link {
+  display: block;
+  flex: 0 0 auto;
+}
+.pukiwiki-logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+}
+
+/* ---- 「新規」ダイアログ（コマンドバー） ---- */
+.new-page-dialog {
+  width: min(24rem, 90vw);
+  padding: 1.2rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+}
+.new-page-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+.new-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+.new-page-title { font-size: 1rem; }
+.new-page-x {
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.1rem 0.4rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.new-page-x:hover { color: var(--fg); }
+.new-page-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+.new-page-input {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+}
+.new-page-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+.new-page-cancel {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.new-page-cancel:hover { color: var(--fg); }
+.new-page-ok {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.45rem 1.4rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 4px);
+}
+.new-page-ok:hover:not(:disabled) { filter: brightness(1.08); }
+.new-page-ok:disabled { opacity: 0.5; cursor: not-allowed; }

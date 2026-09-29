@@ -1,0 +1,73 @@
+{#
+  検索結果ページ。
+
+  設定中のテーマ（theme.name）を継承するので、base.html を差し替えれば
+  検索結果もそのデザインに追従します。
+
+  このテンプレートが受け持つのは**検索フォームの体裁だけ**です。
+  結果の一覧とページ送りは検索機能自身が組み立てて results_block に入れて渡し、
+  見た目と動きも自前の資材（/.search.css, /.search.js）が持ちます
+  （バックアップ管理画面 /.backup と同じ形）。件数が多いときの20件ずつの
+  ページ送りが要るためで、テーマごとに作り分けるものではないと判断しています。
+
+  追加で使える変数:
+    query          入力された検索語の文字列
+    mode           "and"（すべて含む） / "or"（いずれか含む）
+    target         "all"（ページ名と本文） / "name"（ページ名だけ） / "body"（本文だけ）
+    path_filter    ページ名の絞り込み文字列
+    terms          切り出した検索語のリスト
+    results_block  検索結果のかたまり（件数の見出し・一覧・ページ送り）。
+                   検索語が空のときは空文字列
+#}
+{% extends themefile + ".html" %}
+
+{% block breadcrumb %}
+<div class="page-path">TopicPath : <a href="{{ base_url }}/">/</a>{{ search_url[(base_url|length + 1):] }}</div>
+{% endblock %}
+
+{% block content %}
+
+{# ヘッダの検索窓より項目の多い、検索専用のフォーム #}
+<form class="search-detail" action="{{ search_url }}" method="get" role="search">
+  <div class="search-detail-row">
+    <label class="search-detail-label" for="sd-q">検索語</label>
+    <input id="sd-q" class="search-detail-word" type="search" name="q" value="{{ query }}"
+           placeholder="空白で区切って複数指定できます" autofocus>
+  </div>
+  <div class="search-detail-row">
+    <label class="search-detail-label" for="sd-mode">条件</label>
+    <select id="sd-mode" name="mode">
+      <option value="and"{% if mode == 'and' %} selected{% endif %}>すべての語を含む（AND）</option>
+      <option value="or"{% if mode == 'or' %} selected{% endif %}>いずれかの語を含む（OR）</option>
+    </select>
+    <select id="sd-target" name="target" aria-label="検索対象">
+      <option value="all"{% if target == 'all' %} selected{% endif %}>ページ名と本文</option>
+      <option value="name"{% if target == 'name' %} selected{% endif %}>ページ名だけ</option>
+      <option value="body"{% if target == 'body' %} selected{% endif %}>本文だけ</option>
+    </select>
+  </div>
+  <div class="search-detail-row">
+    <label class="search-detail-label" for="sd-path">ページ名で絞り込み</label>
+    <input id="sd-path" class="search-detail-word" type="search" name="path" value="{{ path_filter }}"
+           placeholder="例: Tech/ でそのフォルダ以下、*Guide でワイルドカード">
+  </div>
+  <div class="search-detail-row">
+    <span class="search-detail-label"></span>
+    <button class="search-submit" type="submit">検索</button>
+  </div>
+</form>
+
+{% if not terms %}
+  <p class="search-hint">
+    検索語を入力してください。空白で区切ると複数の語を指定できます。
+    空白を含む語を探したいときは <code>"..."</code> のように引用符で囲みます。
+  </p>
+  <p class="search-hint">
+    ページ名には <code>*</code>（任意の文字列）と <code>?</code>（任意の1文字）が使えます。
+    <code>*</code> は <code>/</code> にも一致するので、<code>Tech/*</code> でそのフォルダ以下、
+    <code>*Guide</code> でどの階層でも名前が Guide で終わるページを探せます。
+  </p>
+{% else %}
+  {{ results_block }}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,88 @@
+/* shell.css — 管理ページ（/.admin/…・/.groups・/.allwiki ほか）に共通の外枠。
+ *
+ * テーマは使わない。テーマを替えても、管理ページはいつも同じ形・同じ色・同じ幅に
+ * なる（Wiki設計者の指示、2026-09-24）。編集画面（editor.css）と同じ
+ * ヘッダ＋全幅の本文の作りに揃えてある。ページ一覧は付けない。
+ *
+ * 各画面のCSSは var(--bg, 既定値) の形で色を書いているので、ここで同じ名前の
+ * 変数を定めておけば、画面側は手を入れずにこの枠の配色になじむ。
+ * 明暗は OS の設定（prefers-color-scheme）に従う。
+ */
+
+.sys-body {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #656d76;
+  --border: #d0d7de;
+  --accent: #0969da;
+  --panel-bg: #f6f8fa;
+  --code-bg: #f6f8fa;
+  --radius: 6px;
+
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+        "Noto Sans JP", sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sys-body {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --border: #30363d;
+    --accent: #4493f8;
+    --panel-bg: #161b22;
+    --code-bg: #161b22;
+    color-scheme: dark;
+  }
+}
+
+.sys-body * { box-sizing: border-box; }
+.sys-body a { color: var(--accent); }
+.sys-body code, .sys-body pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.sys-body code { padding: 0.1em 0.35em; border-radius: 3px; background: var(--code-bg); }
+.sys-body pre { padding: 0.8em 1em; overflow-x: auto; border-radius: var(--radius); background: var(--code-bg); }
+.sys-body pre code { padding: 0; background: none; }
+.sys-body table { border-collapse: collapse; }
+.sys-body input, .sys-body button, .sys-body select, .sys-body textarea {
+  font: inherit;
+  color: inherit;
+}
+.sys-body input[type="text"], .sys-body input[type="password"],
+.sys-body input[type="number"], .sys-body input:not([type]),
+.sys-body select, .sys-body textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ---- ヘッダ（編集画面の .edit-head と同じ並び） ---- */
+.sys-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+.sys-home { font-weight: 600; text-decoration: none; }
+.sys-kind {
+  padding: 0.05em 0.6em;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--bg);
+  background: var(--accent);
+}
+.sys-back { margin-left: auto; font-size: 0.85rem; white-space: nowrap; }
+
+/* ---- 本文: 幅いっぱいに使う。狭くしたい画面は、自分のCSSで max-width を持つ ---- */
+.sys-main {
+  width: 100%;
+  padding: 1rem 1.5rem 2rem;
+}
+.sys-main h1:first-child { margin-top: 0; }

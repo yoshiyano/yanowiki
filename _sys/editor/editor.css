@@ -1,0 +1,1367 @@
+/*
+ * 編集画面のスタイル。
+ *
+ * テーマの theme/ ではなく編集機能側が持ち、/.editor.css として配信される。
+ * 編集画面はテーマを使わない独立したページなので、見た目はこのファイルだけで
+ * 決まる。テーマを差し替えても・一から書いたテーマでも、編集画面はいつも
+ * 同じ形と操作感になる。
+ *
+ * テーマの本文領域に埋め込んでいたころは、テーマが決めた本文幅に閉じ込められ、
+ * 広い画面でも入力欄とプレビューが細いままだった。書く場所と読む場所では
+ * 求められる形が違う、というのがページを分けた理由である。
+ *
+ * 画面の高さいっぱいを使う。入力欄・プレビュー・差分・オリジナルは、
+ * 余った高さを分け合って伸びる（決め打ちの高さは狭い画面のときだけ使う）。
+ *
+ * ただしプレビューとオリジナルの中身だけは別で、**テーマのCSSに任せる**。
+ * 「保存したらこう見える」を確かめる場所なので、そこが本物と違う見た目では
+ * 確かめる意味が薄い。両方に .content を付けてあるので、テーマが本文向けに
+ * 書いている指定（見出しの罫線・表・引用など）がそのまま効く。
+ * このファイルはテーマより後に読み込まれるが、本文の体裁には手を出さない。
+ */
+
+/* ---- ページ全体の骨組み ---- */
+.edit-body {
+  /* 枠組みの色は、テーマが定めていればそれに合わせる（無ければ既定値） */
+  --e-bg: var(--bg, #ffffff);
+  --e-fg: var(--fg, #1f2328);
+  --e-muted: var(--muted, #656d76);
+  --e-border: var(--border, #d0d7de);
+  --e-accent: var(--accent, #0969da);
+  --e-panel: var(--panel-bg, #f6f8fa);
+  --e-radius: var(--radius, 6px);
+  --e-side-w: 20rem;  /* ページ一覧の階層字下げが読めるだけの余裕を持たせる */
+  /* 表示領域の下に敷く帯の高さ。編集画面のツールバーと、更新状況の見出し。
+     どちらも同じ高さにしておくと、上の表示領域の高さも自然に揃う
+     （枠線の付きかたも合わせてあるので、差はぴったり 0 になる）。 */
+  --e-band-h: 3.2rem;
+
+  /* テーマが body に余白を置いていることがある（全画面にするので打ち消す）。
+     字づかい（font-family・line-height）はテーマのものをそのまま使う。
+     プレビューの中だけ別の字にしても、見え方を確かめられないため。 */
+  margin: 0;
+  padding: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--e-fg);
+  background: var(--e-bg);
+}
+.edit-body * { box-sizing: border-box; }
+/* hidden 属性は「隠す」ための指定だが、こちらで display を与えると勝ってしまい、
+   隠れているはずの表示が場所を取り続ける（実際、切り替えていないほうのビューが
+   高さを半分持っていった）。隠す指定を優先させる。 */
+.edit-body [hidden] { display: none !important; }
+.edit-body a { color: var(--e-accent); }
+
+.edit-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--e-border);
+  background: var(--e-panel);
+}
+.edit-home { font-weight: 600; text-decoration: none; }
+.edit-kind {
+  padding: 0.05rem 0.5rem;
+  font-size: 0.78rem;
+  color: var(--e-bg);
+  background: var(--e-accent);
+  border-radius: 999px;
+}
+.edit-target {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.edit-back { margin-left: auto; font-size: 0.85rem; white-space: nowrap; }
+
+.edit-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--e-side-w) 7px minmax(0, 1fr);
+}
+.edit-side {
+  min-height: 0;
+  overflow: auto;
+  padding: 0.6rem 0.8rem 1.2rem;
+  background: var(--e-panel);
+}
+/* ページ一覧の幅をマウスでドラッグして変えられる境目（editor.js）。
+   境界線そのものは太らせた ::before に持たせ、当たり判定（7px）は
+   指でも押しやすいよう広めに取る */
+.edit-side-resizer {
+  position: relative;
+  cursor: col-resize;
+  background: var(--e-panel);
+}
+.edit-side-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 1px;
+  background: var(--e-border);
+}
+.edit-side-resizer:hover::before,
+.edit-side-resizer.is-dragging::before {
+  left: calc(50% - 1px);
+  width: 3px;
+  background: var(--e-accent);
+}
+/* ページ一覧の開閉ボタンと、開いているあいだ後ろを覆う幕。
+   どちらも**狭い画面でだけ**使うので、既定では出さない
+   （幕は display:none なので .edit-layout のグリッドの桁も取らない）。 */
+.edit-side-toggle { display: none; }
+.edit-side-scrim { display: none; }
+
+.edit-main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.8rem 1rem 1rem;
+}
+
+/* フォーム自身も高さを分け合う側。表示の切り替えが余った高さを受け取る */
+.page-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+/* ---- 案内・警告 ---- */
+.edit-message,
+.edit-note {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius, 6px);
+  font-size: 0.9rem;
+}
+.edit-message {
+  background: rgb(217 131 36 / 12%);
+  border: 1px solid rgb(217 131 36 / 40%);
+  color: var(--fg, #1f2328);
+}
+.edit-note {
+  color: var(--muted, #656d76);
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px solid var(--border, #d0d7de);
+}
+
+/* ---- タブ（編集 / 添付ファイル） ----
+   JavaScriptが無い環境では両方のパネルがそのまま縦に並ぶ。
+   非表示はJSが .edit-shell に is-tabbed を付けたときだけ効かせている。 */
+.edit-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* 「編集画面」「更新状況」の中身が、余った高さをそのまま受け取る。
+   添付ファイルのタブは中身の量が読めないので、はみ出したぶんはスクロールさせる。
+   3つのタブの中身は入れ物の深さが違う（編集画面・更新状況は page-editor
+   フォームの中、添付ファイルはその外）ため、data-active-tab 側で
+   出し分ける（.edit-panel の hidden だけでは form 自体が消えないため）。 */
+.edit-shell > .page-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.edit-shell[data-active-tab="attach"] > .page-editor,
+.edit-shell[data-active-tab="history"] > .page-editor { display: none; }
+.page-editor > .edit-panel[data-tab="edit"],
+.page-editor > .edit-panel[data-tab="diff"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.edit-shell > .edit-panel[data-tab="attach"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+/* 履歴のタブ。バックアップ管理画面を埋め込んでいる（wikilib.backupui）。
+   一覧と履歴の伸び縮みは埋め込んだ画面の中で行うので、ここは枠いっぱいに広げるだけ */
+.edit-shell > .edit-panel[data-tab="history"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.edit-history-empty {
+  margin: 0.5rem 0;
+  color: var(--e-muted);
+}
+/* 履歴の一覧。サイドバーのページ一覧の下に、履歴タブのときだけ出る（editor.js） */
+.eh-list { margin-top: 1rem; }
+.eh-list[hidden] { display: none; }
+.eh-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+.eh-item:hover { background: rgba(127, 127, 127, 0.12); }
+.eh-item.is-selected { border-color: var(--e-accent); background: rgba(9, 105, 218, 0.08); }
+.eh-add { color: #1a7f37; }
+.eh-del { color: #cf222e; }
+.edit-history-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+  background: #fff;
+}
+.edit-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid var(--e-border);
+}
+.edit-tab {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+  color: var(--e-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--e-radius) var(--e-radius) 0 0;
+  margin-bottom: -1px;
+}
+.edit-tab:hover { color: var(--e-accent); }
+.edit-tab[aria-selected="true"] {
+  color: var(--e-fg);
+  font-weight: 600;
+  background: var(--e-bg);
+  border-color: var(--e-border);
+  border-bottom: 1px solid var(--e-bg);
+}
+.edit-shell.is-tabbed .edit-panel[hidden] { display: none; }
+
+/* ---- 添付ファイルのタブ ---- */
+.attach-notice {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+  border-radius: var(--e-radius);
+  color: var(--e-fg);
+  background: var(--e-panel);
+  border: 1px solid var(--e-border);
+}
+.attach-notice-error {
+  background: rgb(217 131 36 / 12%);
+  border-color: rgb(217 131 36 / 40%);
+}
+.attach-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.attach-table th,
+.attach-table td {
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--e-border);
+}
+.attach-table th {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--e-muted);
+}
+.attach-size,
+.attach-date { white-space: nowrap; color: var(--e-muted); }
+.attach-del { width: 1%; }
+
+/* 一覧の1件ぶんを詰める（Wiki設計者の指示、2026-09-06。それまでの70%を目安）。
+   9件で400px取っていたのを280pxほどに。**一度に見える件数を増やす**ための
+   もので、字の大きさ（ファイル名の読みやすさ）は変えていない。
+   縮めているのは上下の余白と、操作ボタンの丈。 */
+.attach-row td { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.attach-ops button { padding: 0.12rem 0.7rem; font-size: 0.8em; }
+
+/* ---- 狭くなったら、右の欄から順に落とす（Wiki設計者の指示、2026-09-06） ----
+ * 落とす順は「本文での書きかた」→「種別」→「大きさ」→「日時」。
+ * **ファイル名と操作は常に残す**——どれを触るか選べなくなるため。
+ *
+ * 見出し（th）と中身（td）は別の行にあるので、同じ attach-col-* を両方に
+ * 付けてある（wikilib.editor）。1つの指定で1列まるごと落とせる。
+ *
+ * 区切りの幅は、その欄を落とさないと表が入れ物に収まらなくなる点から決めた
+ * （測った必要幅は 種別84 / ファイル名113 / 大きさ170 / 日時134 /
+ *  書きかた221 / 操作306 px）。広い画面では左のページ一覧が場所を取るので、
+ *  画面の幅から 20rem ほど引いたぶんが表に使える幅になる。
+ */
+@media (max-width: 85rem) { .attach-col-ref { display: none; } }
+@media (max-width: 71rem) { .attach-col-kind { display: none; } }
+@media (max-width: 66rem) { .attach-col-size { display: none; } }
+@media (max-width: 44rem) { .attach-col-date { display: none; } }
+
+/* ---- 種別アイコン ----
+   1つのSVGにまとめた定義を <use> で参照する。定義自体は表示しない。
+   線は currentColor なので、テーマの文字色にそのまま馴染む。 */
+.attach-icon-defs { display: none; }
+.attach-icon-head { width: 1%; white-space: nowrap; }
+.attach-icon {
+  width: 1%;
+  white-space: nowrap;
+  color: var(--e-muted);
+}
+.attach-icon-svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  vertical-align: -0.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.attach-kind-label {
+  margin-left: 0.4rem;
+  font-size: 0.8rem;
+}
+
+/* ---- 画像のサムネイル（マウスオーバー） ----
+   表の外（body直下）に置くので、表のスクロールや overflow で切られない。 */
+.attach-thumb {
+  position: fixed;
+  z-index: 9999;
+  padding: 0.3rem;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+  pointer-events: none;  /* 自分がマウスを奪ってちらつくのを防ぐ */
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.attach-thumb[hidden] { display: none; }
+.attach-thumb.is-shown { opacity: 1; }
+.attach-thumb img {
+  display: block;
+  max-width: 15rem;
+  max-height: 15rem;
+  /* 透過画像が背景に溶けないよう、市松模様を敷く */
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e9e9e9 25%, transparent 25%, transparent 75%, #e9e9e9 75%),
+    linear-gradient(45deg, #e9e9e9 25%, transparent 25%, transparent 75%, #e9e9e9 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+}
+.attach-thumb .attach-thumb-note {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted, #656d76);
+  text-align: center;
+}
+/* 「本文での書きかた」欄。書きかたそのものを出し、その隣にコピーのボタンを置く。
+   写せない場面（httpsでない場所からの利用など）でも、目で読んで手で写せるように
+   しておきたいので、文字は選べるままにしてある。 */
+.attach-ref { white-space: nowrap; }
+.attach-ref-code {
+  display: inline-block;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  background: var(--e-panel);
+  border: 1px solid var(--e-border);
+  font-size: 0.85em;
+  user-select: all;
+}
+.attach-copy {
+  margin-left: 0.4rem;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+  color: var(--e-muted);
+  background: var(--e-bg);
+  border: 1px solid var(--e-border);
+  border-radius: 4px;
+}
+.attach-copy:hover { border-color: var(--e-accent); color: var(--e-accent); }
+.attach-copy.is-copied { border-color: var(--e-accent); color: var(--e-accent); }
+.attach-copy.is-failed { border-color: #b3261e; color: #b3261e; }
+.attach-delete {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+  color: var(--e-muted);
+  background: var(--e-bg);
+  border: 1px solid var(--e-border);
+  border-radius: 4px;
+}
+.attach-delete:hover { color: #b3261e; border-color: #b3261e; }
+.attach-empty { color: var(--e-muted); }
+
+.attach-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 0.8rem;
+  background: var(--e-panel);
+  border: 1px dashed var(--e-border);
+  border-radius: var(--e-radius);
+  transition: border-color 0.12s, background 0.12s;
+}
+/* ドラッグ中は落とせる場所だと分かるように強調する */
+.attach-upload.is-dragover {
+  border-color: var(--e-accent);
+  border-style: solid;
+  background: var(--e-bg);
+}
+.attach-drop-hint {
+  flex: 1 1 auto;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--e-muted);
+}
+/* スマートフォン向けの貼り付け枠（Wiki設計者の指示、2026-09-10）。
+   iOS・Androidは**編集できる欄にフォーカスが無いと「ペースト」のメニューが
+   出ない**ので、押せる的をひとつ置いてある。小さくてよい */
+.attach-pastebox {
+  min-width: 12rem;
+  min-height: 1.9em;
+  padding: 0.3em 0.6em;
+  border: 1px dashed var(--e-border);
+  border-radius: var(--e-radius, 6px);
+  color: var(--e-muted);
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+.attach-pastebox:empty::before { content: attr(data-placeholder); }
+.attach-pastebox:focus {
+  outline: 2px solid var(--e-accent);
+  outline-offset: 1px;
+}
+/* 貼られた画像が見えるのは一瞬だが、その一瞬で枠が伸びないように */
+.attach-pastebox img { max-height: 3em; }
+.attach-upload.is-dragover .attach-drop-hint { color: var(--e-accent); }
+/* 送る前に断ったファイル。上限を超えていることをその場で知らせる */
+.attach-refused {
+  flex-basis: 100%;
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: #b3261e;
+  overflow-wrap: anywhere;
+}
+
+/* 送信の進み具合。大きなファイルほど、何が起きているのか分からない時間が長い */
+.attach-progress {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+.attach-progress-bar {
+  flex: 1 1 auto;
+  height: 0.6rem;
+}
+.attach-progress-text {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: var(--e-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.attach-picked {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--e-muted);
+  overflow-wrap: anywhere;
+}
+.attach-picked[hidden] { display: none; }
+.attach-file { display: inline-flex; align-items: center; gap: 0.4rem; }
+.attach-overwrite {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--e-muted);
+}
+.attach-add {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 1.2rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--e-accent);
+  border: 1px solid var(--e-accent);
+  border-radius: var(--e-radius);
+}
+.attach-add:hover { filter: brightness(1.08); }
+/* 「追加」とは別の操作であることが分かるよう、色を変えてある
+   （--e-pasteが無ければ既定の緑を使う。テーマが用意していれば流用する） */
+.attach-paste {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 1.2rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--e-paste, #1a7f37);
+  border: 1px solid var(--e-paste, #1a7f37);
+  border-radius: var(--e-radius);
+}
+.attach-paste:hover { filter: brightness(1.08); }
+.attach-paste[hidden] { display: none; }
+.attach-hint {
+  margin: 0.7rem 0 0;
+  font-size: 0.85rem;
+  color: var(--e-muted);
+}
+
+.attach-ops { width: 1%; white-space: nowrap; }
+.attach-rename,
+.attach-move {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.7rem;
+  margin-right: 0.3rem;
+  cursor: pointer;
+  color: var(--e-muted);
+  background: var(--e-bg);
+  border: 1px solid var(--e-border);
+  border-radius: 4px;
+}
+.attach-rename:hover,
+.attach-move:hover { color: var(--e-accent); border-color: var(--e-accent); }
+
+/* ---- ページ選択ダイアログ（TreeView） ---- */
+.page-picker {
+  width: min(34rem, 92vw);
+  padding: 0;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 25%);
+}
+.page-picker::backdrop { background: rgb(0 0 0 / 35%); }
+.page-picker-form { display: flex; flex-direction: column; max-height: 80vh; }
+.page-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+.page-picker-title { flex: 1 1 auto; font-size: 0.98rem; }
+.page-picker-x {
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  color: var(--muted, #656d76);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.page-picker-x:hover { border-color: var(--border, #d0d7de); }
+.page-picker-target {
+  margin: 0;
+  padding: 0.6rem 1rem 0;
+  font-size: 0.88rem;
+  color: var(--muted, #656d76);
+}
+.page-picker-filter { display: block; padding: 0.6rem 1rem; }
+.page-picker-filter input {
+  font: inherit;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  color: inherit;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+}
+.page-picker-tree {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0.3rem 0.6rem 0.6rem;
+  font-size: 0.9rem;
+  border-top: 1px solid var(--border, #d0d7de);
+}
+.page-picker-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--border, #d0d7de);
+}
+.page-picker-chosen {
+  flex: 1 1 auto;
+  font-size: 0.85rem;
+  color: var(--muted, #656d76);
+  overflow-wrap: anywhere;
+}
+.page-picker-cancel,
+.page-picker-ok {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  border-radius: var(--radius, 6px);
+}
+.page-picker-cancel {
+  color: var(--muted, #656d76);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+}
+.page-picker-ok {
+  color: #fff;
+  background: var(--accent, #0969da);
+  border: 1px solid var(--accent, #0969da);
+}
+.page-picker-ok:disabled { opacity: 0.45; cursor: default; }
+
+/* ---- 名前を変えるダイアログ ---- */
+/* ページ選択ダイアログと同じ見た目に揃える（テキスト入力1つで済むぶん
+   ツリー部分（.page-picker-tree 相当）だけが無い）。 */
+.attach-rename-dialog {
+  width: min(28rem, 92vw);
+  padding: 0;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 25%);
+}
+.attach-rename-dialog::backdrop { background: rgb(0 0 0 / 35%); }
+.attach-rename-form { display: flex; flex-direction: column; }
+.attach-rename-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+.attach-rename-title { flex: 1 1 auto; font-size: 0.98rem; }
+.attach-rename-x {
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  color: var(--muted, #656d76);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.attach-rename-x:hover { border-color: var(--border, #d0d7de); }
+.attach-rename-target {
+  margin: 0;
+  padding: 0.6rem 1rem 0;
+  font-size: 0.88rem;
+  color: var(--muted, #656d76);
+  overflow-wrap: anywhere;
+}
+.attach-rename-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  color: var(--muted, #656d76);
+}
+.attach-rename-input {
+  font: inherit;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  color: inherit;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+}
+.attach-rename-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--border, #d0d7de);
+}
+.attach-rename-cancel,
+.attach-rename-ok {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  border-radius: var(--radius, 6px);
+}
+.attach-rename-cancel {
+  color: var(--muted, #656d76);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+}
+.attach-rename-ok {
+  color: #fff;
+  background: var(--accent, #0969da);
+  border: 1px solid var(--accent, #0969da);
+}
+
+/* ツリーの見た目は共通の TreeView（/.treeview.css）が持つ。
+   ここは、この画面ならではの字下げと右寄せだけを足す */
+.pp-row { padding-left: calc(0.4rem + var(--pp-depth, 0) * 1.1rem); }
+.pp-title { flex: 1 1 auto; min-width: 0; text-align: right; }
+
+@media (max-width: 40rem) {
+  .attach-date { display: none; }
+  .attach-table thead th:nth-child(3) { display: none; }
+}
+
+/* ---- ツールバー ---- */
+.edit-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  height: var(--e-band-h);
+  padding: 0.4rem;
+  /* 折り返さずに横へ流す。折り返すと帯の丈が変わり、
+     上の表示領域の高さが更新状況側とずれてしまう */
+  overflow-x: auto;
+  background: var(--e-panel);
+  border: 1px solid var(--e-border);
+  border-top: none;
+  border-radius: 0 0 var(--e-radius) var(--e-radius);
+}
+.edit-tool {
+  font: inherit;
+  font-size: 0.9rem;
+  min-width: 2rem;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  color: var(--e-fg);
+  background: var(--e-bg);
+  border: 1px solid var(--e-border);
+  border-radius: 4px;
+}
+.edit-tool:hover { border-color: var(--e-accent); color: var(--e-accent); }
+.edit-tool:active { background: var(--e-panel); }
+/* ボタンの並び。記法を切り替えると中身がまるごと入れ替わる */
+.edit-tools {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* ---- 文字色・背景色・文字サイズのポップオーバー ----
+   ボタンの直下に固定表示（position: fixed、位置はJSが計算）。
+   PowerPointの色選択のように「標準の色」「wikiの色」を2段のグリッドで出す。 */
+.edit-color-popover,
+.edit-size-popover {
+  z-index: 30;
+  padding: 0.6rem 0.7rem;
+  color: var(--e-fg);
+  background: var(--e-bg);
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 22%);
+}
+.edit-color-section + .edit-color-section { margin-top: 0.7rem; }
+.edit-color-section-label {
+  margin-bottom: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.edit-color-row + .edit-color-row { margin-top: 0.5rem; }
+.edit-color-row-label {
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--e-muted);
+}
+.edit-color-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1.4rem);
+  gap: 0.25rem;
+}
+.edit-color-swatch {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  cursor: pointer;
+  border: 1px solid var(--e-border);
+  border-radius: 3px;
+}
+.edit-color-swatch:hover { outline: 2px solid var(--e-accent); outline-offset: 1px; }
+.edit-color-swatch--selected {
+  outline: 2px solid var(--e-accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px var(--e-bg) inset;
+}
+.edit-color-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--e-border);
+}
+.edit-color-actions button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.edit-color-cancel {
+  color: var(--e-muted);
+  background: var(--e-bg);
+  border: 1px solid var(--e-border);
+}
+.edit-color-apply {
+  color: #fff;
+  background: var(--e-accent);
+  border: 1px solid var(--e-accent);
+}
+
+.edit-size-presets {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.edit-size-preset {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+  color: var(--e-fg);
+  background: var(--e-panel);
+  border: 1px solid var(--e-border);
+  border-radius: 4px;
+}
+.edit-size-preset:hover { border-color: var(--e-accent); color: var(--e-accent); }
+
+/* ---- 記法の選択 ---- */
+/* 保存先の拡張子を決める操作でもあるので、ツールバーの右端に
+   「いまどの記法で書いているか」として常に見えるようにしてある。 */
+.edit-markup {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 0.6rem;
+  white-space: nowrap;
+}
+.edit-markup-title {
+  font-size: 0.8rem;
+  color: var(--e-muted);
+}
+.edit-markup-choice {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--e-muted);
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.edit-markup-choice:hover { color: var(--e-accent); }
+.edit-markup-choice:has(input:checked) {
+  color: var(--e-fg);
+  background: var(--e-bg);
+  border-color: var(--e-border);
+}
+.edit-markup-choice input { margin: 0; accent-color: var(--e-accent); }
+.edit-markup-ext {
+  font-size: 0.75rem;
+  color: var(--e-muted);
+}
+
+/* ---- 入力とプレビューの2枚 ---- */
+/* 表示領域を上に、帯（編集画面のツールバー／更新状況の見出し）を下に置く。
+   上に置くと、帯の高さの違いがそのまま表示領域の位置の差になり、
+   切り替えるたびに本文の始まる位置が動いてしまう。下に置けば、
+   帯の丈が多少違っても本文の位置は変わらない。 */
+.edit-panes {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* 枠線は上下とも引く。更新状況側（.edit-diff-panes）と枠の数を揃えておくと、
+     中の表示領域の高さも 1px ずれずに一致する。ツールバーとの間の区切り線も
+     この下枠が兼ねる。 */
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius) var(--e-radius) 0 0;
+  overflow: hidden;
+}
+/* ツールバーが無い書式（プレーンテキスト）では、下も丸める */
+.edit-panel > .edit-panes:last-child { border-radius: var(--e-radius); }
+.edit-source-col, .edit-preview-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.edit-source-col { border-right: 1px solid var(--e-border); }
+.edit-source {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--e-fg);
+  background: var(--e-bg);
+  border: none;
+  resize: none;
+}
+.edit-source:focus { outline: none; }
+/* テキスト側は枠の代わりに、囲んでいる .edit-panes 側を強調する
+   （テキストの直接の outline は入力の邪魔になるため、以前から外してある）。
+   今どちらに入力が向いているか（本文かページ一覧か）を見て取れるようにする。 */
+.edit-panes:focus-within {
+  border-color: var(--accent, #3178c6);
+  box-shadow: 0 0 0 1px var(--accent, #3178c6);
+}
+
+.edit-preview {
+  padding: 0.8rem 1rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--e-bg);
+}
+/* 本文の体裁（見出し・表・引用・コードなど）はテーマに任せる。
+   両方に .content が付いているので、テーマが本文向けに書いた指定がそのまま効く。
+   ここで上書きすると、プレビューが本物と違う見た目になってしまう。
+   置いてあるのは、枠として要るぶんだけ。 */
+.edit-preview-empty { color: var(--e-muted); }
+.edit-preview > :first-child, .edit-origin > :first-child { margin-top: 0; }
+
+@media (max-width: 60rem) {
+  /* **狭くても画面いっぱいを使う**（Wiki設計者の指示、2026-09-06）。
+     以前はここで height:auto にしてページごと縦に送っていた。枠を縦に積む
+     組みかたでは高さを分け合えず、1枚ずつ決め打ちにするしかなかったため。
+     いまは一覧を流れの外へ出し（下記）、入力欄とプレビューも横に並べたままに
+     したので、広い画面と同じ組みかた（画面の高さを分け合う）がそのまま働く。 */
+  .edit-layout { grid-template-columns: minmax(0, 1fr); }
+  .edit-side-resizer { display: none; }  /* 重ねて出すので幅を変える意味が無い */
+
+  /* ---- 狭い画面のページ一覧は、左から出し入れする（Wiki設計者の指示、2026-09-06）
+     縦に積むと一覧が本文の上に居座り、書く場所へ着くまで毎回スクロールが要る。
+     **場所を取らせない**ため、流れから外して画面の左に重ねる。
+     開閉ボタンは左上に固定するので、下へスクロールしても押せる。 */
+  .edit-side-toggle {
+    display: inline-flex;
+    position: fixed;
+    top: 0.45rem;
+    left: 0.5rem;
+    z-index: 41;
+    width: 2.3rem;
+    height: 2.3rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--e-fg);
+    background: var(--e-panel);
+    border: 1px solid var(--e-border);
+    border-radius: var(--e-radius);
+    cursor: pointer;
+  }
+  /* 3本線。中央の1本を要素に、上下を影で描く（要素を増やさずに済む） */
+  .edit-side-toggle-bars,
+  .edit-side-toggle-bars::before,
+  .edit-side-toggle-bars::after {
+    display: block;
+    width: 1.1rem;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+  }
+  .edit-side-toggle-bars { position: relative; }
+  .edit-side-toggle-bars::before,
+  .edit-side-toggle-bars::after {
+    content: "";
+    position: absolute;
+    left: 0;
+  }
+  .edit-side-toggle-bars::before { top: -6px; }
+  .edit-side-toggle-bars::after { top: 6px; }
+  /* 固定したボタンが見出しに重ならないよう、その分だけ空ける */
+  .edit-head { padding-left: 3.2rem; }
+
+  .edit-side {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 40;
+    /* 幅はここで決める。--e-side-w は広い画面でドラッグして決めた値
+       （editor.js が body に載せる）なので、こちらでは使わない */
+    width: min(20rem, 82vw);
+    padding-top: 3.2rem;  /* 固定したボタンの下に中身が潜らないように */
+    border-right: 1px solid var(--e-border);
+    box-shadow: 0 0 24px rgb(0 0 0 / 22%);
+    transform: translateX(-101%);
+    transition: transform 0.18s ease;
+  }
+  .edit-layout.is-side-open .edit-side { transform: none; }
+
+  .edit-layout.is-side-open .edit-side-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgb(0 0 0 / 32%);
+  }
+}
+
+/* ---- 保存まわり ---- */
+.edit-buttons {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+/* 送信ボタンだけを囲む小さなフォーム（2026-09-01。編集画面の全体を
+   <form> で囲むのをやめ、本文の <form> と入れ子にならないようにした）。
+   囲みが1つ増えてもボタンの並びが変わらないよう、この入れ物自体も
+   同じ flex にして、外側から見て今までと同じ間隔で並ぶようにする。 */
+.edit-actions {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.edit-save {
+  font: inherit;
+  padding: 0.45rem 1.8rem;
+  cursor: pointer;
+  color: #fff;
+  background: var(--e-accent);
+  border: 1px solid var(--e-accent);
+  border-radius: var(--e-radius);
+}
+.edit-save:hover { opacity: 0.9; }
+/* 変更が無いとき（押せない）。**塗りをやめて、白抜きの青文字**にする
+   （Wiki設計者の指示、2026-09-19）。保存した直後もこの見た目になるので、
+   「保存できた」の合図にもなる。 */
+.edit-save:disabled {
+  color: var(--e-accent);
+  background: var(--e-bg);
+  border-color: var(--e-accent);
+  cursor: default;
+  opacity: 1;
+}
+/* 一時中断・内容破棄は「保存」ほど目立たせないが、内容破棄だけは
+   取り消せない操作なので警告色にして押し間違いに気づけるようにする */
+.edit-pause, .edit-discard {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+  color: var(--e-fg);
+}
+.edit-pause:hover { border-color: var(--e-accent); color: var(--e-accent); }
+.edit-key { margin-left: 0.3rem; font-size: 0.78rem; color: var(--e-muted); }
+.edit-discard {
+  color: #c62828;
+  border-color: #c62828;
+}
+.edit-discard:hover:not(:disabled) { background: rgb(198 40 40 / 8%); }
+/* 変更が無いとき（押せない）。赤にグレーを混ぜて、警告色を静かにする
+   （Wiki設計者の選んだ案B、2026-09-19。赤25%＋グレー75%、さらに背景へ
+   25%なじませる。文字は白地で約3.4:1に留めてある）。 */
+.edit-discard:disabled {
+  --e-discard-idle: color-mix(in srgb, color-mix(in srgb, #c62828 25%, var(--e-muted)) 75%, var(--e-bg));
+  color: var(--e-discard-idle);
+  border-color: var(--e-discard-idle);
+  cursor: default;
+}
+.edit-hint { margin-left: auto; font-size: 0.8rem; color: var(--e-muted); }
+/* ツールバーは編集画面でしか使わない（textareaが見えていないと押しても分からない）。
+   表示側で隠すのではなく、そもそも編集画面の中に置いてある。 */
+
+/* ---- 更新状況（左: 差分 / 右: オリジナル） ---- */
+/* 変更前・変更後は**どんなに狭くても横に並べる**（Wiki設計者の指示、2026-09-06）。
+   入力欄とプレビューと同じ扱い。縦に積むと、片方が必ず画面の外へ出て
+   見比べられなくなる。狭いときは1枚ずつが細くなるが、並びは変えない。 */
+.edit-diff-panes {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+  overflow: hidden;
+}
+.edit-diff-col, .edit-origin-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.edit-diff-col { border-right: 1px solid var(--e-border); }
+.edit-col-title {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  height: var(--e-band-h);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  color: var(--e-fg);
+  background: var(--e-panel);
+  border-top: 1px solid var(--e-border);
+}
+.edit-col-note { font-size: 0.78rem; font-weight: normal; color: var(--e-muted); }
+
+.edit-diff {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  background: var(--e-bg);
+  white-space: pre;
+}
+/* 1行＝1ブロック。行の高さが揃い、背景色も行いっぱいに敷ける。
+   改行文字は入れていない（入れると1行ごとに空行になる）ので、
+   中身が空の行にも高さを持たせておく（min-height は line-height と同じ）。 */
+.edit-diff span {
+  display: block;
+  min-height: 1.6em;
+}
+/* 色はバックアップ管理画面の差分表示と揃える（同じものを見ているため） */
+.edit-diff .d-add { color: #1a7f37; background: rgb(26 127 55 / 8%); }
+.edit-diff .d-del { color: #b3261e; background: rgb(179 38 30 / 8%); }
+.edit-diff .d-at { color: var(--e-muted); }
+.edit-diff-same { margin: 0; padding: 0.8rem; color: var(--e-muted); }
+
+.edit-origin {
+  padding: 0.8rem 1rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--e-bg);
+}
+.edit-origin-empty, .edit-origin-plain { color: var(--e-muted); }
+.edit-origin-plain {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+/* 書きかけを預かった時刻。**編集の邪魔にならない控えめさ**にしておき、
+   預かれなかったときだけ色を変えて気づけるようにする */
+.edit-draft-state {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: var(--e-muted);
+}
+.edit-draft-state.is-bad { color: #c62828; font-weight: 700; }
+
+.edit-draft-note {
+  margin: 0 0 0.8rem;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9rem;
+  color: var(--e-fg);
+  background: var(--e-panel);
+  border: 1px solid var(--e-accent);
+  border-radius: var(--e-radius);
+}
+
+@media (max-width: 60rem) {
+}
+
+/* ---- サイドバーのページ一覧（編集中はメニューの代わりに出る） ----
+   テーマのサイドバーの中に置かれるため、.edit-shell の外にある。
+   中身の組み立ては共通のTreeView（treeview.css の .tv-* が基本の見た目を
+   持つ）。ここでは編集画面ならではの部分（大きさ・書きかけの印）だけを足す。
+   変数はテーマのものを直に参照し、無い場合の既定値を添えておく。 */
+.ep-tree {
+  font-size: 0.9rem;
+  margin: 0.3rem 0;
+  border-radius: 4px;
+}
+/* 階層の字下げ。深さは TreeView が --ep-depth に入れる
+   （リネーム画面の .rp-row・バックアップ管理画面の .bk-row と同じやりかた） */
+.ep-row { padding-left: calc(0.3em + var(--ep-depth, 0) * 1.1em); }
+/* 一覧の中（コンテナ自身か、選ばれている行）に入力が向いているときの枠。
+   行ごとの :focus-visible（treeview.css）とは別に、一覧全体がいま
+   アクティブなことも分かるようにする */
+.ep-tree:focus-within {
+  outline: 2px solid var(--accent, #3178c6);
+  outline-offset: 2px;
+}
+/* まだ本保存していない書きかけを預かっているページ。
+   見落とすと困るので、他の印より強く出す */
+.tv-row.ep-draft { font-weight: 700; }
+.tv-row.ep-draft .tv-label,
+.tv-row.ep-draft .tv-dirlabel { color: #c62828; }
+/* いま編集しているページ（is-chosenはTreeView標準）と書きかけが重なった場合は、
+   下地の色（--accent）に負けない明るい色にする */
+.tv-row.is-chosen.ep-draft .tv-label,
+.tv-row.is-chosen.ep-draft .tv-dirlabel { color: #ffdad6; }
+.edit-pages-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted, #656d76);
+}
+
+/* ファイル一覧の入口。**ボタンの見た目にそろえる**（Wiki設計者の指示、2026-09-06。
+   もとは「名前を変える」の入口の指示で、その入口は 2026-09-29 に外した）。
+   中身は <a>（押すと別のタブを開く）ままで、見た目だけを一時中断・内容破棄と
+   同じ枠線のボタンにする。保存と同じ強さ（塗り）にはしない。 */
+.edit-files {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  color: var(--e-fg);
+  background: transparent;
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+  text-decoration: none;
+  /* 一時中断・内容破棄と同じ丈にそろえる。<a> と <button> では行の高さの
+     既定が違うので、こちらで数値を合わせる（stretch にすると、いちばん高い
+     「保存」に合ってしまい、枠線のボタン3つの中で1つだけ背が高くなる） */
+  line-height: 1.4;
+}
+.edit-files:hover { border-color: var(--e-accent); color: var(--e-accent); }
+
+/* 連続編集のチェック。ファイル一覧の入口の右に、ボタンと同じ丈で並べる。
+   押すと編集を離れる操作ではないので、枠線は付けず、文字だけにする */
+.edit-continuous {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--e-fg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.edit-continuous input { margin: 0; cursor: pointer; }
+
+/* 連続編集で保存・破棄したあとの知らせ。一時保存の知らせより控えめにする
+   （保存できたという普通のことなので、枠の色は強くしない） */
+.edit-saved-note {
+  margin: 0 0 0.8rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  color: var(--e-fg);
+  background: var(--e-panel);
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+}
+
+/* ---- 画面の高さが足りないとき（Wiki設計者の指示、2026-09-06） ----
+ * 高さ500px未満では、周りの部品を削って**見る欄・書く欄をできるだけ大きく**取る。
+ *
+ * 高さで効くのは「周りを減らす」ことだけである。プレビューを隠す・縦に積む
+ * といった手は幅の話で、高さの足しにはならない（縦に積むとむしろ減る）。
+ * 600x400 で測ると、入力欄67pxに対して周りが285px（見出し40・タブ45・
+ * 一時保存の知らせ60・ツールバー51・ボタン列とヒント85）だった。
+ */
+@media (max-height: 499px) {
+  /* 帯（ツールバー・更新状況の見出し）を薄くする */
+  .edit-body { --e-band-h: 2.2rem; }
+
+  /* タブを詰める（.edit-tab の詰めは下の「タブの横へ」でまとめて指定する） */
+  .edit-tabs { margin-bottom: 0.4rem; }
+
+  /* 操作ボタンは**タブの横**へ持っていく（Wiki設計者の指示、2026-09-06）。
+     足もとに1行を構えると、それだけで32pxほど取られる。タブの行はどうせ
+     空いているので、そこへ寄せて1行まるごと空ける。
+     `.edit-buttons` は `.page-editor` の中にあってタブとは兄弟ではないため、
+     **並べ替えは editor.js が行の中へ入れ直して**いる。絶対配置で重ねる手も
+     あるが、それだとタブとボタンが幅の足りないときに重なってしまう。
+     入れ直せば、幅が足りなくなったときは行ごと横へスクロールする。 */
+  /* **行そのものは、はみ出しの面倒を見ない**（Wiki設計者の指摘、2026-09-06）。
+     ここに overflow を置くと、選んでいるタブの margin-bottom:-1px——下の枠線に
+     重ねて「つながって見せる」ためのずらし——が切り取られ、タブの下に線が
+     残ってしまう（overflow は縦横そろって効くので、横だけ流すことはできない）。
+     はみ出しを引き受けるのは**ボタンの側**。あちらは重なりを使っていないので、
+     切り取っても見た目が変わらない。タブは常に全部見える。 */
+  .edit-tabs { align-items: center; }
+  /* 行に入りきらないときは**縮めずに横へ流す**。縮むとタブの文字が縦に
+     折り返して、行そのものが高くなってしまう（420px幅で130pxになった） */
+  .edit-tab { flex: 0 0 auto; white-space: nowrap; }
+  .edit-buttons {
+    /* 入りきらないときは、この中だけを横へ流す。スクロールバーは出さない
+       （出すと帯の丈が15pxほど伸び、高さを空けた意味が薄れる）。
+       指・ホイール・ドラッグでは動かせる */
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-top: 0;
+    margin-left: auto;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
+  }
+  .edit-buttons::-webkit-scrollbar { display: none; }
+  .edit-actions { flex-wrap: nowrap; gap: 0.4rem; }
+  /* 中の文字も折り返させない。折り返しは並びではなく丈で効いてくる */
+  .edit-buttons > *, .edit-actions > * { white-space: nowrap; }
+  /* タブもボタンも小さくしてよい（Wiki設計者の指示）。タブの行に2つ並ぶので、
+     どちらも丈を詰めて高さをそろえる */
+  .edit-tab { padding: 0.2rem 0.6rem; font-size: 0.8rem; }
+  .edit-buttons button, .edit-files {
+    padding: 0.15rem 0.7rem;
+    font-size: 0.78rem;
+  }
+  .edit-save { padding: 0.15rem 1rem; }
+  .edit-key { display: none; }   /* 「(ESC)」まで出す余裕は無い */
+  .edit-draft-state { font-size: 0.72rem; }
+  .edit-hint { display: none; }
+
+  /* 編集画面: 記法のボタンを出さない。
+     **4枚の高さを揃える約束はここでは崩れる**（編集側だけ帯が1つ減る）が、
+     書く場所を確保するほうを採る（Wiki設計者の指示） */
+  .edit-toolbar { display: none; }
+
+  /* 更新状況: 欄の見出しを小さくする（並べかたは幅によらず横並び） */
+  .edit-col-title { font-size: 0.8rem; padding: 0.2rem 0.6rem; }
+
+  /* 添付ファイル: 見出しの行と案内文を落とす */
+  .attach-table thead { display: none; }
+  .attach-hint { display: none; }
+}
+
+/* 動きを控えるよう求めている環境では、滑り出しをやめて即座に出す */
+@media (prefers-reduced-motion: reduce) {
+  .edit-side { transition: none; }
+}
+
+/* ファイルを選んだらそのまま送るので、スクリプトが動くときは「追加」を出さない
+   （editor.js が <html> に .attach-auto を付ける。動かないときは従来どおり押して送る） */
+.attach-auto .attach-add { display: none; }

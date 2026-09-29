@@ -1,0 +1,36 @@
+/* note プラグインの見た目。
+
+   テーマが用意している共通のカスタムプロパティ（--accent, --panel-bg, --border,
+   --muted）だけを頼りに書いてあるので、どのテーマでもそれなりに馴染む。
+   --radius・--shadow・--accent-soft のようにテーマによって無い場合がある変数は
+   フォールバック（第2引数）を添えてあるので、無ければ素朴な見た目になるだけで壊れない。
+
+   テーマ側でこの見た目そのものを変えたい場合は、同じセレクタをテーマのCSSに書けば
+   よい（このCSSはテーマのCSSより先に読み込まれるため、後勝ちでテーマ側が有効になる）。 */
+
+.note {
+  margin: 1.2rem 0;
+  padding: 0.7rem 1rem;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 6px 6px 0; /* 左辺のアクセント線を活かす非対称な丸みなので、--radius には合わせない */
+  background: var(--panel-bg);
+  box-shadow: var(--shadow, none);
+}
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.note-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.3rem;
+}
+.note-tip { border-left-color: #2e9e6b; }
+.note-tip .note-label { color: #2e9e6b; }
+.note-warn { border-left-color: #d98324; }
+.note-warn .note-label { color: #b96a24; }
+.note-inline {
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius, 4px);
+  background: var(--accent-soft, var(--panel-bg));
+  border-bottom: 2px solid var(--accent);
+}

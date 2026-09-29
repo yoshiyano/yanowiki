@@ -1,0 +1,201 @@
+/*
+ * pkwk — post_it_1 を土台に、PukiWiki 標準スキン（skin/pukiwiki.css）の
+ * 配色（#DDEEFF 系）へ寄せたテーマ。
+ *
+ * ● 書き方: 先頭で post_it_1.css を読み込み、変えたいところ（外枠の付箋風
+ *   装飾・見出しの下地色と枠・本文フォント）だけを上書きする。レイアウト・
+ *   検索まわり・スマホ幅のハンバーガー・脚注などは post_it_1.css のまま。
+ *
+ * ● post_it_1 からの主な変更:
+ *     外枠      灰色の下地＋太い左枠線（付箋風）を外して白地に
+ *     見出し    クリーム色の下地＋レベル別の太い色帯 → PukiWiki 風の薄青
+ *               （h1/h2 は薄青の下地、h3 は細い4辺ボーダー、h4 は太い左
+ *                ボーダー、h5/h6 は薄青の下地）
+ *     フォント  monospace 優先
+ *
+ * ● ヘッダのロゴ（pkwk-logo.png）は pkwk.html 側でマークアップ、見た目は
+ *   このCSS末尾で定義。編集導線を画面に出さない挙動は pkwk.html/pkwk.js側
+ *   （このCSSでは扱わない）。
+ */
+@import url("post_it_1.css");
+
+/* ---- 配色: PukiWiki 既定スキンの薄青系。外枠の付箋装飾を白へ ---- */
+:root {
+  --pi-outer-bg: #ffffff;
+  --pi-base-bg: #ffffff;
+  --pi-heading-bg: #ddeeff;
+}
+
+/* 付箋風の外枠（暗い1px枠＋青灰の下地＋太い左枠線）を外し、素の白地にする */
+.pi-container {
+  border: 0;
+  background: #ffffff;
+}
+.pi-base {
+  border-left: 0;
+  background: #ffffff;
+}
+
+/* ---- 本文フォント: monospace 優先 ---- */
+body {
+  font-family: monospace, verdana, arial, helvetica, "Noto Sans JP", sans-serif;
+}
+
+/* ---- 見出し: PukiWiki 標準スキンの形へ作り直す ----
+   post_it_1 のレベル別の太い色帯・クリーム下地・開始位置ずらし・hover の
+   スライドを打ち消し、薄青(#DDEEFF)の下地／細い4辺ボーダー／太い左ボーダー
+   という PukiWiki の見せ方に置き換える。 */
+.content h2,
+.content h3,
+.content h4 {
+  font-weight: bold;
+  line-height: 1.5;
+  background: transparent;
+  border: 0;
+  margin: 1.4em 0 0.5em 0;
+  transition: none;
+}
+.content h2 {
+  font-size: 180%;
+  padding: 0.3em;
+  margin-left: 0;
+  background-color: #ddeeff;
+  border: 0;
+}
+.content h3 {
+  font-size: 140%;
+  padding: 0.3em;
+  margin-left: 0;
+  background-color: #ffffff;
+  border-top: 1px solid #ddeeff;
+  border-right: 5px solid #ddeeff;
+  border-bottom: 3px solid #ddeeff;
+  border-left: 10px solid #ddeeff;
+}
+.content h4 {
+  font-size: 120%;
+  padding: 0.3em;
+  margin-left: 0;
+  background-color: #ffffff;
+  border: 0;
+  border-left: 18px solid #ddeeff;
+}
+.content h2:hover,
+.content h3:hover,
+.content h4:hover {
+  transform: none;
+}
+
+/* h5/h6 も PukiWiki にならい薄青の下地に（post_it_1 は下線のみだった） */
+.content h5,
+.content h6 {
+  background-color: #ddeeff;
+  padding: 0.3em;
+  border: 0;
+}
+
+/* ---- コードブロックの左右マージン（Wiki設計者の指示） ----
+   post_it_1.css の .content pre は左右マージンを持たず、本文の段落と
+   同じ幅いっぱいに広がっていた。左右に1.5em空けて、本文から一段
+   区切られて見えるようにする。
+
+   文中のインラインcode（<code>単体）には付けない。地の文の中で単語の
+   前後が1.5em空いてしまい、明らかに崩れて見える（実機で確認）。
+
+   #codeプラグインを使ったページでは、Prism.jsのツールバー機能が
+   <pre>を<div class="code-toolbar"><pre>…</pre><div class="toolbar">…
+   </div></div>という形に（ブラウザ側のJSで）包み直す。この場合
+   .content pre だけでは効かない。plugin/code.cssの
+   `pre[class*="language-"][class*="language-"]`（属性セレクタを
+   意図的に2重にして詳細度を .content pre より高くする書きかた）が
+   `margin: .5em 0`（=左右0）を明示しているため、そちらが勝つ
+   （実機で確認）。div.code-toolbar自身にはPrism側がmarginを
+   指定していないので、包んでいるdiv側を狙えば詳細度の競合が起きない。
+   コピー等のツールバーはこのdiv基準のposition:absoluteなので、
+   pre だけを動かすとボタンが取り残されるが、div側を動かせば
+   コード本体とツールバーが一体のまま indent される。 */
+.content pre {
+  margin-left: 1.5em;
+  margin-right: 1.5em;
+}
+.content div.code-toolbar {
+  margin-left: 1.5em;
+  margin-right: 1.5em;
+}
+
+/* ---- サイドバー（menu1 / 目次 / menu2）の見出し ----
+   post_it_1 はレベル別の色帯（赤/青/緑）を付けていた。PukiWiki の menubar/
+   rightbar は見出しも本文と同じ薄青の下地なので、それに合わせて帯を外す。 */
+#rightbar h2,
+#rightbar h3,
+#rightbar h4 {
+  background-color: #ddeeff;
+  border: 0;
+  padding: 0.25em 0.5em;
+}
+
+/* ---- ヘッダのロゴ ----
+   参照サイト（1ev-py）は img#logo { float:left; margin-right:20px } で
+   高さ80pxのロゴを出している。#header は既にflexなのでfloatは使わず、
+   #header の align-items: center で縦中央に揃える。
+   ロゴは .header-rows（タイトル行＋TopicPath行の2行ぶん）の左に置いて
+   2行にまたがらせる（pkwk.html のマークアップで決まる）。 */
+.pkwk-logo-link {
+  display: block;
+  flex: 0 0 auto;
+}
+.pkwk-logo {
+  display: block;
+  height: 64px;
+  width: auto;
+}
+/* ヘッダの2行構成（.header-rows / .header-row-title / .header-row-path）は
+   post_it_1.css 側で共通定義している（2026-09-05）。pkwkは上書きせず
+   そのまま引き継ぐ。 */
+
+/* post_it_1 は #header（タイトル行+検索）の下に薄い区切り線
+   （border-bottom: 1px solid #ccc）を引いているが、pkwk では
+   TopicPathとの間が煩雑に見えるため外す（Wiki設計者の指示）。paddingは
+   そのまま残し、間隔だけは保つ。 */
+#header {
+  border-bottom: 0;
+}
+
+/* ヘッダ内のリンク（ロゴ・タイトルのリンク等）は mouse over の
+   ハイライト（薄青の下地・下線）をしない（Wiki設計者の指示 2026-09-04）。
+   post_it_1.css の a:hover を #header の中だけ打ち消す。検索の
+   <button>（.search-scope / .search-submit）はリンクではないので
+   対象外＝従来どおり hover する。 */
+#header a:hover {
+  background-color: transparent;
+  text-decoration: none;
+}
+
+/* タイトル下のHRをヘッダの中へ移した（Wiki設計者の指示、pkwk.html参照）。
+   #headerはdisplay:flexなので、素のままだと<hr>も他の子要素と並ぶ
+   flexアイテムとして扱われ、中身（無し）に合わせて幅がほぼ0に潰れる。
+   flex: 1 1 100% で「1行を単独で占有する」flexアイテムにし、
+   flex-wrap: wrap（post_it_1.css側）と合わせて必ず単独の行へ落とす
+   （＝見た目は従来どおり幅いっぱいの横線のまま）。
+   marginは、ヘッダの内側に収まる分だけ上を詰め、下は付けない
+   （すぐ#contentsが続くため、pi-baseのpaddingで十分な間隔になる）。 */
+#header hr.full_hr {
+  flex: 1 1 100%;
+  margin: .5em 0 0;
+}
+
+/* ---- ドロワーになる幅（700px以下）のコマンド配置（Wiki設計者の指示 2026-09-29） ----
+   ログイン〜新規のリンク列を、ヘッダ2行目から #rightbar（ハンバーガーで開く
+   ドロワー）の先頭の複製（.rightbar-commands。pkwk.html 参照）へ移す。
+   700px は post_it_1.css で #rightbar が off-canvas になる幅と同じ値。
+   広い幅では .rightbar-commands を出さず、ヘッダ側がそのまま並ぶ。
+   ヘッダ側は <dialog> を残したままリンクだけ隠す。common.js の「新規」は
+   最初の .new-page-dialog（=ヘッダ側）を全ボタンで共有するため、その祖先を
+   display:none にするとダイアログが開かなくなる。 */
+.rightbar-commands { display: none; }
+
+@media (max-width: 700px) {
+  .header-row-path .commands .common-menu > :not(dialog) { display: none; }
+  .rightbar-commands { display: block; }
+  .rightbar-commands .command-sep { margin: 0 .4em; }
+}

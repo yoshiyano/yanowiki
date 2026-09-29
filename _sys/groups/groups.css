@@ -1,0 +1,239 @@
+/* groups.css — グループ管理画面の見た目（/.groups.css）。
+ *
+ * 色は自前で決めず、テーマが配るカスタムプロパティを使う（第2引数は、テーマが
+ * その変数を持っていなかったときの受け皿）。テーマ（theme/）は別プロジェクトの
+ * 持ち物なので、こちらから触らずに済ませるための持ちかた
+ * （_sys/accounts/accounts.css と同じ考えかた）。 */
+
+.grp {
+  max-width: 44rem;
+}
+
+.grp-lead {
+  margin: 0 0 1.2rem;
+  color: var(--muted, #57606a);
+  font-size: 0.92rem;
+}
+
+.grp-h2 {
+  margin: 1.6rem 0 0.8rem;
+  font-size: 1.05rem;
+}
+
+/* ---- タブ（作成／編集） ---- */
+
+.grp-tabs {
+  display: flex;
+  gap: 0.4em;
+  margin: 0 0 1rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+
+.grp-tab-btn {
+  padding: 0.5em 1.1em;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted, #57606a);
+  font: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+}
+
+.grp-tab-btn:hover {
+  color: var(--fg, #1f2328);
+}
+
+.grp-tab-active {
+  color: var(--fg, #1f2328);
+  border-bottom-color: var(--accent, #0969da);
+  font-weight: 600;
+}
+
+/* ---- 知らせ ---- */
+
+.grp-notice {
+  margin: 0 0 1.2rem;
+  padding: 0.7em 1em;
+  border: 1px solid var(--border, #d0d7de);
+  border-left-width: 4px;
+  border-radius: var(--radius, 6px);
+  background: var(--panel-bg, #f6f8fa);
+}
+
+.grp-notice-error {
+  border-left-color: #cf222e;
+}
+
+/* ---- 入力欄 ---- */
+
+.grp-form,
+.grp-open-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.grp-open-form {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6em;
+  margin-bottom: 1.4rem;
+}
+
+.grp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.grp-row label {
+  flex: 0 0 8em;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.grp-row input {
+  flex: 1 1 16em;
+  min-width: 0;
+  padding: 0.45em 0.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: var(--fg, #1f2328);
+  font: inherit;
+}
+
+.grp-hint {
+  margin: 0;
+  color: var(--muted, #57606a);
+  font-size: 0.85rem;
+}
+
+.grp-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.grp-go {
+  padding: 0.45em 1.4em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--accent, #0969da);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.grp-go:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.grp-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+  filter: none;
+}
+
+.grp-go.grp-del {
+  background: var(--panel-bg, #f6f8fa);
+  color: inherit;
+}
+
+.grp-go.grp-del:hover:not(:disabled) {
+  border-color: #cf222e;
+  color: #cf222e;
+}
+
+/* ---- 一覧 ---- */
+
+.grp-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0 0 0.8rem;
+}
+
+.grp-bulk-status {
+  color: var(--muted, #57606a);
+  font-size: 0.85rem;
+}
+
+.grp-bulk-status-error {
+  color: #cf222e;
+}
+
+.grp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.grp-table th,
+.grp-table td {
+  padding: 0.5em 0.4em;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.grp-table th {
+  color: var(--muted, #57606a);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.grp-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.grp-sortable:hover {
+  color: var(--fg, #1f2328);
+}
+
+.grp-sort-asc::after {
+  content: " \25B2";
+}
+
+.grp-sort-desc::after {
+  content: " \25BC";
+}
+
+/* ---- 追加フォーム ---- */
+
+.grp-add {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  max-width: 32rem;
+}
+
+.grp-add-textarea {
+  padding: 0.5em 0.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: var(--fg, #1f2328);
+  font: inherit;
+  resize: vertical;
+}
+
+/* 画面が狭いときは、ラベルを入力欄の上へ */
+@media (max-width: 520px) {
+  .grp-row label {
+    flex-basis: 100%;
+  }
+  .grp-open-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .grp-table {
+    font-size: 0.82rem;
+  }
+}

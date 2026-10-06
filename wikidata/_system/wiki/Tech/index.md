@@ -52,4 +52,5 @@ wikiSystem・wikiPlugin間の実装依頼・不具合報告です。いずれも
 
 リクエストが応答になるまでの流れと、ディレクトリ・モジュールの構成は
 [全体の構成](/Tech/Architecture) にあります。
-- [AI エージェントに Wiki ページを書かせる](/Tech/wiki_byAiAgent) … 置き場所・記法・書きかたの原則・リンク検査。`checklinks.py` を添付
+- [AI をつかったプロジェクト管理方法](/Tech/WikiPage_AIgenerate) … GitHub と Wiki を AI に管理させる準備（鍵・clone・Wiki 作成・指示）
+  - [AI エージェントに Wiki ページを書かせる](/Tech/WikiPage_AIgenerate/howto4ai) … 置き場所・記法・書きかたの原則・リンク検査。`checklinks.py` を添付

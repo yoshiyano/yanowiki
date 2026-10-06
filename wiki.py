@@ -10,7 +10,7 @@
 # ---- 版と改訂 ---------------------------------------------------------------
 VERSION = "1.1.1"
 VERSION_DATE = "2026-10-06"
-REVISION = "2"
+REVISION = "3"
 
 import argparse
 import atexit

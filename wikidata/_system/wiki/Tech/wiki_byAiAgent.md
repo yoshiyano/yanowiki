@@ -10,13 +10,13 @@
 
 1. **ChangeLog に「なぜそうしたか」と失敗を残す**
 2. **同じことを 2 か所に書かない**（片方からリンクする）
-3. **リンクを機械的に検査する**（添付の [checklinks.py](::checklinks.py)。[6.2](#62-リンクを機械的に検査する)）
+3. **リンクを機械的に検査する**（添付の [checklinks.py](/=_system/.attach/Tech/wiki_byAiAgent/checklinks.py)。[6.2](#62-リンクを機械的に検査する)）
 
 ## 添付のスクリプト
 
 | ファイル | 何をするか |
 |---|---|
-| [checklinks.py](::checklinks.py) | ページ内のリンク先（ページ名と見出し）が実在するかを検査する。標準ライブラリだけで動く |
+| [checklinks.py](/=_system/.attach/Tech/wiki_byAiAgent/checklinks.py) | ページ内のリンク先（ページ名と見出し）が実在するかを検査する。標準ライブラリだけで動く |
 
 wikiSystem のルート（`wiki.py` のあるフォルダ）に置いて使います。
 
@@ -81,7 +81,7 @@ wiki/ChangeLog/2026-09-08.md → /ChangeLog/2026-09-08
 attach/Spec/Network/network.svg
   → ページ /Spec/Network の添付
   → URL: /=<Wiki名>/.attach/Spec/Network/network.svg
-  → ページ側: #img(network.svg)  /  ダウンロードのリンクは [network.svg](::network.svg)
+  → ページ側: #img(network.svg)  /  ダウンロードのリンクは [network.svg](/=<Wiki名>/.attach/Spec/Network/network.svg)
 ```
 
 **フォルダの目次ページ（`wiki/X/index.md` → `/X`）の添付は `attach/X/index/` に置く。**`attach/X/` に置くと `#img()` が `img plugin error` になる（`_sys/wikilib/attach.py`。トップ `wiki/index.md` の添付が `attach/index/` なのと同じ規則）。
@@ -565,7 +565,7 @@ DHCP
 
 ### 6.2 リンクを機械的に検査する
 
-添付の [checklinks.py](::checklinks.py) を使う。`pageinfo/wikiall.db` の各ページの目次（見出しと ID）と突き合わせる。**`updatepage` を実行してから使う**（DB が古いと直したリンクが切れて見える）。
+添付の [checklinks.py](/=_system/.attach/Tech/wiki_byAiAgent/checklinks.py) を使う。`pageinfo/wikiall.db` の各ページの目次（見出しと ID）と突き合わせる。**`updatepage` を実行してから使う**（DB が古いと直したリンクが切れて見える）。
 
 ```bash
 cd <wikiSystemのルート>

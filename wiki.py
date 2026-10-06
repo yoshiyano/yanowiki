@@ -8,9 +8,9 @@
 起動時の下ごしらえだけはこのファイルの先頭に置いてある。
 """
 # ---- 版と改訂 ---------------------------------------------------------------
-VERSION = "1.1"
-VERSION_DATE = "2026-09-30"
-REVISION = "7"
+VERSION = "1.1.1"
+VERSION_DATE = "2026-10-06"
+REVISION = "1"
 
 import argparse
 import atexit

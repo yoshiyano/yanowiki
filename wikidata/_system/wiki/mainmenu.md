@@ -70,6 +70,7 @@
   - [新しいテーマを追加する](/Tech/ThemeGuide/NewTheme)
   - [同梱しているサンプルテーマ](/Tech/ThemeGuide/SampleThemes)
   - [自動エスケープについて](/Tech/ThemeGuide/Escaping)
+- [AIエージェントにWikiページを書かせる](/Tech/wiki_byAiAgent)
 - [プラグインの開発](/Tech/dev_plugin)
   - [プラグイン仕様](/Tech/dev_plugin/spec)
     - [エラーの扱い](/Tech/dev_plugin/spec/errors)

@@ -27,7 +27,8 @@ from html import escape
 from wikilib import auth, sysui, userdb
 from wikilib.paths import (
     ACCOUNTS_URLPATH, ADMIN_URLPATH, APPROVALS_URLPATH, CONFIGWIKI_URLPATH,
-    GARBAGECOLLECT_URLPATH, GROUPS_URLPATH, PRIVILEGES_URLPATH, STAFFLOG_URLPATH,
+    GARBAGECOLLECT_URLPATH, GROUPS_URLPATH, NEWWIKI_URLPATH, PRIVILEGES_URLPATH,
+    STAFFLOG_URLPATH,
 )
 from wikilib.groups import STAFF_GROUP
 from wikilib.themes import make_plugin_context
@@ -38,6 +39,8 @@ from wikilib.web import plain
 #
 #   (URLパス, 名前, 説明, 管理者だけか)
 TOOLS = [
+    (NEWWIKI_URLPATH, "新しいWikiを作る",
+     "自分用のWikiを作る。作れるのは既定のWikiの管理者と助手。", False),
     (ACCOUNTS_URLPATH, "アカウント",
      "登録されている人を見る・直す・増やす・消す。パスワードの入れ直しもここ。", True),
     (APPROVALS_URLPATH, "アカウントの承認",
@@ -102,6 +105,13 @@ def admin_tools_html(base_url, user, admin):
     rows = []
     for urlpath, label, note, admin_only in TOOLS:
         url = escape(base_url) + "/" + urlpath
+        if urlpath == NEWWIKI_URLPATH:
+            # 既定のWikiでしか開けない画面（Wiki名付きのURLは403）なので、
+            # 開いているWikiが別のWikiでも、サイトの根のURLへ向ける
+            from wikilib.render import _site_root
+            root = _site_root(base_url)
+            if root is not None:
+                url = escape(root) + "/" + urlpath
         if admin_only and not admin:
             # **隠さずに、開けないことを見せる。** 隠すと「無い」のか
             # 「自分には開けない」のかが分からない

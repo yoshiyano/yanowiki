@@ -90,17 +90,23 @@ _venv\Scripts\python.exe wiki.py --host 0.0.0.0 --port 8700   # 例: 他のパ�
 
 ## 7. 管理者のパスワードを決める
 
+**はじめての起動で、管理者（`admin`）のパスワードを聞かれます。** 2回入れて決めます。
 Wikiを増やす画面（`/.newwiki`）を使えるのは、**既定のWiki（はじめは `_system`）の管理者と助手だけ**です。
-はじめはアカウントが無いので、管理者を用意します。
+
+あとにしたときは、サーバを止めて次を実行すると同じことができます。
 
 ```powershell
 _venv\Scripts\python.exe wiki.py initusers
 ```
 
-管理者（`admin`）のパスワードを2回聞かれます。そのあと「ログイン」から `admin` でログインし、
-`/.newwiki` を開きます（[新しいWikiを作る](/NewWikiGuide)）。
-
 パスワードを忘れたときは `_venv\Scripts\python.exe wiki.py resetpw` で入れ直せます。
+
+## 8. 自分のWikiをつくる
+
+同梱の `_system` はこのシステムの使いかたを書いたWikiです。**編集しないでください**
+（更新すると配布元の内容に戻ります）。「ログイン」から `admin` でログインし、
+管理の窓口（`/.admin`）の **「新しいWikiを作る」** から自分のWikiをつくります
+（[新しいWikiを作る](/NewWikiGuide#新しいwikiを作る-1)）。
 
 ## 更新する
 

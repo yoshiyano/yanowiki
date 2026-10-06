@@ -17,6 +17,10 @@
 uv pip install --python _venv/bin/python gunicorn
 ```
 
+あとから入れた部品なので、wikiSystem を更新するときは `uv sync --inexact` を使います
+（`--inexact` が無いと消えます。[更新する](/InstallGuide#更新する)）。OSを更新して `_venv` を
+作り直したときは、入れ直します（[OSを更新してPythonの版が変わったとき](/InstallGuide#osを更新してpythonの版が変わったとき)）。
+
 ### gunicorn で動かす
 
 ```bash
@@ -174,8 +178,9 @@ sudo a2enmod wsgi
 書いたら `sudo apache2ctl configtest` で確かめ、`sudo systemctl reload apache2` で反映します。
 
 #note(){{
-`libapache2-mod-wsgi-py3` はシステムのPythonと**同じ版**でないと動きません。`_venv` と版がずれる
-ときは gunicorn を使ってください。
+`libapache2-mod-wsgi-py3` はOSのPython用に作られています（Ubuntu 24.04 なら 3.12、26.04 なら 3.14）。
+`_venv` もOSのPythonと**同じ版**で作ってください。uv の用意する別の版で `_venv` を作った場合
+（[決まった版のPythonを使う](/InstallGuide#決まった版のpythonを使う)）は、gunicorn を使ってください。
 }}
 
 ### nginx（uWSGIを使う場合）
@@ -185,6 +190,8 @@ gunicorn の代わりに **uWSGI** を使えます（サービスとしての登
 ```bash
 uv pip install --python _venv/bin/python uwsgi
 ```
+
+gunicorn と同じく、更新では `uv sync --inexact` を使い、`_venv` を作り直したら入れ直します。
 
 `/etc/systemd/system/wikisystem.service` を gunicorn と同じ要領で作り、`ExecStart` だけ差し替えます。
 

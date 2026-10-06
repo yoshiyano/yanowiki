@@ -10,7 +10,7 @@
 # ---- 版と改訂 ---------------------------------------------------------------
 VERSION = "1.1.1"
 VERSION_DATE = "2026-10-06"
-REVISION = "3"
+REVISION = "4"
 
 import argparse
 import atexit
@@ -713,6 +713,48 @@ def ask_password(prompt="新しいパスワード"):
     return first
 
 
+def ensure_default_admin():
+    """起動のとき、既定のWikiに管理者がいなければ、パスワードを決めてもらう。
+
+    ダウンロードして `./wiki.py` を動かしただけでは、既定のWiki（はじめは
+    `_system`）にアカウントの記録が無く、管理画面にも `/.newwiki` にも入れない
+    途中の状態になる。そこで `./wiki.py initusers` と同じことを、初回の起動で
+    続けて行う。
+
+    端末があるときだけ聞く。サービスとして動かしている（端末が無い）ときは、
+    聞けないので案内を出すだけにする。**聞いても決まらなければ、案内を出して
+    起動は続ける**（管理者が要らない使いかたの人の起動を止めない）。"""
+    from wikilib.userdb import create_db, exists
+
+    name = load_default_farm(load_config())
+    wiki_dir = farm_wiki_dir(name)
+    if wiki_dir is None or exists(wiki_dir):
+        return
+    hint = ("管理者（admin）のパスワードを決めるには `./wiki.py initusers` "
+            "を実行してください。")
+    if not sys.stdin.isatty():
+        print(f"[{name}] 管理者がまだいません。{hint}", file=sys.stderr, flush=True)
+        return
+    print(f"\n[{name}] 管理者（admin）がまだいません。パスワードを決めてください。\n"
+          "（打ち間違いは3回まで聞き直します。あとにするなら Ctrl+D）", flush=True)
+    for _ in range(3):
+        try:
+            password = ask_password(f"[{name}] 管理者の最初のパスワード")
+        except EOFError:
+            print()
+            break
+        if not password:
+            continue
+        ok, message = create_db(wiki_dir, password)
+        print(f"[{name}] {message}", flush=True)
+        if ok:
+            from wikilib.groups import ensure_staff_group
+            ensure_staff_group(wiki_dir)
+            return
+        break
+    print(f"[{name}] 管理者は決めずに起動します。{hint}", file=sys.stderr, flush=True)
+
+
 def choose_farm(argv_name, purpose):
     """どのWikiを対象にするか決める。決まらなければ空文字。
 
@@ -1008,6 +1050,8 @@ def main():
 
     # /.restart で自分を起動し直せるよう、実行時の引数を控えておく
     mark_standalone(sys.argv)
+
+    ensure_default_admin()
 
     stop_previous_instance(args.host, args.port)
     _write_pid_file(args.port)

@@ -56,6 +56,37 @@ Python + [bottle](https://bottlepy.org/) 製の軽量Wikiシステム。PukiWiki
 `./wiki.py` 単体は暗号化されていない http なので、前段のWebサーバー（リバース
 プロキシ）で https にする（起動後の `/InstallGuide` の「サービスとして起動」）。
 
+## クイックスタート
+
+入れたあと、**`./wiki.py` の前に、必ず `uv sync` で部品をそろえる**（下の「セットアップ」）。
+そろえずに動かすと、次のメッセージを出して止まる。
+
+```
+依存パッケージが見つかりません（No module named '…'）。`UV_PROJECT_ENVIRONMENT=_venv uv sync` を実行してインストールしてください。
+```
+
+Linux/macOS の流れは次のとおり（Windows は後ろの「起動」を参照）。
+
+```bash
+# 1. uv を入れる（入っていれば不要）。入れたら端末を開き直す
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. 入手
+git clone https://github.com/yoshiyano/yanowiki.git wikiSystem
+cd wikiSystem
+
+# 3. 部品をそろえる（_venv ができる。Pythonも uv が用意する）
+UV_PROJECT_ENVIRONMENT=_venv uv sync
+
+# 4. 起動
+./wiki.py
+```
+
+**はじめての起動では、管理者（`admin`）のパスワードを端末で聞かれる。** 決めたら
+ブラウザで `http://127.0.0.1:8619/` を開き、先頭の案内に従って初期設定
+（自分のWikiをつくる）へ進む。**ダウンロードして起動しただけでは途中の状態**で、
+同梱の `_system` は配布元が管理するサンプルなので、自分のページは別のWikiに書く。
+
 ## 入手
 
 ```bash

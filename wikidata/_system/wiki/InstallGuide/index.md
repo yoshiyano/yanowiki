@@ -1,7 +1,14 @@
 # 入れかた・動かしかた
 
-**入れたばかりの Ubuntu**（24.04 で確認）で動かすまでの手順です。`sudo` が使えれば始められ、
-Pythonを先に入れる必要はありません。Windowsは [Windowsで動かす](/InstallGuide/Windows) をご覧ください。
+#note(type=warn){{
+**ダウンロードして動かすまでは、この手順で終わります。動いたあとの初期設定は
+[こちら（管理者パスワードの設定）](/.admin/accounts) から。**
+パスワードを決めたら、下の「8. 自分のWikiをつくる」へ進みます。
+}}
+
+**入れたばかりの Ubuntu 24.04** で動かすまでの手順です。`sudo` が使えれば始められ、
+Pythonを先に入れる必要はありません。Ubuntu 26.04 でも同じ手順で動きます。Pythonの版が変わる
+ことの影響は [UbuntuとPythonの版](#ubuntuとpythonの版) をご覧ください。Windowsは [Windowsで動かす](/InstallGuide/Windows) をご覧ください。
 
 ## 1. git と curl を入れる
 
@@ -103,18 +110,29 @@ Wikiごとの設定は [設定を変える](#設定を変える) をご覧くだ
 
 ## 7. 管理者のパスワードを決める
 
-Wikiを増やす画面（`/.newwiki`）を使えるのは、**既定のWiki（はじめは `_system`）の管理者と助手だけ**です
-（[既定のWikiの役割](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割)）。
-はじめはアカウントが無いので、管理者を用意します。
+**はじめての `./wiki.py` で、管理者（`admin`）のパスワードを聞かれます。** 2回入れて決めます
+（入力した文字は画面に出ません）。Wikiを増やす画面（`/.newwiki`）を使えるのは、
+**既定のWiki（はじめは `_system`）の管理者と助手だけ**なので（[既定のWikiの役割](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割)）、
+ここで決めたパスワードで次の手順へ進みます。
 
-```bash
-./wiki.py initusers
-```
+- あとにしたときや、サービスとして動かしていて聞かれなかったときは、サーバを止めて
+  `./wiki.py initusers` を実行すると同じことができます
+- パスワードを忘れたときは `./wiki.py resetpw` で入れ直せます
 
-管理者（`admin`）のパスワードを2回聞かれます。そのあと「ログイン」から `admin` でログインし、
-`/.newwiki` を開きます（[新しいWikiを作る](/NewWikiGuide)）。
+## 8. 自分のWikiをつくる
 
-パスワードを忘れたときは `./wiki.py resetpw` で入れ直せます。
+同梱の `_system` は**このシステムの使いかたを書いたWiki**です。**ここは編集しないでください**
+（更新すると配布元の内容に戻ります）。自分のページは、別のWikiをつくって書きます。
+
+1. ブラウザで `http://127.0.0.1:8619/` を開き、「ログイン」から `admin` と手順7のパスワードでログインします
+2. 管理の窓口（`/.admin`）を開き、**「新しいWikiを作る」** を押します
+   （ログインしたままつくれます。URLを手で打つ必要はありません）
+3. 名前（半角英数字と `-` `_`）・管理者のパスワード・使いかた・記法を入れて「作る」を押します。
+   各項目は [新しいWikiを作る](/NewWikiGuide#新しいwikiを作る-1) にあります
+4. 作ったWikiのトップページが開きます。「既定のWikiにする」にチェックが入っていれば、
+   次からは `/` を開くとこのWikiが出ます
+
+これで自分用のWikiで書き始められます。使いかたは [使ってみよう](/UsageGuide) をご覧ください。
 
 ## 更新する
 
@@ -124,9 +142,11 @@ Wikiを増やす画面（`/.newwiki`）を使えるのは、**既定のWiki（�
 cd ~/wikiSystem
 git fetch --depth 1 origin main
 git reset --hard origin/main
-UV_PROJECT_ENVIRONMENT=_venv uv sync
+UV_PROJECT_ENVIRONMENT=_venv uv sync --inexact
 ```
 
+- `--inexact` は、あとから入れた部品（[gunicorn・uWSGI](/InstallGuide/Server)）を消さない指定です。
+  付けないと、それらが消えてサービスが起動できなくなります
 - 更新で変わらないもの: `config/server.yaml`、`_venv/`、`wikidata/`（`_system` を除く。下の注意）。
   wikiSystem 自身の古いファイルは片づきます
 - 動かしたまま更新してかまいません。反映するには再起動します（[サービスの再起動](/Tech/Restart)）
@@ -141,8 +161,60 @@ UV_PROJECT_ENVIRONMENT=_venv uv sync
 | エラー内容 | すること |
 |---|---|
 | `許可がありません` | `chmod +x wiki.py` |
-| `依存パッケージが見つかりません` | 手順4をやり直す |
+| `依存パッケージが見つかりません` | 手順4をやり直す（`uv sync` を実行していないと出ます） |
+| OSを更新したら動かなくなった | [OSを更新してPythonの版が変わったとき](#osを更新してpythonの版が変わったとき) |
 | 見た目が崩れる | `Ctrl` + `Shift` + `R` (フルリロード)で読み込み直す |
+
+## UbuntuとPythonの版
+
+`uv sync` は、ふつうはOSに入っているPython（`python3`）を使って `_venv` を作ります。
+その版はUbuntuの版で決まります。
+
+| Ubuntu | OSのPython |
+|---|---|
+| 24.04 | 3.12 |
+| 26.04 | 3.14 |
+
+wikiSystem は 3.12 以上で動きます。3.14 でも、試験・全ページの表示・gunicorn・uWSGI が
+3.12 と同じように動くことを確かめています。26.04 では、手順4がそのまま 3.14 で `_venv` を作ります。
+
+### OSを更新してPythonの版が変わったとき
+
+`_venv` は、作ったときのOSのPythonを指しています。24.04 から 26.04 へ更新するなどしてOSの
+Pythonの版が変わると、`_venv` の中の部品が使えなくなり、`依存パッケージが見つかりません` と
+出て動かなくなります。**サービスとして動かしていた場合は、次に起動し直したときに止まります**
+（[サービスの再起動](/Tech/Restart) も効かなくなります）。
+
+手順4をもう一度行うと、いまのPythonで作り直されます。
+
+```bash
+cd ~/wikiSystem
+UV_PROJECT_ENVIRONMENT=_venv uv sync
+```
+
+- 作り直すと、あとから入れた gunicorn・uWSGI は消えます。[サーバとして公開する](/InstallGuide/Server) の
+  手順で入れ直してください
+- サービスとして動かしているなら、そのあと `sudo systemctl restart wikisystem` で起動し直します
+
+### 決まった版のPythonを使う
+
+OSのPythonに頼らず、uv が用意するPythonで `_venv` を作ることもできます。`sudo` は要らず、
+Python本体は `~/.local/share/uv/python/` に入ります。26.04 で 3.12 を使う例です。
+
+```bash
+uv python install 3.12
+UV_PROJECT_ENVIRONMENT=_venv uv sync --python 3.12
+```
+
+- 一度作れば、[更新する](#更新する) の `uv sync` でも同じ版のまま使い続けます
+- OSを更新してもPythonが入れ替わらないので、上の「動かなくなる」ことが起きません
+- 版を変えるときは、`--python` に別の版を指定して同じように実行します（`_venv` は作り直されます）
+
+#note(type=warn){{
+**ApacheのWSGI直結（mod_wsgi）では使えません。** mod_wsgi はOSのPython用に作られているので
+（24.04 なら 3.12、26.04 なら 3.14）、`_venv` もOSのPythonと同じ版で作ります
+（[WSGIで直結する](/InstallGuide/Server#wsgiで直結するgunicornを使わない)）。
+}}
 
 ## 設定を変える
 

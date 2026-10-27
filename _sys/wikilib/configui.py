@@ -67,7 +67,9 @@ Wikiには届かなくなる**ため。かつて新規Wikiを作るときに全�
 「保存ボタンは使わない」という指示から外れる**が、外す側に理由がある
 と考えている（名前を打ちかけの `s` で実行されては困る）。
 
-権限は画面と同じ（管理者と助手）にしてある。Wikiを増やす・消す
+権限は画面と同じ（管理者と助手）にしてある（助手は、管理者が許した権限で。設定の値は
+`config.edit`、定義ルールは `config.extrarules`、Wiki名は `config.rename`。
+`wikilib.staffperms`。既定はどれも許してある）。Wikiを増やす・消す
 （`/.newwiki`・`/.delwiki`）は既定Wikiの管理者と助手に絞ってあるが、
 名前を変えるのは**そのWikiの中で閉じた話**で、しかも名前を戻せば元に戻る。
 消すこと（取り返しが付かない）と同じ関門にする理由は無いと考えた。
@@ -82,7 +84,7 @@ from wikilib import auth, extrarulesui, farmrename, stafflog, sysui
 from wikilib.paths import (
     BASE_DIR, CONFIGUI_DIR, CONFIGWIKI_URLPATH, farm_config_path, farm_wiki_dir,
 )
-from wikilib.themes import make_plugin_context
+from wikilib.themes import list_theme_names, make_plugin_context
 from wikilib.web import serve_asset
 from wikilib.wikiconfig import (
     account_pw_salt, config_backups, load_config, merge_config, read_yaml,
@@ -103,6 +105,21 @@ WIKINAME_TAB = "wikiname"
 EXTRARULES_TAB = "extrarules"
 EXTRARULES_OP_PREFIX = "rx_"
 
+# 標準の拡大率の選択肢（%）。theme/common.js の拡大縮小ボタンの段階（LABELS）と同じ。
+# 値は数のまま設定に書く
+ZOOM_CHOICES = [(70, "70"), (80, "80"), (90, "90"), (100, "100（既定）"),
+                (115, "115"), (130, "130"), (145, "145"), (165, "165")]
+
+def theme_choices(wiki_dir):
+    """テーマ名（`theme.name`）の選択肢。そのWikiで選べるテーマすべて。
+
+    **テーマを選ぶセレクタと同じ検出**（`themes.list_theme_names`）をそのまま使う。
+    提供されたテーマ（共通の theme/・slottheme/）と、このWiki専用（local）の
+    テーマ（wikidata/<Wiki名>/theme/・slottheme/）の両方が並ぶ。別の一覧を
+    作ると、セレクタと設定画面で選べるテーマがずれるため。"""
+    return [(name, name) for name in list_theme_names(wiki_dir)]
+
+
 # 画面に出す項目。ここに無い項目は画面に出ないが、消えもしない
 # （モジュール冒頭参照）。説明は config/default.example.yaml の注記と
 # 同じことを、画面で読める長さに詰めたもの。
@@ -112,12 +129,12 @@ EXTRARULES_OP_PREFIX = "rx_"
 # 星がそのまま出る（2026-09-06にWiki設計者から指摘。実際にそうなっていた）。
 SECTIONS = [
     ("edit", "編集", [
-        {"path": "edit.defaultwiki", "label": "新しいページの記法",
+        {"path": "edit.defaultwiki", "label": "新しいページの書きかた",
          "type": "choice",
          "choices": [("pukiwiki", "PukiWiki記法（.txt）"),
                      ("markdown", "Markdown（.md）")],
          "help": "新しく作るページをどちらで書き始めるか。すでにあるページの"
-                 "記法は拡張子で決まっているので関係しません。編集画面の"
+                 "書きかたは拡張子で決まっているので関係しません。編集画面の"
                  "ツールバー右端から選び直せます（保存先の拡張子も変わります）。"},
         {"path": "edit.title_length", "label": "一覧のタイトルの幅",
          "type": "int",
@@ -161,6 +178,14 @@ SECTIONS = [
          "type": "text",
          "help": "「20MB」のような書きかたのほか、単位なしの数（byte）でも"
                  "指定できます。読めない書きかたのときは 20MB として扱います。"},
+        {"path": "attach.link_exts", "label": "添付ファイルとみなす拡張子",
+         "type": "text",
+         "help": "空白で区切って並べます（例: <code>png jpg pdf zip</code>）。"
+                 "リンクに書いた名前の末尾がこの拡張子なら添付ファイル、それ以外は"
+                 "ページへのリンクになります。一覧に無いファイルは <code>::名前</code>、"
+                 "拡張子の形のページは <code>名前/</code> と書けば指せます。"
+                 "変えたあとは <code>./wiki.py updatepage =Wiki名 --force</code> で"
+                 "リンクの記録を作り直してください。"},
     ]),
     ("plugin", "プラグイン", [
         {"path": "plugin.debug", "label": "使いかたを画面に出す",
@@ -219,10 +244,16 @@ SECTIONS = [
                  "そのページへのリンクにします（本家の $nowikiname の逆）。"},
     ]),
     ("theme", "テーマと画面", [
-        {"path": "theme.name", "label": "テーマ", "type": "text",
-         "help": "theme/&lt;名前&gt;.html（＋.css/.js）を使います。"
-                 "theme/&lt;名前&gt;/ というフォルダがあれば、そちらが"
-                 "そのテーマ専用の置き場所になります。"},
+        {"path": "theme.name", "label": "テーマ", "type": "choice",
+         "choices": theme_choices,
+         "help": "このWikiで使うテーマです。選べるのは、<strong>提供されたテーマ</strong>"
+                 "（theme/・slottheme/）と、<strong>このWiki専用（local）のテーマ</strong>"
+                 "（wikidata/&lt;Wiki名&gt;/theme/・slottheme/）で、"
+                 "下の「テーマを選ぶセレクタを出す」で出せるセレクタと同じ一覧です。"
+                 "同じ名前があれば、このWiki専用のほうが使われます。<br>"
+                 "テーマ <code>&lt;名前&gt;</code> は、<code>&lt;名前&gt;.html</code>"
+                 "（＋.css/.js）か、<code>&lt;名前&gt;/</code> というフォルダにまとめて"
+                 "置きます。"},
         {"path": "theme.site_title", "label": "サイト名", "type": "text",
          "help": "ヘッダに出る名前です。"},
         {"path": "theme.show_index", "label": "一覧に index を出す", "type": "bool",
@@ -232,7 +263,7 @@ SECTIONS = [
         {"path": "theme.selector", "label": "テーマを選ぶセレクタを出す",
          "type": "bool",
          "help": "サイドバー上段の先頭に差し込まれます。主に<strong>作る人が"
-                 "実際の画面で見比べるための道具</strong>です。"
+                 "実際の画面で見比べるためのツール</strong>です。"
                  "選んだテーマはcookieに1日"
                  "おぼえ、そのWikiの中だけで効きます（上のテーマより優先）。"},
         {"path": "theme.menu1_page", "label": "サイドバー上段のページ", "type": "text",
@@ -254,6 +285,22 @@ SECTIONS = [
          "type": "lines",
          "help": "書きかたは上段と同じ（<code>ページ名,fix</code> を1行に1つ）。"
                  "こちらはサイドバー下段にかかります。"},
+        {"path": "theme.zoom", "label": "標準の拡大率（%）", "type": "choice",
+         "choices": ZOOM_CHOICES,
+         "help": "ページを開いたときの拡大率です。文字だけでなく、余白・メニューの幅・"
+                 "見出しなど、<strong>ページ全体が同じ比率</strong>で変わります。<br>"
+                 "拡大縮小のボタンの有無に関わらず、どのテーマにも効きます。"
+                 "ボタンのあるテーマでは、読み手がボタンで選んだ値が、そのブラウザでは"
+                 "標準より優先されます。ボタンの無いテーマ（pkwk・post_it_1）は、"
+                 "読み手が選べないので標準だけが効きます。<br>"
+                 "編集画面など、テーマを使わない画面には効きません。"},
+        {"path": "theme.content_wide", "label": "本文の幅の上限を、標準で外す",
+         "type": "bool",
+         "help": "「はい」にすると、ページを開いたとき本文の幅の上限を外した状態にします。"
+                 "本文の幅の上限を外す／戻すボタンのあるテーマ"
+                 "（base・fresh・bloom・post_it_1・pukiwiki_default・pkwk）にだけ効きます。"
+                 "スロットHTMLのテーマと tdiary 系のテーマには、外す仕組みが無いので効きません。<br>"
+                 "読み手がボタンで選んだ幅は、そのブラウザでは標準より優先されます。"},
     ]),
 ]
 
@@ -281,6 +328,16 @@ def shown_path(path):
     except ValueError:      # 別のドライブなど、相対にできないとき
         return path
     return path if inside.startswith("..") else inside
+
+
+def resolve_choices(field, wiki_dir):
+    """選択肢がWikiごとに決まる項目（`choices` が関数）の選択肢を、そのWikiで決める。
+
+    関数でなければ、項目をそのまま返す。選択肢の中身を見る処理（`_from_text`・
+    `_control_html`）は、**決まったあとの項目**を受け取る。"""
+    if callable(field.get("choices")):
+        return dict(field, choices=field["choices"](wiki_dir))
+    return field
 
 
 def _walk(data, path):
@@ -348,10 +405,12 @@ def _from_text(field, text):
     if kind == "lines":
         return [line.strip() for line in (text or "").splitlines() if line.strip()], ""
     if kind == "choice":
-        allowed = [v for v, _label in field["choices"]]
-        if text not in allowed:
-            return None, f"「{field['label']}」に知らない値が来ました。"
-        return text, ""
+        # 選択肢の値は文字列でも数でもよい。入力欄から来るのは文字列なので、
+        # 文字にして突き合わせ、設定には選択肢の側の値（数なら数のまま）を書く
+        for value, _label in field["choices"]:
+            if text == str(value):
+                return value, ""
+        return None, f"「{field['label']}」に知らない値が来ました。"
     return text, ""
 
 
@@ -370,6 +429,7 @@ def apply_change(wiki_dir, path, use, text, ack=False):
     field = fields_by_path().get(path)
     if field is None:
         return False, "知らない項目です。", None
+    field = resolve_choices(field, wiki_dir)
     if field.get("guard") and not ack:
         # 警告を読んで確かめた印（`ack`）が無いものは書かない（モジュール冒頭）
         return False, GUARD_REFUSED, None
@@ -393,11 +453,12 @@ def apply_change(wiki_dir, path, use, text, ack=False):
 def render_configwiki(wiki_dir, config, farm, explicit_farm):
     """Wikiの設定を書き換える画面。**管理者と助手が開ける**（Wiki設計者の指示、
     2026-09-08）。ここから管理者になれるわけではないので、「管理者だけ」
-    には入れていない（`wikilib.accounts` の冒頭の表）。
+    には入れていない（`wikilib.accounts` の冒頭の表）。助手は、管理者が与えた
+    権限（`config.view`。既定は与えてある）で開く。
 
     書き込みは受け取らない（窓口は `render_configwiki_api`）。"""
-    denied = sysui.require(wiki_dir, config, farm, explicit_farm,
-                           CONFIGWIKI_URLPATH, auth.STAFF)
+    denied = sysui.require_perm(wiki_dir, config, farm, explicit_farm,
+                                CONFIGWIKI_URLPATH, "config.view")
     if denied is not None:
         return denied
     base_url = _base_url(config, farm, wiki_dir, explicit_farm)
@@ -413,11 +474,15 @@ def render_configwiki_api(wiki_dir, config, farm, explicit_farm):
 
     **断りもJSONで返す**（画面のHTMLを返さない）。読むのは画面のJSなので、
     403で戻されたときも文言をその場に出せるようにしておく。"""
-    if not auth.allows(wiki_dir, farm, auth.STAFF):
-        return sysui.json_out({"ok": False, "message": "この画面を使う権限がありません。"},
-                              status=403)
     body = sysui.json_body()
     op = body.get("op") or "set"
+    # 操作ごとに必要な権限（`wikilib.staffperms`）。知らない操作は、権限があっても断る
+    needed = ("config.rename" if op == "rename"
+              else "config.extrarules" if op.startswith(EXTRARULES_OP_PREFIX)
+              else "config.edit")
+    if not auth.can(wiki_dir, farm, needed):
+        return sysui.json_out({"ok": False, "message": "この操作をする権限がありません。"},
+                              status=403)
     if op == "rename":
         return _rename(wiki_dir, config, farm, explicit_farm, body)
     if op.startswith(EXTRARULES_OP_PREFIX):
@@ -546,9 +611,13 @@ def _control_html(field, value, has_own):
         choices = (field["choices"] if kind == "choice" else
                    HTML_CHOICES if kind == "html" else
                    [("true", "はい"), ("false", "いいえ")])
+        if kind == "choice" and text and text not in [str(v) for v, _label in choices]:
+            # 選択肢に無い値が書かれているとき（手で書いた・テーマのフォルダを消した、
+            # など）。先頭の選択肢が選ばれているように見せないため、その値を先頭に足す
+            choices = [(text, f"{text}（一覧に無い値）")] + list(choices)
         options = "".join(
-            f'<option value="{escape(v)}"'
-            f'{" selected" if text == v else ""}>{escape(label)}</option>'
+            f'<option value="{escape(str(v))}"'
+            f'{" selected" if text == str(v) else ""}>{escape(label)}</option>'
             for v, label in choices)
         return (f'<select id="{ident}" data-role="value"{disabled}>'
                 f'{options}</select>')
@@ -675,7 +744,8 @@ def _screen_html(common, own, path, farm, base_url, opening, wiki_dir):
         f'\n        <p class="wcfg-common">いま効いている塩: <code>{escape(salt)}</code>'
         "（空のときは Wiki名）</p>")}
     panels = "\n".join(
-        _panel_html(key, fields, common, own, opening, notes)
+        _panel_html(key, [resolve_choices(f, wiki_dir) for f in fields],
+                    common, own, opening, notes)
         for key, _title, fields in SECTIONS)
     return f"""<div class="wcfg" data-api="{escape(base_url)}/{CONFIGWIKI_API}">
   <p class="wcfg-lead">このWikiの設定（<code>{escape(shown_path(path))}</code>）を書き換えます。

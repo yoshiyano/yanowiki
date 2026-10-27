@@ -6,7 +6,6 @@ import { api } from "./api.js";
 import { h, icon } from "./dom.js";
 import { isHidden } from "./filetypes.js";
 import { splitPath, joinPath } from "./location.js";
-import { enabled } from "./model.js";
 import { compareNames } from "./sort.js";
 import { canPutInto } from "./model.js";
 import { entryIcon, mountIcon } from "./icons.js";
@@ -161,7 +160,9 @@ export function createTree(store, actions) {
     opened = [];
     list.replaceChildren(...s.mounts.map((m) => {
       const li = item(m.id, "/", m.label, mountIcon(m), 0);
-      if (m.capabilities.includes("trash") && enabled(s, "trash") && node(m.id, "/").expanded) {
+      // ごみ箱を見せるマウント（ごみ箱を持ち、ごみ箱の中のコマンドを止め切っていない。mounts の trash）だけ。
+      // 読み取り専用のマウントには出さない（戻す・消すができないため。0.x と同じ。クロコの実装例）
+      if (m.trash && !m.readonly && node(m.id, "/").expanded) {
         let ul = li.querySelector(":scope > ul");
         if (!ul) {
           ul = h("ul", { role: "group" });

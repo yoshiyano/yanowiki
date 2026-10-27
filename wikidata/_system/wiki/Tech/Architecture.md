@@ -7,8 +7,9 @@
 ```
 リクエスト
   ↓ URL接頭辞(server.prefix)を除去
-  ↓ アクセス先のWikiを決定（"=Wiki名" があればそれ、無ければ既定のWiki）
+  ↓ アクセス先のWikiを決定（"=Wiki名" があればそれ、無ければ起点Wiki）
   ↓ ページファイルを探す（.txt を優先、無ければ .md）
+  　 ※ 閲覧の画面に出すのは、取り込んだ内容（DB）。直接置いたファイルは、取り込むまで出ない
   ↓ 本文をHTMLにする（.txt は PukiWiki記法、.md は Markdown として）
   ↓ メニューと目次を組み立てる
   ↓ テーマ（Jinja2テンプレート）で全体を組み上げる
@@ -52,13 +53,13 @@
 `wiki.py` は**起動とURLの振り分けだけ**を受け持ち、実際の処理は
 `_sys/wikilib/` の各モジュールが持ちます。
 
-**表示と記法**
+**表示と書きかた**
 
 | モジュール | 受け持ち |
 |---|---|
 | `paths.py` | 定数と、URLのページパス↔実ファイルの対応づけ（`resolve_page_ref` ほか） |
 | `wikiconfig.py` | 設定の読み込み（共通→個別Wikiの重ね）と、そこから決まる値 |
-| `plugins.py` | プラグインの読み込み・記法の登録・呼び出し |
+| `plugins.py` | プラグインの読み込み・書きかたの登録・呼び出し |
 | `render.py` | 本文のレンダリング、目次・見出し位置、本文リンクの書き換え |
 | `pukiwiki.py` | PukiWiki記法のパーサー |
 | `extrarules.py` | PukiWiki記法の「ユーザ定義ルール」「フェイスマーク定義ルール」 |
@@ -70,7 +71,7 @@
 | `themes.py` | Jinja2でページ全体を組み立てる |
 | `views.py` | ページ表示と、ページ／Wikiが無いときの画面 |
 | `search.py` | 検索 |
-| `web.py` | レスポンスまわりの小さな道具 |
+| `web.py` | レスポンスまわりの小さなツール |
 | `vendor.py` | 第三者ライブラリ（`_sys/vendor/`）の資材の配信 |
 
 **編集と保存**
@@ -92,7 +93,7 @@
 | `pagesync.py` | 平文の直接編集の取り込み（起動時・1時間ごと・`updatepage`） |
 | `pagemove.py` | ページとフォルダの行き来（展開・集約と、それに伴う付け替え） |
 | `pagerename.py` | ページ・フォルダの名前と置き場所を変える（ファイル一覧から呼ぶ）。指していたリンクも直す |
-| `filesui.py` | ファイル一覧（`/.files/`）。webFileDir を組み込み、閲覧できるページをエクスプローラーの形で見せる。ページの参照・編集・名前の変更・移動・削除・フォルダとページの新規作成ができる |
+| `filesui.py` | ファイル一覧（`/.files/`）。webFileDir を組み込み、閲覧できるページをエクスプローラーの形で見せる。ページの参照・編集・名前の変更・移動・コピー・削除・フォルダとページの新規作成・見出し連番・フォルダ化と、中断した名前の変更・移動の続きができる（[ファイル一覧の仕組み](/Tech/FilesUI)） |
 | `pagelinks.py` | 本文に書かれたリンク先を、書かれたままの位置で書き換える |
 | `pluginlinks.py` | プラグインの引数に書いたページ名を、名前の変更に合わせて書き換える |
 
@@ -128,7 +129,7 @@
 | モジュール | 受け持ち |
 |---|---|
 | `sysui.py` | システムの画面（`/.admin/…`・`/.groups` ほか）が共通で使う土台（外枠・権限の関門） |
-| `adminui.py` | 管理の道具の一覧（`/.admin`） |
+| `adminui.py` | 管理ツールの一覧（`/.admin`） |
 | `adminlog.py` | 管理操作の履歴（`log/admin.log.db`） |
 | `configui.py` | Wikiの設定を画面から書き換える（`/.admin/configwiki`） |
 | `extrarulesui.py` | PukiWiki記法の定義ルールを設定画面から書き換える |
@@ -138,7 +139,7 @@
 | `farmrename.py` | Wikiの名前を変える（設定画面の「Wiki名」） |
 | `wikimark.py` | そのWikiを取り違えていないかを確かめる目印 |
 | `convwiki.py` | PukiWikiのデータを写して新しいWikiを作る（`./wiki.py convwiki`） |
-| `allwiki.py` | このサーバーの全Wikiの一覧（`/.allwiki`。URL名は設定で決まる。既定Wikiの管理者と助手だけ） |
+| `allwiki.py` | このサーバーの全Wikiの一覧（`/.allwiki`。URL名は設定で決まる。起点Wikiの管理者と助手だけ） |
 
 依存はおおよそ **`paths`/`wikiconfig` → `plugins` → `render` → `themes` →
 各機能 → `editor`/`views`** の向きで、循環しないようにしてあります。

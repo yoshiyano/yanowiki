@@ -15,8 +15,8 @@
 （＝助手かどうか）が`sysui.require`の関門として正しく効くかだけ。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_adminui.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_adminui.py     （このファイルだけ）
 """
 import os
 import re
@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
 
 import bottle  # noqa: E402
 
-from wikilib import adminui, groups, userdb  # noqa: E402
+from wikilib import adminui, groups, staffperms, userdb  # noqa: E402
 from wikilib import auth, sysui  # noqa: E402
 from wikilib.paths import (  # noqa: E402
     ADMIN_URLPATH, LOGIN_AUTH_COOKIE, LOGIN_COOKIE, wiki_cookie_name,
@@ -158,22 +158,102 @@ class TestDeniedLinks(AdminTestBase):
 class TestTools(unittest.TestCase):
     """窓口に並べる道具の一覧。"""
 
-    def test_管理者だけの道具が宣言されている(self):
-        admin_only = {path for path, _l, _n, only in adminui.TOOLS if only}
-        self.assertIn(".admin/accounts", admin_only)
+    @staticmethod
+    def default_open():
+        """既定の権限（`staffperms.default_set`）で助手が開ける道具のURL。"""
+        held = staffperms.default_set()
+        return {path for path, _l, _n, access in adminui.TOOLS
+                if access == adminui.EVERYONE
+                or (access != staffperms.ADMIN_ONLY and any(k in held for k in access))}
+
+    def test_既定では管理者だけの道具が宣言されている(self):
+        shared = self.default_open()
+        for urlpath in (".admin/accounts", ".admin/stafflog", ".admin/staffperms"):
+            self.assertNotIn(urlpath, shared)
+            self.assertIn(urlpath, {p for p, _l, _n, _a in adminui.TOOLS})
+
+    def test_助手の権限の道具は設定できない_管理者だけ(self):
+        access = {p: a for p, _l, _n, a in adminui.TOOLS}
+        self.assertEqual(access[".admin/staffperms"], staffperms.ADMIN_ONLY)
 
     def test_設定は助手も使える(self):
-        shared = {path for path, _l, _n, only in adminui.TOOLS if not only}
-        self.assertIn(".admin/configwiki", shared)
+        self.assertIn(".admin/configwiki", self.default_open())
 
     def test_助手グループの道具はgroupsへのリンク(self):
-        shared = {path for path, _l, _n, only in adminui.TOOLS if not only}
-        self.assertTrue(any(".groups" in p and groups.STAFF_GROUP in p for p in shared))
+        self.assertTrue(any(".groups" in p and groups.STAFF_GROUP in p
+                            for p in self.default_open()))
+
+    def test_Wikiの削除_一覧_再起動が並ぶ(self):
+        from wikilib.paths import DELWIKI_URLPATH, RESTART_URLPATH
+        paths = [path for path, _l, _n, _o in adminui.TOOLS]
+        for want in (DELWIKI_URLPATH, RESTART_URLPATH, adminui.ALLWIKI_URLPATH):
+            self.assertIn(want, paths)
+            self.assertIn(want, self.default_open())
+
+    def test_グループと権限の記録の後始末が並ぶ_誰でも開ける(self):
+        from wikilib.paths import GROUPS_URLPATH, UPDATEPAGEAUTH_URLPATH
+        access = {p: a for p, _l, _n, a in adminui.TOOLS}
+        for want in (GROUPS_URLPATH, UPDATEPAGEAUTH_URLPATH):
+            self.assertEqual(access[want], adminui.EVERYONE)
+        # 権限を何も持たない助手にもリンクで出す
+        self.assertTrue(adminui._may_open(adminui.EVERYONE, False, frozenset()))
+
+    def test_要る権限の名前はどれも実在する(self):
+        for _path, _label, _note, access in adminui.TOOLS:
+            if access not in (staffperms.ADMIN_ONLY, adminui.EVERYONE):
+                staffperms.check_keys(access)
+
+    def test_既定のWiki専用の道具は別のWikiからもサイトの根へ向ける(self):
+        user = {"uid": "admin", "name": "管理"}
+        html = adminui.admin_tools_html("/=other", user, True)
+        for name in ("newwiki", "delwiki", "restart", "allwiki"):
+            self.assertIn(f'href="/.{name}"', html)
+        self.assertIn('href="/=other/.admin/configwiki"', html)
+
+    def test_一覧を出さない設定ならWikiの一覧は並べない(self):
+        from unittest import mock
+        user = {"uid": "admin", "name": "管理"}
+        with mock.patch("wikilib.wikiconfig.load_config",
+                        return_value={"farm": {"allwiki": ""}}):
+            html = adminui.admin_tools_html("/=other", user, True)
+        self.assertNotIn("Wikiの一覧", html)
+        self.assertIn("Wikiを消す", html)
 
     def test_書きかたがそろっている(self):
-        for path, label, note, only in adminui.TOOLS:
+        for path, label, note, access in adminui.TOOLS:
             self.assertTrue(path and label and note)
-            self.assertIsInstance(only, bool)
+            self.assertTrue(access in (staffperms.ADMIN_ONLY, adminui.EVERYONE)
+                            or (isinstance(access, tuple) and access))
+
+
+class TestSingleSource(unittest.TestCase):
+    """一覧の見た目の持ち主は `accounts.css` 1つ（Wiki設計者の指示、2026-10-12。
+    「ページの二重管理にならないようにしてください」）。`/.admin` の画面も `#login`
+    の「管理者メニュー」も、同じ一覧が連れてくるCSSで描かれる。"""
+
+    def test_一覧は見た目のCSSを自分で連れてくる(self):
+        user = {"uid": "admin", "name": "管理"}
+        html = adminui.admin_tools_html("/=other", user, True)
+        self.assertIn('<link rel="stylesheet" href="/=other/.admin/accounts.css">', html)
+        # 外枠の幅を使うのは一覧の表（accounts.css の .acct.acct-list）。
+        # 列の幅の基準（cqw）の入れ物は .acct-admin
+        self.assertIn('class="acct acct-list acct-admin"', html)
+
+    def test_管理の画面は自分ではCSSを足さない(self):
+        # 一覧が連れてくる。画面側でも足すと、見た目の持ち主が2か所になる
+        from types import SimpleNamespace
+        from unittest import mock
+        with mock.patch.object(adminui.sysui, "require", return_value=None), \
+                mock.patch.object(adminui.sysui, "page") as page, \
+                mock.patch.object(adminui.auth, "current_user",
+                                  return_value={"uid": "admin", "name": ""}), \
+                mock.patch.object(adminui.userdb, "is_admin", return_value=True), \
+                mock.patch.object(adminui, "make_plugin_context",
+                                  return_value=SimpleNamespace(base_url="/=x")), \
+                mock.patch.object(adminui, "admin_tools_html", return_value="<p>tools</p>"):
+            adminui.render_admin("/nowhere", {}, "x", False)
+        self.assertEqual(page.call_count, 1)
+        self.assertNotIn("css_url", page.call_args.kwargs)
 
 
 if __name__ == "__main__":

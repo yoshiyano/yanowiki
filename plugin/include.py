@@ -1,7 +1,7 @@
 """include — 別のページの本文をそのままこのページに差し込むプラグイン。
 
     #include(ページ名)                そのページの本文をここに差し込む（見出しつき）
-    #include(ページ名, notitle)       見出し（ページ名＋編集リンク）を付けない
+    #include(ページ名, notitle)       見出し（ページ名）を付けない
     #include(ページ名, title)         見出しつき（省略時と同じ）
 
  1. **page** … 差し込むページ名
@@ -10,6 +10,7 @@
        "./" はいまのページの下、"../" は1つ上
  2. title    … 見出しの有無 (default: title)
        指定外の値を書いても既定（title）として扱われます
+       見出しを押すと、そのページが開きます（編集画面ではありません）
 
 差し込んだ先のページがさらに`#include`を持っていれば、そちらも辿って
 差し込みます（入れ子OK）。ただし次の場合はページの中身の代わりに案内を
@@ -50,7 +51,7 @@
 
 2026-09-25、`pagediv` を作るときに、差し込み先を描く部分（下の`sub`の作りかた・
 表示を止めたページ・リンクの付け替え・資材の合流）と見出しを兄弟の共有モジュール
-`_embedpage.py` に切り出した（件数の上限`MAX_INCLUDES`はinclude固有の決まりなので
+`include_.py` に切り出した（件数の上限`MAX_INCLUDES`はinclude固有の決まりなので
 ここに残した。`pagediv`には件数の上限が無い）。以下の説明の実装はそちらにある。
 
 ## 件数の上限（2026-09-25、4 → 12）
@@ -102,7 +103,7 @@
 相対リンクを含む前提が無い案内文に対して機械的なリンク書き換えをかける
 理由が無いため。
 
-`title` 見出し（ページ名＋編集リンク）はこの制限と無関係にそのまま出す
+`title` 見出し（ページ名の閲覧リンク）はこの制限と無関係にそのまま出す
 （Wiki設計者の方針: 見出しはDBのタイトルで本文由来ではないため、基本的に本文が
 見えなければ十分という判断）。
 
@@ -111,11 +112,28 @@
 `published_ref` は、いまの閲覧者のアクセス権を `ref.privilege`（`W`/`R`/`-`）に
 入れて返す。**`-` でも `ref.body` には本文が入っている**ので、変換する前に見て、
 `-` なら本文の代わりに「このページを閲覧する権限がありません: ページ名」を出す。
-見出し（ページ名＋編集リンク）も付けない。
+見出しも付けない。
 
 在るかどうかより先に見る（ページの表示 `views.render_page` と同じ順）。差し込み
 件数にも数えない（本文を差し込んでいないため）。取り込み元のページ全体は止めない
 ——`block_view` のときと同じく、差し込んだ場所にだけ案内が出る。
+
+## 見出しは閲覧リンク（2026-10-12、Wiki設計者の指示）
+
+本家は見出しを `?cmd=edit&page=…` の**編集リンク**にしている（`include.inc.php` の
+`// Put a title-with-edit-link`）。この移植も初版（2026-08-25）から同じく編集へ飛ばし、
+編集の権限が無い閲覧者にだけ閲覧リンクを出していた。2026-10-12、Wiki設計者の指示
+「閲覧リンクにする。編集ボタンは不要。(ページ開いて編集で十分)」で、**誰にも閲覧リンクだけ**
+にした（編集の権限の判定とフォームは持たない）。編集の入口はページ自身のヘッダ
+（Alt+E）にあり、見出しにもう一つ持つ必要が無いという点は、クロコも賛成。
+
+飛び先は本家と逆だが、後方互換の対象は書きかた・引数・差し込まれる本文であり、
+見出しの飛び先の違いでそれらは変わらない。同じ日に、Wiki設計者の指示で `pagediv` の
+見出しも閲覧リンクだけにした（これで、編集ボタンを出していた `include_.title_html`
+は呼び出し元がなくなり、削除した。`calendar_viewer` の見出しは変えていない）。
+
+閲覧リンクは `include_.read_link`。**`href` をURLエンコードする**（ページ名の
+`#`・`?`・`%` で別のページへ飛ばないように。理由は `read_link` の docstring）。
 """
 import importlib.util
 import os
@@ -137,10 +155,10 @@ PLUGIN_INFO = {
 
 
 def _load_embed():
-    """兄弟の`_embedpage.py`（`pagediv`と共有）を読み込む（呼び出しごと。
-    理由は`_embedpage.py`の docstring）。"""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_embedpage.py")
-    spec = importlib.util.spec_from_file_location("wikiplugin__embedpage", path)
+    """兄弟の`include_.py`（`pagediv`と共有）を読み込む（呼び出しごと。
+    理由は`include_.py`の docstring）。"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "include_.py")
+    spec = importlib.util.spec_from_file_location("wikiplugin_include_", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -184,9 +202,9 @@ def _convert(resolved, body, context):
     state["included"].add(page)
 
     # 差し込み先を基準にした解決・表示を止めたページ・資材の合流は
-    # `_embedpage.render`（技術資料「差し込み先が表示を止めている場合」参照）
+    # `include_.render`（技術資料「差し込み先が表示を止めている場合」参照）
     html = embed.render(context, page, ref, state)
 
     if not _with_title(resolved):
         return f'{html}\n'
-    return f'<h1 class="include-title">{embed.title_html(context, page)}</h1>\n{html}\n'
+    return f'<h1 class="include-title">{embed.read_link(page)}</h1>\n{html}\n'

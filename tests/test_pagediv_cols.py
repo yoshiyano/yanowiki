@@ -6,8 +6,8 @@
 - 単語の cols は、ページの並びの受け皿から拾う（cols=N は名前付きのみ）
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pagediv_cols.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pagediv_cols.py     （このファイルだけ）
 """
 import os
 import re

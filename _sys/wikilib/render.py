@@ -3,13 +3,13 @@
 目次・タイトル・見出しの位置（セクション編集が使う）と、
 本文中のリンクの書き換えをまとめている。
 
-記法（Markdown / PukiWiki記法）ごとの読み取りかたは違っても、
+書きかた（Markdown / PukiWiki記法）ごとの読み取りかたは違っても、
 出来上がるトークン列の形は同じにしてあるため、目次・見出しの位置・
 リンクの書き換えはここにある同じ関数で扱える。"""
 import re
 import unicodedata
 
-from wikilib import pukiwiki
+from wikilib import bulkscope, pukiwiki
 from wikilib.extrarules import load_extra_rules
 from wikilib.interwiki import load_interwiki
 from wikilib import htmlpolicy
@@ -38,7 +38,7 @@ _HALFWIDTH_EAW = ("Na", "H", "N")
 
 # 前後の文字を探すとき、飾りの開始・終了タグ（強調・リンク等）は
 # 「文字を持たない目印」なので読み飛ばして、その先の文字まで見る。
-# 中身が空の text も同じ（PukiWiki記法のパーサは、記法の切れ目に空の
+# 中身が空の text も同じ（PukiWiki記法のパーサは、書きかたの切れ目に空の
 # text トークンを挟むことがある）。
 _MARKUP_ONLY = ("_open", "_close")
 _SKIPPABLE_EMPTY = _MARKUP_ONLY + ("text",)
@@ -143,33 +143,44 @@ def render_markdown(engine, text, first_h1_as_title, context=None, toc_depth=Non
     return html, title, toc
 
 
-# ---- 記法ごとの入口 ---------------------------------------------------------
-# 拡張子で記法を選ぶ判断は、この2つの関数に閉じ込める。呼び出し側（表示・編集・
-# プレビュー・セクション編集）は、どの記法かを気にせず同じ形で扱える。
+# ---- 書きかたごとの入口 ---------------------------------------------------------
+# 拡張子で書きかたを選ぶ判断は、この2つの関数に閉じ込める。呼び出し側（表示・編集・
+# プレビュー・セクション編集）は、どの書きかたかを気にせず同じ形で扱える。
 
 def is_pukiwiki(ext):
     return markup_name_for(ext) == "pukiwiki"
 
 
 def parse_source(engine, text, ext, env=None):
-    """ページの生テキストを、その拡張子の記法でトークン列にする。
+    """ページの生テキストを、その拡張子の書きかたでトークン列にする。
 
     PukiWiki記法もmarkdown-itと同じ形のトークン列になるため、目次
     （build_toc）・見出しの位置（heading_positions）・レンダリングは
-    どちらの記法でも同じものが使える。
+    どちらの書きかたでも同じものが使える。
 
     PukiWiki記法の「ユーザ定義ルール」「フェイスマーク定義ルール」
     （wikilib.extrarules）・InterWiki（wikilib.interwiki）・WikiNameの
     有効/無効は、env["wiki"]（context）にWikiの場所と設定が載っていればそこから
     読み込む。TOC抽出・差分表示など、contextを持たずに呼ぶ場面（env無し）では
     これらの機能無しで解釈する（構造の抽出には影響しないため、無くても
-    困らない）。"""
-    if env is None:
-        env = {}
+    困らない）。
+
+    文脈なしの解析は、まとめて書き換える範囲（`bulkscope.scope`）の中では同じ
+    本文の結果を使い回す（名前の変更で保存し直すページの、リンク・タイトル・
+    目次の記録で何度も解析するため）。"""
+    if not env:
+        # Markdown は pagelinks.plain_tokens と同じ解析（engine.parse）なので鍵を共通に
+        # する。PukiWiki記法は生HTMLの扱いがあちらと違い、結果が変わるので分ける
+        key, eng = ("source.txt", None) if is_pukiwiki(ext) else ("md", engine)
+        return bulkscope.parse(key, eng, text, lambda: _parse_source(engine, text, ext, {}))
+    return _parse_source(engine, text, ext, env)
+
+
+def _parse_source(engine, text, ext, env):
     if is_pukiwiki(ext):
         context = env.get("wiki")
         # 生HTMLは既定で認識させない（＝書かれたものは文字になる）。
-        # 設定は記法ごとに分かれていて、ここは pukiwiki.allow_html を見る
+        # 設定は書きかたごとに分かれていて、ここは pukiwiki.allow_html を見る
         # （wikilib.htmlpolicy）
         extra_rules, interwiki, wikiname, allow_html = None, None, True, False
         if context is not None and context.wiki_dir is not None:
@@ -184,7 +195,7 @@ def parse_source(engine, text, ext, env=None):
 
 
 def uses_title_heading(ext, first_h1_as_title):
-    """先頭の見出しをページタイトルとして抜き出す記法か。
+    """先頭の見出しをページタイトルとして抜き出す書きかたか。
 
     この扱いはMarkdown固有のもの。PukiWikiではページ名がそのままタイトルで、
     本文の先頭にタイトル行を置く習慣が無いため、設定にかかわらず抜き出さない。"""
@@ -192,7 +203,7 @@ def uses_title_heading(ext, first_h1_as_title):
 
 
 def render_source(engine, text, ext, first_h1_as_title, context=None, toc_depth=None):
-    """ページの生テキストを、その拡張子の記法で (本文HTML, タイトル, 目次) にする。"""
+    """ページの生テキストを、その拡張子の書きかたで (本文HTML, タイトル, 目次) にする。"""
     env = {"wiki": context}
     tokens = parse_source(engine, text, ext, env)
     title, tokens, _ = split_title(tokens, uses_title_heading(ext, first_h1_as_title))
@@ -342,7 +353,7 @@ def _is_site_wide(value, commands):
 def rewrite_content_links(html, base_url, attach_subpath, wiki_dir=None):
     """本文・メニュー中のリンクと画像参照（href="..." / src="..."）を書き換える。
 
-    リンク先をどう読むかは記法によらず paths.resolve_link が決める。ここでは
+    リンク先をどう読むかは書きかたによらず paths.resolve_link が決める。ここでは
     その答えを実際のURLに直すだけで、書きかたの決まりはこのモジュールには持たない。
 
     - ページ（"page"）: base_url を前置する。ページ本文はWikiをまたいでも安定する

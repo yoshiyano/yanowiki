@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""新しく作るページの記法（`edit.defaultwiki`）のテスト。
+"""新しく作るページの書きかた（`edit.defaultwiki`）のテスト。
 
-**すでにあるページの記法は拡張子で決まる**ので、この設定が効くのは
+**すでにあるページの書きかたは拡張子で決まる**ので、この設定が効くのは
 「まだ無いページ」を指したときだけである。そこを取り違えると、
 `.txt` のページを `.md` として書き戻して同じ名前のページが2つできる、
 といった壊れかたをするため、両方を固定してある。
@@ -31,7 +31,7 @@ class TestDefaultMarkupSetting(unittest.TestCase):
         self.assertEqual(default_markup(None), "pukiwiki")
         self.assertEqual(default_markup({"edit": {}}), "pukiwiki")
 
-    def test_設定した記法になる(self):
+    def test_設定した書きかたになる(self):
         self.assertEqual(default_markup({"edit": {"defaultwiki": "markdown"}}), "markdown")
         self.assertEqual(default_markup({"edit": {"defaultwiki": "pukiwiki"}}), "pukiwiki")
 
@@ -47,9 +47,9 @@ class TestDefaultMarkupSetting(unittest.TestCase):
 
 
 class TestDefaultMarkupExt(unittest.TestCase):
-    """記法から拡張子を決める（paths.default_markup_ext）。"""
+    """書きかたから拡張子を決める（paths.default_markup_ext）。"""
 
-    def test_記法ごとの拡張子(self):
+    def test_書きかたごとの拡張子(self):
         self.assertEqual(default_markup_ext("pukiwiki"), ".txt")
         self.assertEqual(default_markup_ext("markdown"), ".md")
 
@@ -74,7 +74,7 @@ class TestResolvePageRef(unittest.TestCase):
         with open(os.path.join(self.wiki_dir, name + ext), "w", encoding="utf-8") as f:
             f.write("中身\n")
 
-    def test_まだ無いページは設定の記法になる(self):
+    def test_まだ無いページは設定の書きかたになる(self):
         self.assertEqual(resolve_page_ref(self.wiki_dir, "New", "markdown").ext, ".md")
         self.assertEqual(resolve_page_ref(self.wiki_dir, "New", "pukiwiki").ext, ".txt")
 

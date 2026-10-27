@@ -110,7 +110,7 @@ def render_allwiki(wiki_dir, config, farm, explicit_farm):
 
     urlpath = "." + command
     denied = sysui.require_on_default_farm(config, farm, wiki_dir, explicit_farm,
-                                           urlpath)
+                                           urlpath, "site.allwiki")
     if denied is not None:
         return denied
 
@@ -125,7 +125,7 @@ def render_allwiki(wiki_dir, config, farm, explicit_farm):
         marks = []
         if name == default_farm:
             # 名前を付けずに開いたときに出るWiki。どれが表かは知りたい情報
-            marks.append('<span class="allwiki-default">既定</span>')
+            marks.append('<span class="allwiki-default">起点</span>')
         if name == farm:
             marks.append('<span class="allwiki-here">いま見ています</span>')
         count = ("—" if entry["pages"] is None

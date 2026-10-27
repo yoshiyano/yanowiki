@@ -17,8 +17,8 @@
     打ち切ること           毎回書き換えるプラグインで MAX_REVIEW 回で止まるか
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pagereview.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pagereview.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -29,6 +29,11 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "_sys"))
 
+import bottle  # noqa: E402
+from unittest import mock  # noqa: E402
+
+from wikilib import pagedb, paths, views  # noqa: E402
+from wikilib.pagesave import save_page, watch_writes  # noqa: E402
 from wikilib.pagesync import MAX_REVIEW, review_page, sync_wiki  # noqa: E402
 
 # 描くたびに本文の末尾へ1行足すプラグイン。**いつまでも落ち着かない**
@@ -210,3 +215,85 @@ class TestSyncReviews(ReviewTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestViewRerender(ReviewTestBase):
+    """ページを開いたときの表示（`views.render_page`）でも、描画の中で本文が書き換わったら
+    新しい本文で描き直す（`pagesave.watch_writes`）。"""
+
+    def setUp(self):
+        super().setUp()
+        self.kept_wikidata = paths.WIKIDATA_DIR
+        paths.WIKIDATA_DIR = os.path.join(self.work, "wikidata")
+        self.put_plugin("note_render", NOTE_PLUGIN)
+
+    def tearDown(self):
+        paths.WIKIDATA_DIR = self.kept_wikidata
+        bottle.request.environ.clear()
+        super().tearDown()
+
+    def publish(self, subpath, text):
+        self.put(subpath, text)
+        self.assertTrue(pagedb.record_page(self.wiki_dir, subpath, ".md", text))
+
+    def open(self, pagepath):
+        with mock.patch.object(views, "record_access"), mock.patch.object(views, "maybe_backup"):
+            res = views.render_page(self.wiki_dir, {}, "testwiki", pagepath, False)
+        raw = res.body if hasattr(res, "body") else res
+        return res, raw.decode("utf-8") if isinstance(raw, bytes) else raw
+
+    def renders(self):
+        """本文（index）を描いた回数（NOTE_PLUGIN の印）。"""
+        path = os.path.join(self.farm_dir, "rendered.txt")
+        if not os.path.exists(path):
+            return 0
+        with open(path, encoding="utf-8") as f:
+            return f.read().split().count("(top)")
+
+    def test_書き換えなければ1回だけ描く(self):
+        self.publish("index", "本文\n\n#note_render()\n")
+        self.open("")
+        self.assertEqual(self.renders(), 1)
+
+    def test_書き換えたら新しい本文で描き直す(self):
+        self.put_plugin("once", ONCE_PLUGIN)
+        self.publish("index", "本文\n\n#note_render()\n\n#once()\n")
+        res, html = self.open("")
+        self.assertEqual(self.renders(), 2)
+        self.assertIn("済", html)    # 書き換えたあとの本文がその表示から出る
+
+    def test_メニューの書き換えでも描き直す(self):
+        self.put_plugin("once", ONCE_PLUGIN)
+        self.publish("index", "本文\n\n#note_render()\n")
+        self.publish("mainmenu", "メニュー\n\n#once()\n")
+        res, html = self.open("")
+        self.assertEqual(self.renders(), 2)
+        self.assertIn("済", self.body_of("mainmenu"))
+
+    def test_毎回書き換えるプラグインはMAX_REVIEWで打ち切って出す(self):
+        self.put_plugin("grow", GROW_PLUGIN)
+        self.publish("index", "本文\n\n#note_render()\n\n#grow()\n")
+        res, html = self.open("")
+        self.assertEqual(self.renders(), MAX_REVIEW)
+        self.assertEqual(res.status_code, 200)   # エラーにしない
+
+
+class TestWatchWrites(ReviewTestBase):
+    """`pagesave.watch_writes` が覚えるもの。"""
+
+    def test_中身が変わった保存だけを覚える(self):
+        self.put("A", "前\n")
+        self.assertTrue(pagedb.record_page(self.wiki_dir, "A", ".md", "前\n"))
+        with watch_writes() as written:
+            save_page(self.wiki_dir, {}, "A", ".md", "前\n")
+        self.assertEqual(written, set())
+        with watch_writes() as written:
+            save_page(self.wiki_dir, {}, "A", ".md", "後\n")
+        self.assertEqual(written, {"A"})
+
+    def test_外では覚えない(self):
+        self.put("A", "前\n")
+        save_page(self.wiki_dir, {}, "A", ".md", "後\n")   # watch_writes の外でも保存はできる
+        with watch_writes() as written:
+            pass
+        self.assertEqual(written, set())

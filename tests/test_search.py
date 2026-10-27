@@ -8,8 +8,8 @@
 （渡し忘れて全ページが対象になる側に倒れないため）。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_search.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_search.py     （このファイルだけ）
 """
 import os
 import shutil

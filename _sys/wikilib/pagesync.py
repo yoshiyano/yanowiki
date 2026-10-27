@@ -269,7 +269,10 @@ def review_page(wiki_dir, config, farm, subpath, max_review=MAX_REVIEW):
 
     描画で例外が出たページも、そこで止めずに「落ち着いた」として返す。
     **描けないページがあることと、取り込みが失敗することは別**で、
-    そのページの不具合は開いたときに画面で見える。"""
+    そのページの不具合は開いたときに画面で見える。
+
+    ページを開いたときの表示にも、同じ考えかたの描き直しがある（`views.render_page`。
+    書き換わったことは `pagesave.watch_writes` で見分ける）。"""
     from wikilib.render import render_source
     from wikilib.themes import make_plugin_context
 

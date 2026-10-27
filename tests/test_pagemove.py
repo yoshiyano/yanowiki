@@ -12,8 +12,8 @@
 切れる。1つでも取り残すと、画面には何も出ないまま静かに失われる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pagemove.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pagemove.py     （このファイルだけ）
 """
 import os
 import shutil

@@ -1,0 +1,180 @@
+{
+  "name": "wikiedit",
+  "displayName": "wikiedit",
+  "description": "wikiSystem の編集画面の本文を、VS Code で書く（エディタ連動の編集）。",
+  "version": "0.1.5",
+  "publisher": "wikisystem",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "wikiedit.start",
+        "title": "待ち受けを始める",
+        "category": "wikiedit"
+      },
+      {
+        "command": "wikiedit.stop",
+        "title": "待ち受けをやめる（Wiki のドキュメントも閉じる）",
+        "category": "wikiedit"
+      },
+      {
+        "command": "wikiedit.version",
+        "title": "バージョンを表示",
+        "category": "wikiedit"
+      },
+      {
+        "command": "wikiedit.save",
+        "title": "Wiki に保存する",
+        "category": "wikiedit",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "wikiedit.insertAttachment",
+        "title": "添付ファイルの書きかたを挿入",
+        "category": "wikiedit",
+        "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "wikiedit.copyAttachment",
+        "title": "添付ファイルの書きかたをコピー",
+        "category": "wikiedit"
+      },
+      {
+        "command": "wikiedit.close",
+        "title": "Wiki のドキュメントを閉じる",
+        "category": "wikiedit"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "wikiedit.insertAttachment",
+          "when": "resourceScheme == wikiedit",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "wikiedit.insertAttachment",
+          "when": "resourceScheme == wikiedit",
+          "group": "wikiedit@1"
+        },
+        {
+          "command": "wikiedit.copyAttachment",
+          "when": "resourceScheme == wikiedit",
+          "group": "wikiedit@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "wikiedit.save",
+          "when": "resourceScheme == wikiedit"
+        },
+        {
+          "command": "wikiedit.insertAttachment",
+          "when": "resourceScheme == wikiedit"
+        },
+        {
+          "command": "wikiedit.copyAttachment",
+          "when": "resourceScheme == wikiedit"
+        },
+        {
+          "command": "wikiedit.close",
+          "when": "resourceScheme == wikiedit"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "wikiedit",
+      "properties": {
+        "wikiedit.port": {
+          "type": "integer",
+          "default": 4100,
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "待ち受けるポート番号。編集画面の「設定」の「ポート番号」とそろえる。"
+        },
+        "wikiedit.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "VS Code を起動したら待ち受けを始める。"
+        },
+        "wikiedit.allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "application",
+          "description": "つないでよいと答えた Wiki のオリジン（http://wiki.example.com のような形）。初めての接続で「許す」と答えると、ここに覚える。消したいものは消してよい。localhost・127.0.0.1 は書かなくても尋ねずにつなぐ。"
+        },
+        "wikiedit.allowExtensions": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "ブラウザ拡張機能（wikiedit）を通した接続を受け付ける。受け付けるときも、Wiki のページのオリジンで許すかを決める。"
+        },
+        "wikiedit.keepSeconds": {
+          "type": "integer",
+          "default": 10,
+          "minimum": 1,
+          "description": "保存などで編集画面が再読み込みされるあいだ、ドキュメントを保つ秒数（タブを閉じたときは待たずに閉じる）。"
+        },
+        "wikiedit.staleSeconds": {
+          "type": "integer",
+          "default": 45,
+          "minimum": 5,
+          "description": "編集画面から何も届かないまま、この秒数がたったら「応答なし」とみなす。応答なしのあいだは変更を送らずにため、応答があったら送る。"
+        },
+        "wikiedit.takeoverInterval": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "description": "ほかのウィンドウが待ち受けているとき、いなくなったかを確かめる間隔（秒）。"
+        },
+        "wikiedit.display": {
+          "type": "string",
+          "enum": [
+            "focus",
+            "background",
+            "none"
+          ],
+          "enumDescriptions": [
+            "ドキュメントを開いて、そこに移る",
+            "ドキュメントを開くが、いまの場所から移らない",
+            "開かない（試験用）"
+          ],
+          "default": "focus",
+          "description": "Wiki のドキュメントの出しかた。"
+        },
+        "wikiedit.languages": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "書きかたごとの言語 ID（例: {\"pukiwiki\": \"pukiwiki\"}）。書かない書きかたは、ファイル名の拡張子（.md・.txt）で決まる。"
+        }
+      }
+    }
+  }
+}

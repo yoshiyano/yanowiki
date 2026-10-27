@@ -167,7 +167,7 @@ def restore_backup(wiki_dir, config, subpath, key, base_rev):
         return False, ("その保存の前には、ページがまだありません。"
                        "削除したい場合は編集画面で本文を空にして保存してください。")
 
-    # 書き戻す先は、そのページが実際に使っている拡張子（＝記法）に合わせる。
+    # 書き戻す先は、そのページが実際に使っている拡張子（＝書きかた）に合わせる。
     # .txt のページを .md として書き出すと、同じ名前のページが2つできてしまう
     ext = page_ext_of_subpath(wiki_dir, subpath)
     path = page_file_path(wiki_dir, subpath, ext)

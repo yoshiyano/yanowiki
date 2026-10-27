@@ -2,7 +2,7 @@
 
     #recent()                    最大10件（既定）
     #recent(5)                   最大5件
-    #recent(5, Tech/ChangeLog)   Tech/ChangeLog を除いて5件
+    #recent(5, ChangeLog)   ChangeLog を除いて5件
     #recent(num=5, exclude=...)  同上（名前付きでも書ける）
 
 主にサイドバーのメニューページ（mainmenu など）に置くことを想定しています。

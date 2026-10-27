@@ -33,6 +33,7 @@ import os
 import re
 import sqlite3
 
+from wikilib import bulkscope
 from wikilib.paths import (
     BACKUP_MERGE_SECONDS, BACKUP_MIN_KEEP, BACKUP_PRUNE_TARGET, BACKUP_STAMP,
     BACKUP_TOTAL_BYTES, farm_pageinfo_dir,
@@ -230,8 +231,13 @@ def db_path(wiki_dir):
 def connect(wiki_dir):
     """DBを開く。無ければ作り、そのとき既存の.diffファイルを一度だけ取り込む。
 
-    スキーマは毎回そろえる（安いので。pagedb.connect と同じ流儀）。"""
+    スキーマは毎回そろえる（安いので。pagedb.connect と同じ流儀）。
+    まとめて書き換える範囲（`bulkscope.scope`）の中では、1つの接続を使い回す。"""
     path = db_path(wiki_dir)
+    return bulkscope.adopt(path, lambda: _open(wiki_dir, path)) or _open(wiki_dir, path)
+
+
+def _open(wiki_dir, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     fresh = not os.path.exists(path)
     if fresh:

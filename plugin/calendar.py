@@ -40,10 +40,10 @@
 
 - `read`（既定）: その日のページが**閲覧できるときだけ**リンクにする。本家は
   「在るとき」だったが、閲覧できないページは無いページと同じ扱いにする
-  （`_calendar.readable_pages`。`#ls` と同じく、見えないページの存在を知らせない）
+  （`calendar_.readable_pages`。`#ls` と同じく、見えないページの存在を知らせない）
 - `edit`: すべての日を押せるようにする。本家は `?cmd=edit` へのリンクだったが、
   wikiSystemの編集画面はPOSTでしか開けない。**まだ無い日は、編集の権限があれば
-  `cmd=edit` をPOSTするボタン**（`_calendar.new_page_button`。2026-09-27、Wiki設計者の
+  `cmd=edit` をPOSTするボタン**（`calendar_.new_page_button`。2026-09-27、Wiki設計者の
   指示）で新規編集の画面を直接開く。ある日と、編集の権限が無い人のまだ無い日は、
   ページのURLへのリンク（本家どおり全部の日を押せる形を残す）
 
@@ -69,8 +69,8 @@ PLUGIN_INFO = {
 
 
 def _load_common():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_calendar.py")
-    spec = importlib.util.spec_from_file_location("wikiplugin__calendar", path)
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calendar_.py")
+    spec = importlib.util.spec_from_file_location("wikiplugin_calendar_", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -120,7 +120,7 @@ def render(resolved, context, cmd):
             day_page = f"{prefix}{year:04d}{month:02d}{day:02d}"
             label = f"<strong>{day}</strong>"
             if cmd == "edit" and day_page not in readable and cal.can_write(context, day_page):
-                # まだ無い日は、新規編集の画面を直接開く（_calendar.py「まだ無い日は」）
+                # まだ無い日は、新規編集の画面を直接開く（calendar_.py「まだ無い日は」）
                 label = cal.new_page_button(context, day_page, label)
             elif cmd == "edit" or day_page in readable:
                 label = (f'<a href="{escape(cal.page_url(context, day_page))}"'

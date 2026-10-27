@@ -1,6 +1,6 @@
 """アカウントまわりの画面（一覧と編集・自分のパスワード・ハッシュ値づくり）。
 
-    /.admin/accounts   登録されているアカウントを見る・直す  **管理者だけ**
+    /.admin/accounts   登録されているアカウントを見る・直す  **既定は管理者だけ**
     /.admin/accounts/api  一覧の更新・削除を1件ずつ受けるJSON API（同）
     /.passwd           自分のパスワードを変える              誰でも
     /.pwhash           パスワードからハッシュ値を作る道具    誰でも
@@ -15,9 +15,24 @@
 
 `/.admin/accounts` はアカウントの追加・書き換え・削除ができ、パスワードの
 ハッシュ値もそのまま出す画面なので、**そこに届く相手は誰にでもなりすませる**
-（他人のパスワードを書き換えてログインし直せばよい）。取り次ぐ前に
-`sysui.require(..., auth.ADMIN_ONLY)` で確かめ、管理者でなければ403を返して
-中身を組み立てない。
+（他人のパスワードを書き換えてログインし直せばよい）。そのため、**既定では管理者だけ**
+が開ける。取り次ぐ前に `sysui.require_perm(..., "accounts.view")` で確かめ、
+権限が無ければ403を返して中身を組み立てない。
+
+管理者は `/.admin/staffperms` で、助手ごとに**操作を分けて**許せる
+（`wikilib.staffperms`）。
+
+    accounts.view      一覧を見る（ハッシュ値も見える）
+    accounts.add       追加する
+    accounts.rename    IDと名前を書き換える
+    accounts.password  パスワードを入れ直す・ロックする
+    accounts.delete    消す
+
+操作ごとの権限は、**操作を受け取った場所**（一覧のPOST・JSON API）で確かめる。
+**管理者のアカウント（`uidnum = 1`）は、助手には書き換えも削除もできない**
+（`can_modify`）。許していても、管理者のパスワードを書き換えて管理者になることは
+できない。助手の操作は「助手の操作の記録」（`wikilib.stafflog`）にも残す
+（IDの変更を伴う書き換えは、パスワードの付け直しも要る。`userdb.update_user`）。
 
 `/.passwd` を誰でも開けるままにしてあるのは、**いまのパスワードを知らないと
 変えられない**（`userdb.authenticate` を通す）ためで、ログインしていない相手が
@@ -51,7 +66,7 @@ from html import escape
 
 from bottle import request
 
-from wikilib import adminlog, auth, sysui, userdb
+from wikilib import adminlog, auth, groups, staffperms, stafflog, sysui, userdb
 from wikilib.paths import (
     ACCOUNTS_DIR, ACCOUNTS_URLPATH, PASSWD_URLPATH,
     PWHASH_URLPATH,
@@ -70,21 +85,25 @@ ACCOUNTS_CSS = f"{ACCOUNTS_URLPATH}.css"
 # ---- /.admin/accounts ------------------------------------------------------------
 
 def render_accounts(wiki_dir, config, farm, explicit_farm):
-    """アカウントの一覧と編集。**管理者だけが開ける**（Wiki設計者の指示、2026-09-06）。
+    """アカウントの一覧と編集。**管理者と、`accounts.view` を与えられた助手だけが開ける**
+    （Wiki設計者の指示、2026-09-06。助手に開く道は、2026-10-07 に管理者が与える形で作った）。
 
     確かめるのは**中身を組み立てる前、POSTを処理する前**。あとから隠すのでは
     なく、そこまで行かせない。断ったときは 403 を返す。"""
-    denied = sysui.require(wiki_dir, config, farm, explicit_farm,
-                           ACCOUNTS_URLPATH, auth.ADMIN_ONLY)
+    denied = sysui.require_perm(wiki_dir, config, farm, explicit_farm,
+                                ACCOUNTS_URLPATH, "accounts.view")
     if denied is not None:
         return denied
+    actor = auth.current_user(wiki_dir, farm)
+    held = staffperms.granted_set(wiki_dir, actor)
     message, ok = "", True
     if request.method == "POST":
-        ok, message = _apply_accounts_post(wiki_dir)
+        ok, message = _apply_accounts_post(wiki_dir, farm, actor, held)
     users = userdb.all_users(wiki_dir)
     base_url = make_plugin_context(config, farm, wiki_dir, ACCOUNTS_URLPATH,
                                    explicit_farm).base_url
-    body = _accounts_html(users, base_url, message, ok, userdb.exists(wiki_dir))
+    body = _accounts_html(users, base_url, message, ok, userdb.exists(wiki_dir),
+                          held, userdb.is_admin(actor))
     if userdb.exists(wiki_dir):
         # 更新・削除はJS（accounts.js）が行う。**表示できても動かせない**
         # 中途半端さを避けるため、記録そのものが無いときは読み込ませない
@@ -97,7 +116,14 @@ def render_accounts(wiki_dir, config, farm, explicit_farm):
     return out
 
 
-def _apply_accounts_post(wiki_dir):
+def can_modify(actor, uidnum):
+    """そのアカウントを書き換えて（消して）よいか。**管理者のアカウントは、管理者本人
+    だけ。** 助手に `accounts.password` を許しても、管理者のパスワードを書き換えて
+    管理者になることはできない（モジュール冒頭「誰が開けるか」）。"""
+    return userdb.is_admin(actor) or uidnum != userdb.ADMIN_UIDNUM
+
+
+def _apply_accounts_post(wiki_dir, farm, actor, held):
     """**一覧の画面から届く、いまも残っているフォーム送信**を1つ処理する。
     (成否, 文言) を返す。
 
@@ -118,7 +144,13 @@ def _apply_accounts_post(wiki_dir):
         pw = userdb.hash_password(wiki_dir, uid, raw)
 
     if action == "add":
-        return userdb.add_user(wiki_dir, uid, pw, name)
+        if "accounts.add" not in held:
+            return False, "アカウントを追加する権限がありません。"
+        ok, message = userdb.add_user(wiki_dir, uid, pw, name)
+        added = userdb.find_by_uid(wiki_dir, uid) if ok else None
+        _staff_record(wiki_dir, farm, "account.add", uid, "追加した",
+                      after={"user": added} if added else None)
+        return ok, message
     return False, "知らない操作です。"
 
 
@@ -151,9 +183,10 @@ def render_accounts_api(wiki_dir, config, farm, explicit_farm):
     「サーバー側ではどのユーザが何を処理したかログを残す」というWiki設計者の
     指示）。成功・失敗のどちらも残す。"""
     actor = auth.current_user(wiki_dir, farm)
-    if not userdb.is_admin(actor):
-        # 「ログインしていない」も「管理者ではない」も同じ扱い（require_admin
-        # と同じ理由。IDが実在するかを外から確かめる手がかりを与えない）
+    held = staffperms.granted_set(wiki_dir, actor)
+    if "accounts.view" not in held:
+        # 「ログインしていない」も「権限がない」も同じ扱い（require と同じ理由。
+        # IDが実在するかを外から確かめる手がかりを与えない）
         return sysui.json_out({"ok": False, "message": "権限がありません。"}, status=403)
 
     try:
@@ -171,6 +204,16 @@ def render_accounts_api(wiki_dir, config, farm, explicit_farm):
     target = userdb.get_user(wiki_dir, uidnum)
     target_uid = target["uid"] if target is not None else ""
 
+    if cmd not in ("update", "delete"):
+        return sysui.json_out({"ok": False, "message": "知らない操作です。"}, status=400)
+
+    # **操作の権限を、書き換える前に確かめる。** 断った場合も記録に残す
+    problem = _refusal(cmd, body, target, actor, held, uidnum)
+    if problem:
+        adminlog.record(wiki_dir, actor["uid"], cmd, uidnum, target_uid, False, problem)
+        return sysui.json_out({"ok": False, "message": problem}, status=403)
+
+    staff = stafflog.actor(wiki_dir, farm)   # 助手の操作なら記録する（管理者は記録しない）
     if cmd == "update":
         uid = (body.get("uid") or "").strip()
         name = (body.get("name") or "").strip()
@@ -193,10 +236,19 @@ def render_accounts_api(wiki_dir, config, farm, explicit_farm):
             pw = None
         if pw is not None:
             ok, message = userdb.update_user(wiki_dir, uidnum, uid, pw, name)
-    elif cmd == "delete":
-        ok, message = userdb.delete_user(wiki_dir, uidnum)
+        if ok and staff is not None:
+            fresh = userdb.get_user(wiki_dir, uidnum)
+            if fresh is not None and fresh != target:
+                stafflog.record(wiki_dir, staff, "account.update", target_uid,
+                                _update_summary(target, fresh),
+                                before={"user": target}, after={"user": fresh})
     else:
-        return sysui.json_out({"ok": False, "message": "知らない操作です。"}, status=400)
+        memberships = groups.groups_of(wiki_dir, uidnum) if staff is not None else []
+        ok, message = userdb.delete_user(wiki_dir, uidnum)
+        if ok and staff is not None and target is not None:
+            # 戻せるよう、行と所属グループを控える
+            stafflog.record(wiki_dir, staff, "account.delete", target_uid, "アカウントを消した",
+                            before={"user": target, "groups": memberships}, after=None)
 
     adminlog.record(wiki_dir, actor["uid"], cmd, uidnum, target_uid, ok, message)
     result = {"ok": ok, "message": message}
@@ -213,7 +265,60 @@ def render_accounts_api(wiki_dir, config, farm, explicit_farm):
     return out
 
 
-def _accounts_html(users, base_url, message, ok, ready=True):
+def _refusal(cmd, body, target, actor, held, uidnum):
+    """この操作を断る理由（通してよければ空）。**書き換える前に**確かめる。
+
+    管理者のアカウントは助手には触らせない（`can_modify`）。書き換えは、変える項目ごとに
+    権限が違う: ID・名前は `accounts.rename`、パスワード（ロックを含む）は
+    `accounts.password`。**IDを変えるときはパスワードの付け直しも要る**ので
+    （`userdb.update_user`）、両方を求める。"""
+    if not can_modify(actor, uidnum):
+        return "管理者のアカウントは、管理者だけが書き換えられます。"
+    if cmd == "delete":
+        return "" if "accounts.delete" in held else "アカウントを消す権限がありません。"
+    if target is None:
+        return ""   # 「そのアカウントはありません」は update_user が答える
+    uid = (body.get("uid") or "").strip()
+    name = (body.get("name") or "").strip()
+    pw = (body.get("pw") or "").strip()
+    changes_pw = bool(body.get("lock") or body.get("raw")
+                      or (pw and pw != target["pw"]))
+    renames = uid != target["uid"] or name != (target["name"] or "")
+    if renames and "accounts.rename" not in held:
+        return "IDと名前を書き換える権限がありません。"
+    if changes_pw and "accounts.password" not in held:
+        return "パスワードを入れ直す・ロックする権限がありません。"
+    if uid != target["uid"] and "accounts.password" not in held:
+        return ("IDを変えるにはパスワードの付け直しも要るので、"
+                "パスワードを入れ直す権限も要ります。")
+    return ""
+
+
+def _update_summary(before, after):
+    """助手の書き換えの記録に添える1行（ハッシュ値そのものは書かない）。"""
+    parts = []
+    if before["uid"] != after["uid"]:
+        parts.append(f"IDを «{before['uid']}» から «{after['uid']}» に変えた")
+    if before["name"] != after["name"]:
+        parts.append("名前を変えた")
+    if before["pw"] != after["pw"]:
+        parts.append("ロックした" if userdb.is_locked(after) else "パスワードを入れ直した")
+    return "・".join(parts) or "書き換えた"
+
+
+def _staff_record(wiki_dir, farm, kind, target, summary, before=None, after=None):
+    """助手の操作なら記録する（`wikilib.stafflog`。管理者の操作は記録しない）。"""
+    staff = stafflog.actor(wiki_dir, farm)
+    if staff is not None:
+        stafflog.record(wiki_dir, staff, kind, target, summary, before=before, after=after)
+
+
+def _accounts_html(users, base_url, message, ok, ready=True, held=staffperms.ALL_KEYS,
+                   admin_viewer=True):
+    """一覧の画面の本文。`held` は見ている人の権限（`staffperms.granted_set`）。
+    **持っていない操作は、押させて断るより先に見せない**——追加の欄は出さず、
+    書き換えられない欄は読み取り専用にし、選べない行は選べなくする。
+    `admin_viewer` は見ている人が管理者か（管理者の行を助手に触らせないため）。"""
     if not ready:
         # 記録そのものが無いWiki。**画面を開いたことでは作らない**ので、
         # 用意するやりかたを案内するだけにする（userdb の冒頭を参照）
@@ -226,18 +331,28 @@ def _accounts_html(users, base_url, message, ok, ready=True):
     アクセスで、既定のパスワードを持つ管理者アカウントが生えてしまうためです。</p>
 </div>
 """
-    rows = "\n".join(_account_row_html(u) for u in users) or (
+    rows = "\n".join(_account_row_html(u, held, admin_viewer) for u in users) or (
         '<tr><td colspan="5">まだ1件もありません。</td></tr>')
     api_url = f"{escape(base_url)}/{ACCOUNTS_URLPATH}/api"
+    can_update = "accounts.rename" in held or "accounts.password" in held
+    update_btn = ('<button type="button" id="acct-update-btn" class="acct-go">変更を更新</button>'
+                  if can_update else
+                  '<button type="button" id="acct-update-btn" class="acct-go" disabled>'
+                  "変更を更新</button>")
+    delete_btn = ('<button type="button" id="acct-delete-btn" class="acct-go acct-del" disabled>'
+                  "選んだ行を削除</button>"
+                  if "accounts.delete" in held else
+                  '<button type="button" id="acct-delete-btn" class="acct-go acct-del" '
+                  'disabled hidden>選んだ行を削除</button>')
+    add_form = _add_form_html(base_url) if "accounts.add" in held else ""
     return f"""{sysui.notice(message, bad=not ok)}
 <div class="acct acct-list" data-api="{api_url}">
   <p class="acct-lead">このWikiに登録されているアカウントです
     （<code>config/users.db</code> の <code>passwd</code>）。</p>
 
   <div class="acct-bulk-actions">
-    <button type="button" id="acct-update-btn" class="acct-go">変更を更新</button>
-    <button type="button" id="acct-delete-btn" class="acct-go acct-del" disabled>
-      選んだ行を削除</button>
+    {update_btn}
+    {delete_btn}
     <span id="acct-bulk-status" class="acct-bulk-status" role="status" aria-live="polite"></span>
   </div>
 
@@ -256,7 +371,14 @@ def _accounts_html(users, base_url, message, ok, ready=True):
     </tbody>
   </table>
 
-  <h2 class="acct-h2">新しく追加する</h2>
+{add_form}
+</div>
+"""
+
+
+def _add_form_html(base_url):
+    """「新しく追加する」の欄（`accounts.add` を持つ人にだけ出す）。"""
+    return f"""  <h2 class="acct-h2">新しく追加する</h2>
   <form class="acct-form acct-add" method="post">
     <input type="hidden" name="cmd" value="add">
     <div class="acct-row">
@@ -284,11 +406,10 @@ def _accounts_html(users, base_url, message, ok, ready=True):
       <button type="submit" class="acct-go">追加</button>
     </div>
   </form>
-</div>
 """
 
 
-def _account_row_html(user):
+def _account_row_html(user, held=staffperms.ALL_KEYS, admin_viewer=True):
     """1行ぶん。
 
     更新・削除は行ごとのボタンを持たず、一覧の上に集約したボタン
@@ -298,17 +419,30 @@ def _account_row_html(user):
 
     **ロック中の行には印を付ける**（`pw` が `LOCKED`）。解除は
     「パスワードを付け直す」——この画面でハッシュ値か生のパスワードを
-    入れて更新すれば戻る。ここは管理者しか開けないので、**解除できるのは
-    管理者だけ**になる（Wiki設計者の指示、2026-09-06）。
+    入れて更新すれば戻る。**解除できるのは、パスワードを入れ直す権限を持つ人**
+    （既定では管理者だけ。Wiki設計者の指示、2026-09-06）。
 
-    **管理者（`uidnum=1`）の行はチェックボックスを無効にする。**
-    `userdb.delete_user` がもともと管理者を消さないので、押させておいて
-    サーバーに断られるより、先に選べないようにするほうが分かりやすい。"""
+    **選べない行はチェックボックスを無効にする**（`data-admin="1"`。JSの忙しい間の
+    切り替えもこの印を見る）。`userdb.delete_user` はもともと管理者を消さないし、
+    助手には管理者の行を書き換えさせない（`can_modify`）。消す権限が無い人にも
+    選ばせない。押させておいてサーバーに断られるより、先に選べないようにするほうが
+    分かりやすい。**書き換えられない欄は読み取り専用**にする（変える権限が無い項目、
+    と、助手には管理者の行）。"""
     uidnum = user["uidnum"]
     locked = userdb.is_locked(user)
     is_admin_row = uidnum == userdb.ADMIN_UIDNUM
-    checkbox_attrs = (' disabled data-admin="1" title="管理者は削除できません"'
-                      if is_admin_row else ' data-admin="0"')
+    touchable = admin_viewer or not is_admin_row
+    if is_admin_row:
+        why_no_check = "管理者は削除できません"
+    elif "accounts.delete" not in held:
+        why_no_check = "アカウントを消す権限がありません"
+    else:
+        why_no_check = ""
+    checkbox_attrs = (f' disabled data-admin="1" title="{why_no_check}"'
+                      if why_no_check else ' data-admin="0"')
+    ro_name = "" if touchable and "accounts.rename" in held else " readonly"
+    ro_pw = "" if touchable and "accounts.password" in held else " readonly"
+    raw_disabled = "" if not ro_pw else " disabled"
     return f"""      <tr data-uidnum="{uidnum}"{' class="acct-locked"' if locked else ''}>
         <td class="acct-num">{uidnum}{'<span class="acct-lock-mark"'
         ' title="ロック中。パスワードを付け直すと戻ります">🔒</span>' if locked else ''}{'<span'
@@ -319,16 +453,16 @@ def _account_row_html(user):
                    aria-label="{escape(user["uid"])}を削除の対象に選ぶ"></td>
         <td><input type="text" class="acct-f-uid" data-orig="{escape(user["uid"])}"
                    value="{escape(user["uid"])}" autocomplete="off" required
-                   pattern="[0-9A-Za-z]+" title="半角の英数字だけが使えます"></td>
+                   pattern="[0-9A-Za-z]+" title="半角の英数字だけが使えます"{ro_name}></td>
         <td><input type="text" class="acct-f-name" data-orig="{escape(user["name"])}"
-                   value="{escape(user["name"])}" autocomplete="off"></td>
+                   value="{escape(user["name"])}" autocomplete="off"{ro_name}></td>
         <td class="acct-pw-cell"><div class="acct-pw-wrap">
             <input type="text" class="acct-f-pw acct-hash"
                    data-orig="{escape(user["pw"])}" value="{escape(user["pw"])}"
-                   autocomplete="off">
+                   autocomplete="off"{ro_pw}>
             <label class="acct-raw-label" title="入れると、欄の文字を生のパスワードとして
 ハッシュにして登録します。外したままなら、欄はハッシュ値として扱います">
-              <input type="checkbox" class="acct-f-raw"> パスワードとして入力</label>
+              <input type="checkbox" class="acct-f-raw"{raw_disabled}> パスワードとして入力</label>
           </div></td>
       </tr>"""
 

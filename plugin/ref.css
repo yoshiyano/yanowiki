@@ -54,3 +54,48 @@ div.plugin-ref { margin: 0.6rem 0; }
 .plugin-ref-denied:hover { border-color: var(--border, #ccc); }
 .plugin-ref-denied .ref-name { text-decoration: none; }
 .ref-kind-denied { color: var(--muted, #777); }
+
+/* 添付ファイルのリンクの右クリックメニュー（ref.js） */
+.plugin-ref-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 11em;
+  padding: 0.25em 0;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 4px);
+  background: var(--bg, #fff);
+  color: var(--fg, #222);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-size: 0.9rem;
+}
+.plugin-ref-menu button {
+  padding: 0.35em 1em;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.plugin-ref-menu button:hover:not([disabled]),
+.plugin-ref-menu button:focus-visible {
+  background: var(--panel-bg, #f0f0f0);
+  outline: none;
+}
+.plugin-ref-menu button[disabled] {
+  color: var(--muted, #999);
+  cursor: default;
+}
+.plugin-ref-menu-sep {
+  margin: 0.25em 0;
+  border-top: 1px solid var(--border, #ccc);
+}
+.plugin-ref-menu-hint {
+  margin-top: 0.25em;
+  padding: 0.3em 1em 0.1em;
+  border-top: 1px solid var(--border, #ccc);
+  color: var(--muted, #999);
+  font-size: 0.8em;
+}

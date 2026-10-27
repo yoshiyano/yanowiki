@@ -51,8 +51,8 @@ def page_title_of(wiki_dir, subpath, path):
 def read_page_title(path):
     """ページの先頭にある最上位の見出しをタイトルとして拾う。無ければ空文字列。
 
-    探す目印はその記法のもので、Markdownなら `# `、PukiWiki記法なら `*`。
-    記法を見ずに両方を探すと、Markdownの `*強調*` で始まる行を
+    探す目印はその書きかたのもので、Markdownなら `# `、PukiWiki記法なら `*`。
+    書きかたを見ずに両方を探すと、Markdownの `*強調*` で始まる行を
     見出しと取り違えてしまう。
 
     一覧に添えるだけなので、ファイル全体は読まずに先頭だけを見る
@@ -156,6 +156,8 @@ def with_top_page_row(tree):
     子にある `index`（トップページ）を取り出し、`TOP_PAGE_LABEL` という
     名前・タイトルの行に差し替えて先頭に置く（タイトルも揃えるのは、
     実際のページタイトルが出ると特別扱いだと分かりにくくなるため）。
+    `pinned` も立てる。TreeView が表示名の順に並べ直すとき（`sortByLabel`、
+    編集画面のサイドバー）に、この行だけは名前に関わらず先頭に残すための印。
 
     editor.build_page_list_html（ページ選択ダイアログ）・
     backupui.build_backup_tree（バックアップ管理画面）の両方が使う共通処理
@@ -167,6 +169,7 @@ def with_top_page_row(tree):
     top_row = dict(children.pop(index_pos))
     top_row["name"] = TOP_PAGE_LABEL
     top_row["title"] = TOP_PAGE_LABEL
+    top_row["pinned"] = True
     tree = dict(tree)
     tree["children"] = [top_row] + children
     return tree
@@ -202,7 +205,7 @@ def build_page_tree(wiki_dir):
     ノードは {name, kind, pagepath, subpath, has_file, draft, children}。
     kind は "dir"（階層。それ自体はページではない）か "page"。
 
-    **`ext`（`.txt`/`.md`）は実体があるページだけに付く。** 記法
+    **`ext`（`.txt`/`.md`）は実体があるページだけに付く。** 書きかた
     （PukiWiki/Markdown）ごとに一覧の見せかた（ファイル名／タイトル優先）を
     変える設定（`wikiconfig.listname_for`）の元になる（Wiki設計者の指示、
     2026-09-18）。この関数自体は設定を知らないので、ここでは拡張子を

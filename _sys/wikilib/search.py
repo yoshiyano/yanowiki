@@ -50,13 +50,12 @@ from markupsafe import Markup
 from wikilib import auth, pagedb
 from wikilib.pagedb import ensure_db
 from wikilib.paths import (
-    SEARCH_DIR, SEARCH_URLPATH, farm_plugin_dir, pagepath_of_subpath,
+    SEARCH_DIR, SEARCH_TEMPLATE, SEARCH_URLPATH, farm_plugin_dir, pagepath_of_subpath,
 )
 from wikilib.plugins import build_markdown_renderer
 from wikilib.themes import make_plugin_context, render_theme
 from wikilib.web import serve_asset
 
-SEARCH_TEMPLATE = "search.html"  # 検索結果ページのテンプレート
 SEARCH_SNIPPET_LEN = 140  # 検索結果に表示する抜粋の長さ
 SEARCH_PER_PAGE = 20  # 1ページに出す件数
 SEARCH_PAGER_WINDOW = 2  # ページ送りで、現在ページの前後にいくつ数字を出すか

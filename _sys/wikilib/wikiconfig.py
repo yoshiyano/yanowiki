@@ -37,7 +37,7 @@ from bottle import request
 from wikilib.paths import (
     ALLWIKI_COMMAND, ALLWIKI_NAME_RE, CONFIG_PATH, DEFAULT_FARM_FALLBACK,
     DEFAULT_MARKUP, FARM_PREFIX, MARKUP_FORMATS, SERVER_CONFIG_PATH,
-    farm_config_path,
+    farm_config_path, parse_link_exts,
 )
 
 _force_debug = False  # --debug 起動時に立つ。config の debug と OR で判定する
@@ -188,6 +188,36 @@ def load_wiki_config(wiki_dir):
     なお server / farm / debug をここに書いても効かない。
     これらはどのWikiを開くか決まる前に要る値なので、server.yaml だけを見る。"""
     return merge_config(load_config(), read_yaml(farm_config_path(wiki_dir)))
+
+
+_link_exts_cache = {}
+
+
+def _stat_key(path):
+    try:
+        stat = os.stat(path)
+        return (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return None
+
+
+def attach_link_exts(wiki_dir=None):
+    """添付ファイルとみなす拡張子の集まり（attach.link_exts。paths.resolve_link が使う）。
+
+    **リンク1つごとに呼ばれる**ので、load_wiki_config（呼ぶたびに設定を複製し直す）
+    の結果を、元になる設定ファイルの更新時刻と大きさを鍵にして覚えておく。
+    wiki_dir が無ければ共通の設定の値。"""
+    files = [example_of(CONFIG_PATH), SERVER_CONFIG_PATH]
+    if wiki_dir:
+        files.append(farm_config_path(wiki_dir))
+    key = tuple(_stat_key(f) for f in files)
+    kept = _link_exts_cache.get(wiki_dir)
+    if kept is not None and kept[0] == key:
+        return kept[1]
+    config = load_wiki_config(wiki_dir) if wiki_dir else load_config()
+    exts = parse_link_exts((config.get("attach") or {}).get("link_exts"))
+    _link_exts_cache[wiki_dir] = (key, exts)
+    return exts
 
 
 # ---- 設定画面（/.admin/configwiki）が書くファイル ------------------------------
@@ -429,15 +459,15 @@ def is_debug(config):
 
 
 def default_markup(config):
-    """新しく作るページをどの記法で書くか（`edit.defaultwiki`）。
+    """新しく作るページをどの書きかたで書くか（`edit.defaultwiki`）。
 
-    値は記法の名前（`pukiwiki` / `markdown`）。**書かれていない・知らない名前の
+    値は書きかたの名前（`pukiwiki` / `markdown`）。**書かれていない・知らない名前の
     ときは既定（`DEFAULT_MARKUP`＝pukiwiki）に戻す**——設定の書き損じで新しい
     ページが作れなくなるより、既定に戻って動き続けるほうが安全なため
     （`is_debug`など他の設定と同じ考えかた）。
 
     ここで決まるのは**新規ページの初期値**だけで、編集画面のツールバーから
-    選び直せる。すでにあるページの記法は拡張子で決まっているので関係しない。"""
+    選び直せる。すでにあるページの書きかたは拡張子で決まっているので関係しない。"""
     name = ((config or {}).get("edit") or {}).get("defaultwiki")
     if isinstance(name, str) and name.strip().lower() in MARKUP_FORMATS:
         return name.strip().lower()
@@ -454,14 +484,14 @@ def listname_for(config, markup):
     設定 `markdown.listname` / `pukiwiki.listname`（Wiki設計者の指示、
     2026-09-18）。**PukiWiki記法はファイル名を基準に書く歴史的な流儀、
     Markdownは見出し（タイトル）を基準に書く流儀があり、統一のルールには
-    できない**ため、記法ごとに既定を分けている（pukiwiki=fname、
+    できない**ため、書きかたごとに既定を分けている（pukiwiki=fname、
     markdown=title）。
 
-    `markup` は記法の名前（`"markdown"` / `"pukiwiki"`）。それ以外
-    （`"plain"` など拡張子から記法が分からない場合）は常に fname を返す
-    ——見出しを探す記法のルールが無いため。
+    `markup` は書きかたの名前（`"markdown"` / `"pukiwiki"`）。それ以外
+    （`"plain"` など拡張子から書きかたが分からない場合）は常に fname を返す
+    ——見出しを探す書きかたのルールが無いため。
 
-    書き損じ・知らない値のときは、その記法の既定に戻す
+    書き損じ・知らない値のときは、その書きかたの既定に戻す
     （`default_markup` など他の設定と同じ考えかた）。"""
     if markup not in ("markdown", "pukiwiki"):
         return "fname"

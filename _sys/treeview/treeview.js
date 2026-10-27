@@ -23,11 +23,24 @@
  *
  * ## titleOnly のとき、行ごとにファイル名かタイトルかが変わる
  *
- * `titleOnly` な使いかた（編集画面のサイドバー）は、ページの記法
+ * `titleOnly` な使いかた（編集画面のサイドバー）は、ページの書きかた
  * （PukiWiki記法はファイル名基準、Markdownはタイトル基準）によって
  * どちらを出すか変わる。ここでは各行に埋め込まれた `listname`
  * （`"fname"`/`"title"`。サーバー側 `editor._apply_listnames` が決める）を
- * 見るだけで、記法そのものは知らない（Wiki設計者の指示、2026-09-18）。
+ * 見るだけで、書きかたそのものは知らない（Wiki設計者の指示、2026-09-18）。
+ *
+ * ## 表示の基準を呼び出し側が上書きする（`listname`）と、表示名順に並べる（`sortByLabel`）
+ *
+ * `listname` に `"fname"` か `"title"` を渡すと、行ごとの `listname` を見ずに
+ * **全部の行をその基準で出す**。渡さない（空・無指定）と上の「行ごとに変わる」動き
+ * のまま（`render` し直せば切り替えられる）。
+ *
+ * `sortByLabel` を真にすると、同じ親の子を**いま出している名前の順**に並べ直す
+ * （大小文字を無視した文字コード順。サーバー側 `pagetree.sort_key` と同じ比べかた）。
+ * サーバーが渡す並びは常にファイル名順なので、タイトルを出している行はそのままだと
+ * 並びが崩れて見える。群の順（`index` → フォルダ → ページ）は変えない。`pinned` を
+ * 持つ行（トップページ）は常に先頭に置く。同じ名前のときはファイル名で決める。
+ * 渡さなければサーバーの並びのまま（ダイアログ・バックアップ管理画面はこちら）。
  *
  * ## フォルダも選べる
  *
@@ -99,6 +112,18 @@
     return out + "…";
   }
 
+  /* 比べる名前。大小文字を無視する（サーバー側 pagetree.sort_key と同じ） */
+  function compareText(a, b) {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+
+  /* 並びの群: 先頭に固定する行 → そのフォルダ自身のページ（index）→ フォルダ → ページ */
+  function groupOf(node) {
+    if (node.pinned) return -1;
+    if (node.name === INDEX_NAME) return 0;
+    return node.kind === "dir" ? 1 : 2;
+  }
+
   function TreeView(box, options) {
     this.box = box;
     this.opt = options || {};
@@ -119,14 +144,75 @@
     return this._cls(name) + " tv-" + name + (extra ? " " + extra : "");
   };
 
-  /* 木を組み立てて描く。data は /.pagetree が返すもの */
-  TreeView.prototype.render = function (tree) {
+  /* 木を組み立てて描く。data は /.pagetree が返すもの。
+     keepFolds を真にすると、描き直す前に開いていたフォルダを開き直す
+     （名前の基準や並びを切り替えたとき、開いた階層が畳まれてしまわないように）。
+     選んでいた行は引き継がない（呼び出し側が selectSubpath で選び直す） */
+  TreeView.prototype.render = function (tree, keepFolds) {
+    var opened = keepFolds ? this._openFolders() : null;
     this.box.textContent = "";
     this.selected = null;
     var self = this;
-    (tree.children || []).forEach(function (child) {
+    this._ordered(tree.children || []).forEach(function (child) {
       self._build(child, 0, self.box);
     });
+    if (opened) this._restoreFolds(opened);
+  };
+
+  /* いま開いている（子を持ち、畳まれていない）行の実体パス */
+  TreeView.prototype._openFolders = function () {
+    var opened = {}, self = this;
+    [].forEach.call(this.box.querySelectorAll("." + this._cls("node")), function (item) {
+      if (self._hasKids(item) && !item.classList.contains("is-folded")) {
+        opened[item.dataset.subpath] = true;
+      }
+    });
+    return opened;
+  };
+
+  /* _openFolders で控えたものを開き、控えに無かったものは畳む */
+  TreeView.prototype._restoreFolds = function (opened) {
+    var self = this;
+    [].forEach.call(this.box.querySelectorAll("." + this._cls("node")), function (item) {
+      if (self._hasKids(item)) self._fold(item, !opened[item.dataset.subpath]);
+    });
+  };
+
+  /* その行がいま出す名前。_build の表示と sortByLabel の並べ替えが同じものを
+     見るよう、決めかたを1か所にまとめる。
+     `listname` オプションが "fname"/"title" ならそれを、無ければ行ごとの
+     `listname`（サーバーが書きかたから決めたもの）を使う。どちらも無ければタイトル */
+  TreeView.prototype._nameOf = function (node) {
+    var isDir = node.kind === "dir";
+    var own = isDir && !this.showIndex ? indexChildOf(node) : null;
+    var src = own || node;
+    var title = (own ? own.title : node.title) || "";
+    var name = isDir ? (node.name || "/") : node.name;
+    var mode = this.opt.listname;
+    if (mode !== "fname" && mode !== "title") {
+      mode = src.listname === "fname" ? "fname" : "title";
+    }
+    var showTitle = mode === "title";
+    return {
+      own: own, title: title, name: name, showTitle: showTitle,
+      text: showTitle ? (title || name) : name
+    };
+  };
+
+  /* sortByLabel のとき、子を出す名前の順に並べた写しを返す。そうでなければそのまま */
+  TreeView.prototype._ordered = function (children) {
+    if (!this.opt.sortByLabel) return children;
+    var self = this;
+    var keyed = children.map(function (c, i) {
+      var text = self._nameOf(c).text;
+      return { node: c, i: i, group: groupOf(c), text: text, low: text.toLowerCase(),
+               low2: String(c.name).toLowerCase() };
+    });
+    keyed.sort(function (x, y) {
+      return (x.group - y.group) || compareText(x.low, y.low) || compareText(x.text, y.text)
+        || compareText(x.low2, y.low2) || (x.i - y.i);
+    });
+    return keyed.map(function (k) { return k.node; });
   };
 
   TreeView.prototype._build = function (node, depth, container) {
@@ -141,7 +227,8 @@
     item.dataset.kind = node.kind;
 
     /* フォルダの行は中の index を兼ねる。選んだときは index のほうを指す */
-    var own = isDir && !this.showIndex ? indexChildOf(node) : null;
+    var shown = this._nameOf(node);
+    var own = shown.own;
     if (own) item.dataset.subpath = own.subpath;
     /* 実体の有無は、木がその情報を持っているときだけ見る。
        持たない木（バックアップ管理画面の一覧）で「無い」と決めつけると、
@@ -178,14 +265,13 @@
     }
     row.appendChild(twisty);
 
-    var nodeTitle = (own ? own.title : node.title) || "";
-    var name = isDir ? (node.name || "/") : node.name;
-    /* そのページの記法（PukiWiki/Markdown）で一覧の基準が違う
-       （`listname`。サーバー側 editor._apply_listnames が埋め込む）。
-       "fname" ならファイル名を出す。それ以外（"title"・無指定）は
-       これまでどおりタイトル優先（無ければファイル名で代用）。 */
-    var listSrc = own || node;
-    var showTitle = listSrc.listname !== "fname";
+    /* 出す名前の基準は _nameOf が決める。そのページの書きかた（PukiWiki/Markdown）で
+       一覧の基準が違う（`listname`。サーバー側 editor._apply_listnames が埋め込む）。
+       "fname" ならファイル名、それ以外（"title"・無指定）はタイトル優先（無ければ
+       ファイル名で代用）。呼び出し側が listname を渡していれば、それが優先する。 */
+    var nodeTitle = shown.title;
+    var name = shown.name;
+    var showTitle = shown.showTitle;
 
     var label = document.createElement("span");
     label.className = this._classFor(
@@ -195,8 +281,7 @@
        titleMaxWidth を渡していれば、長い分は末尾を … に切り詰める
        （全角は2文字ぶんとして数える。半角換算の幅） */
     if (this.opt.titleOnly) {
-      var primary = showTitle ? (nodeTitle || name) : name;
-      label.textContent = truncateToWidth(primary, this.opt.titleMaxWidth);
+      label.textContent = truncateToWidth(shown.text, this.opt.titleMaxWidth);
       label.title = showTitle ? item.dataset.subpath : (nodeTitle || item.dataset.subpath);
     } else {
       label.textContent = name;
@@ -225,7 +310,7 @@
       var box = document.createElement("div");
       box.className = this._classFor("children");
       var self = this;
-      kids.forEach(function (c) { self._build(c, depth + 1, box); });
+      this._ordered(kids).forEach(function (c) { self._build(c, depth + 1, box); });
       item.appendChild(box);
       /* collapsed: 最初はすべて畳んでおく。選んだ行までの道だけは
          selectSubpath が開く */

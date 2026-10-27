@@ -148,7 +148,7 @@ INI_WANTED = (
 )
 # PukiWikiが `$defaultpage` を書いていなかったときの、本家の既定値
 DEFAULT_TOP_PAGE = "FrontPage"
-# PukiWikiに最初から入っている付属のページ（記法の説明・練習場・自動で書かれる一覧）。
+# PukiWikiに最初から入っている付属のページ（書きかたの説明・練習場・自動で書かれる一覧）。
 # **どのWikiにも同じものが入っていて、書いた人の中身ではない**ので写さない
 # （Wiki設計者の指示、2026-09-18。実データ4つのどれにも、この15枚が揃っていた）。
 # `--include-stock` で写せる
@@ -209,7 +209,7 @@ PLUGIN_ALIAS_INLINE_RE = re.compile(
     r"&(" + "|".join(PLUGIN_ALIASES) + r")(?=[(;])")
 
 # ブロックプラグイン呼び出し `#name(args)` の直後についた、誤りの `;`。
-# PukiWikiのブロックプラグインはセミコロンを書かない記法（つけるのは
+# PukiWikiのブロックプラグインはセミコロンを書かない書きかた（つけるのは
 # インライン `&name(args);` のほう）だが、間違えて書かれている本文が多い
 # （Wiki設計者の指摘、2026-09-18）。セミコロンが残っていると
 # `pukiwiki.PLUGIN_BLOCK_RE`（末尾は `\s*$` で、`;` を許さない）に
@@ -860,7 +860,7 @@ def convert(src_name, wiki_name, title="", admin_password="", source_root=None,
         return False, report
 
     # 設定は**ページを置く前に**書く。取り込み（sync_wiki）が全ページを1回描くので、
-    # そのときにはもう、このWikiの設定（記法・WikiName・メニューのページ名）で
+    # そのときにはもう、このWikiの設定（書きかた・WikiName・メニューのページ名）で
     # 描かれるようにしておく
     with open(os.path.join(root, "config", "default.yaml"), "w", encoding="utf-8") as f:
         f.write(config_text(settings, notes, os.path.basename(src)))

@@ -182,9 +182,9 @@ def target_problem(name, config):
         # 名前を隠す意味は無い（この画面に入れる人は一覧も見られる）
         return "「{}」というWikiはありません。".format(name)
     if name == load_default_farm(config):
-        return ("「{}」は既定のWikiなので消せません。"
+        return ("「{}」は起点Wikiなので消せません。"
                 "名前を付けずに開いたときに出るWikiです——"
-                "消す前に、別のWikiを既定にしてください。".format(name))
+                "消す前に、別のWikiを起点Wikiにしてください。".format(name))
     if safe_join(wikidata_dir(), name) is None:
         return "その名前のWikiは消せません。"
     return None
@@ -238,7 +238,7 @@ def start_archive(name, stamp):
     admin パスワードが得られた時点から開始する」）。"""
     program = sevenzip_program()
     if program is None:
-        return False, ("7z を作る道具が見つかりません（{}）。"
+        return False, ("7z を作るツールが見つかりません（{}）。"
                        "消す前に固める先が用意できないので、ここで止めます。"
                        .format(" / ".join(SEVENZIP_PROGRAMS)))
     if os.path.exists(done_path(name, stamp)) or os.path.exists(part_path(name, stamp)):
@@ -384,7 +384,7 @@ def render_delwiki(wiki_dir, config, farm, explicit_farm):
     **既定Wikiの管理者と助手だけが開ける**（`/.newwiki` と同じ関門）。
     確かめるのは**中身を組み立てる前、POSTを処理する前**。"""
     denied = sysui.require_on_default_farm(config, farm, wiki_dir, explicit_farm,
-                                           DELWIKI_URLPATH)
+                                           DELWIKI_URLPATH, "site.delwiki")
     if denied is not None:
         return denied
 
@@ -657,7 +657,7 @@ def _step_name_html(wiki_dir, config, farm, explicit_farm, name="", problem="",
     </div>
     <p class="delwiki-hint">一覧から選ぶ形にはしていません（押し間違いで消えないように）。
       どんなWikiがあるかは <a href="{base}/.allwiki">Wikiの一覧</a> で見られます。
-      既定のWiki（名前を付けずに開いたときに出るWiki）は消せません。</p>
+      起点Wiki（名前を付けずに開いたときに出るWiki）は消せません。</p>
     <div class="delwiki-actions">
       <button type="submit" class="delwiki-go">次へ</button>
       <a class="delwiki-cancel" href="{base}/">やめる</a>
@@ -686,7 +686,7 @@ def _step_password_html(wiki_dir, config, farm, explicit_farm, name, problem="")
       <input id="dw-adminpw" type="password" name="admin_pw"
              autocomplete="current-password" required>
     </div>
-    <p class="delwiki-hint">この画面を開いている人（既定Wikiの管理者・助手）とは別に、
+    <p class="delwiki-hint">この画面を開いている人（起点Wikiの管理者・助手）とは別に、
       <strong>消される側のWikiを預かっている人であること</strong>を確かめます。
       まちがえた回数は、ふだんのログインと同じように数えられます。</p>
     <p class="delwiki-hint">これが通った時点で、<strong>裏で書庫づくりが始まります。</strong>

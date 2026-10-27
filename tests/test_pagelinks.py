@@ -6,7 +6,7 @@ wikilib.links）のテスト。
 書き換え（`render.rewrite_content_links`）と違って結果がファイルに残るので、
 間違えると書き手の原稿を壊す。壊しかたは2通りある。
 
-- **拾いすぎ**: 記法の説明として書いたサンプルや整形済みテキストの中まで
+- **拾いすぎ**: 書きかたの説明として書いたサンプルや整形済みテキストの中まで
   書き換えてしまう（`excluded_ranges`）
 - **書き戻しかたを誤る**: 行き先は合っているのに、辿らないと分からない
   書きかたに変えてしまう（`rewritten_href` の絶対・相対の選び分け）
@@ -15,8 +15,8 @@ wikilib.links）のテスト。
 `cache` で渡せるので、ここでは本文の文字列だけを相手にする。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pagelinks.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pagelinks.py     （このファイルだけ）
 """
 import os
 import sys
@@ -31,6 +31,7 @@ from wikilib import pukiwiki  # noqa: E402
 from wikilib.pagelinks import (  # noqa: E402
     link_spans, move_amount, relative_href, rewrite_links, rewritten_href,
 )
+from wikilib.pluginlinks import rewrite_plugin_arg_links  # noqa: E402
 
 
 def hrefs(text, ext, **kw):
@@ -99,7 +100,7 @@ class TestLinkSpansPukiWiki(unittest.TestCase):
 class TestExcludedRanges(unittest.TestCase):
     """地の文でないところ（コード・整形済みテキスト）は拾わない。
 
-    記法の説明ページには、リンクの書きかたそのものがサンプルとして並ぶ。
+    書きかたの説明ページには、リンクの書きかたそのものがサンプルとして並ぶ。
     そこを書き換えると説明が壊れる。"""
 
     def test_Markdownのフェンスとインラインコードは拾わない(self):
@@ -222,6 +223,60 @@ class TestRewrittenHref(unittest.TestCase):
             "/%E6%96%B0%E3%83%86%E3%82%B9%E3%83%88")
 
 
+class TestRewrittenHrefMarks(unittest.TestCase):
+    """書き分けの印（先頭の `::`・ページの末尾の `/`）は、書き直しても残す
+    （paths.resolve_link「ページか添付ファイルか」）。"""
+
+    def test_末尾のスラッシュを残す(self):
+        # 落とすと `ver1.2` は…一覧に無いので平気だが、`memo.txt/` は添付と読まれる
+        self.assertEqual(
+            rewritten_href("/p1/memo.txt/", "q/page", "p2/memo.txt",
+                           old_owner="/p1/memo.txt"),
+            "/p2/memo.txt/")
+        self.assertEqual(
+            rewritten_href("./memo.txt/", "p1/page", "p1/page/memo2.txt",
+                           old_owner="/p1/page/memo.txt"),
+            "./memo2.txt/")
+
+    def test_印を残す(self):
+        self.assertEqual(
+            rewritten_href("::./sub/x.blend", "p1/page", "p1/page/sub2",
+                           filename="x.blend", old_owner="/p1/page/sub"),
+            "::./sub2/x.blend")
+
+    def test_印付きは絶対で書かれていたら絶対のまま(self):
+        # `/.attach/…` と違い、`::/持ち主/…` はfarmの中の絶対として解ける
+        self.assertEqual(
+            rewritten_href("::/p1/x.blend", "q/page", "p2", filename="x.blend",
+                           old_owner="/p1"),
+            "::/p2/x.blend")
+
+    def test_印付きは前より遠くなるなら絶対にする(self):
+        self.assertEqual(
+            rewritten_href("::../x.blend", "p1/p2/p3/page", "z1/z2/owner",
+                           filename="x.blend", old_owner="/p1/p2/owner",
+                           old_subpath="p1/page"),
+            "::/z1/z2/owner/x.blend")
+
+
+class TestRewriteLinksMarks(unittest.TestCase):
+
+    def test_相対版の印付きは冗長なドットスラッシュを外す(self):
+        text, count = rewrite_links(
+            "{[::sub/x.blend]}\n", "p1/page", ".txt", {"p1/page/sub": "p1/page/sub2"},
+            cache={"::./sub/x.blend": ("attach", "/p1/page/sub", "x.blend")})
+        self.assertEqual(text, "{[::sub2/x.blend]}\n")
+        self.assertEqual(count, 1)
+
+    def test_Markdownの印付きリンクを書き換える(self):
+        text, count = rewrite_links(
+            "[x](::/Old/a.blend) [y](/Old/)\n", "q/page", ".md", {"Old": "New"},
+            cache={"::/Old/a.blend": ("attach", "/Old", "a.blend"),
+                   "/Old/": ("page", "/Old", None)})
+        self.assertEqual(text, "[x](::/New/a.blend) [y](/New/)\n")
+        self.assertEqual(count, 2)
+
+
 class TestRewriteLinks(unittest.TestCase):
     """本文まるごとの書き換え。**書き換えた数**と、触っていない部分が
     そのまま残ることを見る。"""
@@ -331,6 +386,7 @@ class TestPluginArgLinks(unittest.TestCase):
 
     registry = {
         "myref": {"info": {"args": [{"name": "src", "num_order": 1, "link": True}]}},
+        "fileref": {"info": {"args": [{"name": "src", "num_order": 1, "link": "attach"}]}},
         "plain": {"info": {"args": [{"name": "x", "num_order": 1}]}},
         "broken": {"error": "読み込みに失敗"},
     }
@@ -354,6 +410,31 @@ class TestPluginArgLinks(unittest.TestCase):
 
     def test_知らないプラグインは読み飛ばす(self):
         self.assertEqual(self.links("#unknown(Zebra)\n"), [])
+
+
+class TestAttachOnlyPluginArgs(unittest.TestCase):
+    """`"link": "attach"`（ref・img の src）は、拡張子の一覧によらず添付ファイル。
+    記録の鍵は `::` を付けた形（本文の同じ文字列のリンクと取り違えないため）。"""
+
+    registry = TestPluginArgLinks.registry
+
+    def test_一覧に無い拡張子も添付として記録する(self):
+        self.assertEqual(
+            plugin_arg_links(pukiwiki.parse("#fileref(model.blend)\n"), self.registry, "p1/page"),
+            [("::model.blend", "attach", "/p1/page", "model.blend")])
+
+    def test_URLはそのまま(self):
+        self.assertEqual(
+            plugin_arg_links(pukiwiki.parse("#fileref(https://example.com/a.png)\n"),
+                             self.registry, "p1/page"),
+            [])
+
+    def test_書き換えても書き手が付けていない印は足さない(self):
+        text, count = rewrite_plugin_arg_links(
+            "#fileref(/Old/model.blend)\n", ".txt", "q/page", {"Old": "New"},
+            self.registry, interwiki=Interwiki({}))
+        self.assertEqual(text, "#fileref(/New/model.blend)\n")
+        self.assertEqual(count, 1)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@
 
   保存・内容破棄   チェックが入っていれば編集画面（200）、無ければ従来どおりページへ303
   一時中断         チェックに関わらず、いつもページへ戻る
-  削除の保存       本文を空にしての保存（＝ページの削除）は、チェックに関わらずページへ戻る
+  削除の保存       本文を空にしての保存（＝ページの削除）も、チェックがあれば留まる
   画面             チェックが出ていて、既定で入っている
   タブ             開き直したとき、選んでいたタブを保つ
   押せるか         本文が保存されている内容（DB）と同じあいだは、保存・内容破棄を押せない
@@ -113,10 +113,21 @@ class TestSave(ContinuousBase):
         self.assertEqual(res.status_code, 200)
         self.assertIn("ページは作りませんでした", html)
 
-    def test_本文を空にする保存は削除なのでページへ戻る(self):
-        res, _html = self.post(cmd="save", source="", origin="", continuous="1")
+    def test_本文を空にする保存はチェック無しならページへ戻る(self):
+        res, _html = self.post(cmd="save", source="", origin="")
         self.assertEqual(res.status_code, 303)
         self.assertTrue(res.headers["Location"].endswith("/" + PAGE))
+        self.assertFalse(os.path.exists(os.path.join(self.wiki_dir, PAGE + ".md")))
+
+    def test_本文を空にする保存はチェックがあれば削除して留まる(self):
+        draft.save_draft(self.wiki_dir, PAGE, "書きかけ")
+        res, html = self.post(cmd="save", source="", origin="", continuous="1")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("ページを削除しました", html)
+        self.assertFalse(os.path.exists(os.path.join(self.wiki_dir, PAGE + ".md")))
+        self.assertIsNone(draft.load_draft(self.wiki_dir, PAGE))
+        # 留まった画面は、まだ無いページの編集画面（空の本文）
+        self.assertNotIn(BODY, html)
 
 
 class TestDiscard(ContinuousBase):
@@ -155,6 +166,16 @@ class TestScreen(ContinuousBase):
         _res, html = self.post(cmd="edit")
         self.assertIn('class="edit-continuous-check" checked', html)
         self.assertIn("連続編集", html)
+
+    def test_削除の確かめは_はい_いいえのダイアログ(self):
+        # 本文を空にした保存で editor.js が開く。並びはファイル一覧と同じ［はい］［いいえ］で、
+        # 最初に選ばれているのは［いいえ］
+        _res, html = self.post(cmd="edit")
+        dialog = re.search(r'<dialog class="edit-delete-dialog".*?</dialog>', html, re.S)
+        self.assertIsNotNone(dialog)
+        buttons = re.findall(r'<button[^>]*value="(yes|no)"[^>]*>([^<]*)</button>', dialog.group(0))
+        self.assertEqual([(v, t) for v, t in buttons], [("yes", "はい"), ("no", "いいえ")])
+        self.assertRegex(dialog.group(0), r'value="no"[^>]*autofocus')
 
     def test_ファイル一覧の右に置く(self):
         # もとは「名前を変える」の右。その入口は 2026-09-29 に外した
@@ -240,7 +261,7 @@ class TestScriptGuard(unittest.TestCase):
 
     保存側の変数（ボタンだけの `<form>`）を `actions` と書いたため、同じ関数にある
     ツールバー操作の対応表 `var actions = {}` と**同じ変数**になっていた
-    （2026-09-10の修正から）。開いた直後はツールバーのボタンが効かず、記法を
+    （2026-09-10の修正から）。開いた直後はツールバーのボタンが効かず、書きかたを
     選び直すと今度は保存が黙って失敗した。JavaScript は実ブラウザでしか動かせないので、
     せめて宣言が1つだけであることを見ておく。"""
 

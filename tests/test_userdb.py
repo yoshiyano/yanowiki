@@ -12,8 +12,8 @@
 `test_決められた作りかたのとおりに値を作る` を書き換えればよい。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_userdb.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_userdb.py     （このファイルだけ）
 """
 import hashlib
 import os

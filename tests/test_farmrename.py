@@ -14,8 +14,8 @@
 名前を変えた本人のログイン状態が続くこと。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_farmrename.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_farmrename.py     （このファイルだけ）
 """
 import io
 import json

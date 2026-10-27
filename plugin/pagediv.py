@@ -41,8 +41,8 @@
     sz:大きさ … セル全体の文字の大きさ   tdsz:大きさ … 見出しの文字の大きさ
 
 ページ名は本文のリンク `[[ページ名]]` と同じ決まりです（裸の名前はWikiの先頭から、
-`./` はこのページの下）。見出しはそのページへのリンクで、そのページを編集できる
-閲覧者には編集画面を開くボタンになります。
+`./` はこのページの下）。見出しを押すと、そのページが開きます（編集画面では
+ありません）。
 
 次のセルには、ページの中身の代わりに案内を出します。
 
@@ -121,11 +121,15 @@
 - 入れ子の上限3段は本家どおり（`_pagediv_depth`、`sub` へ引き継ぐ）。
 - 件数の上限は無い（本家どおり）。`include` の12件の上限はかからない。このため
   `include` を `call_plugin` で呼ぶのではなく、差し込みの中核を兄弟の
-  `_embedpage.py`（`include` と共有）に切り出して使っている。
-- 見出しは本家どおりページ名。本家の編集アイコン（`?cmd=edit` へのGETリンク）は、
-  このシステムの決まり（編集画面は `cmd=edit` のPOSTで開く）に合わせて、
-  見出し自体を編集ボタン（編集できない閲覧者には閲覧のリンク）にした
-  （`_embedpage.title_html`）。
+  `include_.py`（`include` と共有）に切り出して使っている。
+- 見出しは本家どおりページ名で、**押すとそのページが開く閲覧のリンク**
+  （`include_.read_link`）。本家は名前を装飾の無い文字にし、その横に小さな編集
+  アイコン（`?cmd=edit` へのGETリンク）を置いていたが、**このアイコンに当たるものは
+  置いていない**（2026-10-12、Wiki設計者の指示「pagediv の見出しも閲覧リンクにして」。
+  `include` の見出しを閲覧リンクだけにした指示と同じ扱い。編集の入口はページ自身の
+  ヘッダにあるので、見出しに重ねて持たない）。それまでは、このシステムの決まり
+  （編集画面は `cmd=edit` のPOSTで開く）に合わせて、見出し自体を編集ボタン
+  （編集できない閲覧者には閲覧のリンク）にしていた。
 - セルごとの指定（`30%`・`col:`・`bgcol:`・`tdcol:`・`sz:`・`tdsz:`）は本家の
   名前と割り当てのまま（`sz:` がセル全体、`tdsz:` が見出し、という一見逆の
   名付けも本家どおり）。本家は知らない指定を黙って捨てていたが、`blockdiv` と
@@ -173,9 +177,9 @@ PLUGIN_INFO = {
 
 
 def _load_embed():
-    """兄弟の`_embedpage.py`（`include`と共有）を読み込む（呼び出しごと）。"""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_embedpage.py")
-    spec = importlib.util.spec_from_file_location("wikiplugin__embedpage", path)
+    """兄弟の`include_.py`（`include`と共有）を読み込む（呼び出しごと）。"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "include_.py")
+    spec = importlib.util.spec_from_file_location("wikiplugin_include_", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -301,7 +305,7 @@ def _cell_html(cell, context, embed, st, chain, depth, with_title, place=True):
                 tstyle = "".join(cell["title"])
                 tattr = f' style="{escape(tstyle)}"' if tstyle else ""
                 title = (f'<div class="pagediv-title"{tattr}>'
-                         f'{embed.title_html(context, page, ref)}</div>')
+                         f'{embed.read_link(page)}</div>')
             html = embed.render(context, page, ref, st, {
                 "_pagediv_chain": chain | {page},
                 "_pagediv_depth": depth + 1,

@@ -13,7 +13,7 @@
 | プリンシパルの展開 | `auth.expand_principal(s)` | `admin` / `g:<グループ名>` を uidnum の集合に展開する |
 | 決まった組み合わせ | `auth.ADMIN_ONLY` / `STAFF` / `ANY_USER` | 画面はこれを渡すだけでよい |
 | 画面を開ける人の判定 | `sysui.require(...)` | 通らなければ中身を組み立てずに403を返す |
-| サービス全体に効く画面の判定 | `sysui.require_on_default_farm(...)` | 既定Wikiのアカウントで判定する（`/.restart`・`/.newwiki`・`/.allwiki`・`/.delwiki`） |
+| サービス全体に効く画面の判定 | `sysui.require_on_default_farm(...)` | 起点Wikiのアカウントで判定する（`/.restart`・`/.newwiki`・`/.allwiki`・`/.delwiki`） |
 | グループ | `group_members`表（`config/users.db`） | 誰でも作れる汎用グループ。助手（`staff`）も同じ表 |
 | 本文の差し替え | `plugins.PluginContext.block_view` | プラグインが「このページの本文を出さない」と決めるメソッド |
 | 書き込みの合流点 | `pagesave.save_page` | 編集画面・セクション保存・`#comment`・`#vote`・`#tasklist` が最後に通る |
@@ -24,11 +24,13 @@
 
 | 経路 | いまの判定 |
 |---|---|
-| `/.admin/accounts` | 管理者だけ（`auth.ADMIN_ONLY`） |
-| `/.admin`・`/.admin/configwiki`・`/.admin/privileges`・`/.admin/approvals` | 管理者と助手（`auth.STAFF`） |
+| `/.admin/staffperms` | 管理者だけ（`auth.ADMIN_ONLY`） |
+| `/.admin/accounts`・`/.admin/stafflog` | 管理者と、権限（`accounts.view`・`stafflog.view`）を与えた助手（`sysui.require_perm`。既定では管理者だけ） |
+| `/.admin` | 管理者と助手（`auth.STAFF`） |
+| `/.admin/configwiki`・`/.admin/privileges`・`/.admin/approvals` | 管理者と、権限を与えた助手（`sysui.require_perm`。既定では助手全員。[助手の権限](/Tech/AdminPages#助手の権限)） |
 | `/.groups` | ログインしていれば誰でも（`auth.ANY_USER`） |
 | `/.login` | 誰でも（閉じると誰もログインできないため、ページごとの権限の対象外） |
-| `/.restart`・`/.newwiki`・`/.allwiki` | 既定Wikiの管理者と助手。Wiki名付きのURLは403 |
+| `/.restart`・`/.newwiki`・`/.allwiki` | 起点Wikiの管理者と、権限（`site.*`）を与えた助手（既定では助手全員）。Wiki名付きのURLは403 |
 | `/.delwiki` | 同じ。さらに消される側のWikiの管理者のパスワードを確かめる（[Wikiを消す仕組み](/Tech/DelWiki)） |
 | ページの表示（`views.render_page`） | 閲覧の権限（`published_ref` が返す `ref.privilege`）。`-` なら403「閲覧する権限がありません」。本文は描かない（データの読み出しはする） |
 | 編集・保存（`editor.render_edit`） | 編集の権限。`W` でなければ403「編集する権限がありません」。一時保存・添付・保存も同じ関数を通る |
@@ -55,7 +57,7 @@
 - 編集画面（`editor.render_edit`。本文が編集欄に入る）
 - セクションの取り出し（`/.section`）
 - 一時保存の読み戻し（`draft`）
-- 履歴と復元（`?cmd=history`。過去の版の本文と差分）
+- 履歴と復元（`?cmd=history`。過去のバージョンの本文と差分）
 - 競合の統合（`/.conflict`）
 - プレビュー・差分（差分は保存されている本文も読む）
 - 他ページからの取り込み（`#include`）

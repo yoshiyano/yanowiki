@@ -12,8 +12,8 @@
 `test_resetpw.py`・`test_convwiki.py` など、各機能のテストに任せる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_cli_help.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_cli_help.py     （このファイルだけ）
 """
 import importlib.util
 import os

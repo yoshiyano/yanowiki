@@ -10,8 +10,8 @@
 ここではその形だけを手で組み立てて、行の扱いに絞って確かめる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_section.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_section.py     （このファイルだけ）
 """
 import os
 import sys

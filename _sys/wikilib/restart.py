@@ -154,14 +154,19 @@ def serve_restart(wiki_dir, config, farm, explicit_farm):
     そこが素通りの抜け道になる。
 
     **道具から叩く使いかた（`?now=1`）にもログイン状態が要るようになった。**
-    cookieを持たないコマンド（素の `curl` など）からは通らない。"""
+    cookieを持たないコマンド（素の `curl` など）からは通らない。
+
+    **`?now=1` は POST のときだけ効く。** GET では確認の画面を出す。別のサイトから
+    開かせたリンク（GET）にも cookie は付くので、GET で再起動させると、管理者に
+    踏ませるだけでサービスを止められる（POST は入口で `Origin` を照合して断る。
+    `wikilib.web.cross_site_reason`）。"""
     from wikilib import sysui  # 循環を避けるため呼び出し時に読み込む
 
     denied = sysui.require_on_default_farm(config, farm, wiki_dir, explicit_farm,
-                                           RESTART_URLPATH)
+                                           RESTART_URLPATH, "site.restart")
     if denied is not None:
         return denied
-    if request.query.get("now"):
+    if request.method == "POST" and request.query.get("now"):
         _staff_record(wiki_dir, farm)
         return restart_response()
     return render_restart(wiki_dir, config, farm, explicit_farm)
@@ -220,7 +225,7 @@ def render_restart(wiki_dir, config, farm, explicit_farm):
 
 def restart_response():
     """画面を介さず、その場で再起動だけを受け付ける（プレーンテキストで返す）。
-    `/.restart?now=1` のように、道具から叩く場合に使う。
+    `POST /.restart?now=1` のように、道具から叩く場合に使う。
 
     **関門は `serve_restart` が通してある**（この関数を直接呼ばないこと）。
     ここを素で呼べる場所を作ると、そこが再起動の抜け道になる。"""

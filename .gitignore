@@ -51,6 +51,12 @@ __pycache__/
 !/wikidata/_system/pageinfo/draft/README.txt
 /wikidata/_system/pageinfo/upload/*
 !/wikidata/_system/pageinfo/upload/README.txt
+# ページ trashbox（削除したページの添付の集め先）。/.garbagecollect が、無ければ
+# 中身 `#attachls` だけで作る実行時のページ（garbagecollect.ensure_trashbox。
+# 拡張子は固定で .txt）。実行時に作られるものなので追跡しない。
+# 集まった添付（attach/trashbox/）も、同じく実行時に集まったものなので追跡しない
+/wikidata/_system/wiki/trashbox.txt
+/wikidata/_system/attach/trashbox/
 # ページ本文のDB（平文から作り直せる写しなので追跡しない）
 /wikidata/_system/pageinfo/wikiall.db
 /wikidata/_system/pageinfo/wikiall.db-*

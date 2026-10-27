@@ -1,11 +1,11 @@
-#!/home/yoshi/ClaudeWS/wikiSystem/_venv/bin/python
+#!/usr/bin/env python3
 """`plugin/popular.py` のテスト（除外の指定 exclude・消えたページ）。
 
 `#recent` と同じ書きかたで、除いてから上位を切る。消えたページは並べない。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_popular.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_popular.py     （このファイルだけ）
 """
 import os
 import shutil

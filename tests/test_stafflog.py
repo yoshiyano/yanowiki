@@ -5,8 +5,8 @@
 「いまの要求でログインしている人」は `stafflog._request_user` を差し替えて作る。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_stafflog.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_stafflog.py     （このファイルだけ）
 """
 import io
 import os

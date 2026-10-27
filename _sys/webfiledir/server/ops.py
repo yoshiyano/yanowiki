@@ -4,8 +4,9 @@
 一括処理は **1 件の失敗で全体を止めず、やり直しもしない**（Wiki「API 設計 > 一括の結果」）。
 """
 
-from . import vpath
+from . import jobs, vpath
 from .errors import ApiError
+from .exts import split_ext
 from .providers import Provider
 
 DEFAULT_FOLDER = "新しいフォルダ"
@@ -13,15 +14,6 @@ DEFAULT_FILE = "新しいテキスト ドキュメント.txt"
 MAX_NUMBER = 10000
 
 ON_CONFLICT = ("error", "rename", "skip", "overwrite")
-
-
-def split_ext(name: str) -> tuple[str, str]:
-    """拡張子の手前と拡張子（"." を含まない）。規則は画面の filetypes.js の splitExt と同じ。"""
-    lead = len(name) - len(name.lstrip("."))
-    i = name.rfind(".")
-    if i < lead or i == len(name) - 1:
-        return name, ""
-    return name[:i], name[i + 1:]
 
 
 def numbered(name: str, n: int, is_dir: bool) -> str:
@@ -54,14 +46,27 @@ def create(provider: Provider, parent: tuple[str, ...], name, kind: str):
 
 
 def bulk(items, func, key: str = "src") -> dict:
-    """items の 1 つずつに func を行い、項目ごとの結果を返す。func は結果に足す dict を返す。"""
+    """items の 1 つずつに func を行い、項目ごとの結果を返す。func は結果に足す dict を返す。
+    ジョブの中なら（server/jobs.py）、項目ごとに進み具合を数え、中止されていれば残りを cancelled の失敗にする。"""
+    items = list(items)
+    job = jobs.current.get()
+    if job is not None:
+        job.add_total(len(items))
     results = []
     for item in items:
+        if job is not None:
+            if job.cancelled:
+                results.append({key: item, "ok": False, **ApiError("cancelled", "中止しました").to_json()})
+                continue
+            job.begin(item if key == "src" else "")
         try:
             extra = func(item) or {}
             results.append({key: item, "ok": True, **extra})
         except ApiError as e:
             results.append({key: item, "ok": False, **e.to_json()})
+        finally:
+            if job is not None:
+                job.advance()
     return {"results": results}
 
 
@@ -143,6 +148,92 @@ def transfer_one(provider: Provider, mode: str, src_text: str, dest: tuple[str, 
         raise ApiError("exists", "フォルダは置き換えられません", vpath.join(target))
     _set_aside(provider, target)
     return {"entry": op(src, dest).to_json()}
+
+
+def duplicate_one(provider: Provider, src_text: str, new_name: str, on_conflict: str) -> dict:
+    """1 つを同じフォルダに new_name で写す（複製）。名前の衝突は on_conflict に従う（transfer_one と同じ）。"""
+    src = vpath.split(src_text)
+    if not src:
+        raise ApiError("bad_path", "マウントの根は複製できません", "/")
+    parent = src[:-1]
+    is_dir = _kind(provider, src) == "dir"
+    target = parent + (new_name,)
+    if provider.exists(target):
+        if on_conflict == "error":
+            raise ApiError("exists", f"「{new_name}」という名前の項目は既にあります", vpath.join(target))
+        if on_conflict == "skip":
+            return {"skipped": True}
+        if on_conflict == "rename":
+            return {"entry": provider.copy(src, parent, free_name(provider, parent, new_name, is_dir)).to_json()}
+        if is_dir or _kind(provider, target) == "dir":
+            raise ApiError("exists", "フォルダは置き換えられません", vpath.join(target))
+        _set_aside(provider, target)
+    return {"entry": provider.copy(src, parent, new_name).to_json()}
+
+
+def rename_one(provider: Provider, src_text: str, new_name: str, on_conflict: str) -> dict:
+    """1 つの名前を new_name に変える（一括の名前の変更）。名前が変わらなければ何もしない。
+    名前の衝突は on_conflict に従う（transfer_one と同じ）。"""
+    src = vpath.split(src_text)
+    if not src:
+        raise ApiError("bad_path", "マウントの根は名前を変えられません", "/")
+    if new_name == src[-1]:
+        return {"entry": provider.stat(src).to_json(), "unchanged": True}
+    parent = src[:-1]
+    is_dir = _kind(provider, src) == "dir"
+    target = parent + (new_name,)
+    if provider.exists(target):
+        if on_conflict == "error":
+            raise ApiError("exists", f"「{new_name}」という名前の項目は既にあります", vpath.join(target))
+        if on_conflict == "skip":
+            return {"skipped": True}
+        if on_conflict == "rename":
+            return {"entry": provider.rename(src, free_name(provider, parent, new_name, is_dir)).to_json()}
+        if is_dir or _kind(provider, target) == "dir":
+            raise ApiError("exists", "フォルダは置き換えられません", vpath.join(target))
+        _set_aside(provider, target)
+    return {"entry": provider.rename(src, new_name).to_json()}
+
+
+# --- アップロード（POST commands/<id>/upload。1 ファイル・1 フォルダずつ） ---
+
+def denied_ext(name: str, deny_exts) -> str | None:
+    """受け付けない拡張子（設定の upload_deny_exts）で終わる名前なら、その拡張子。大文字・小文字は区別しない。"""
+    lower = name.lower()
+    for ext in deny_exts:
+        if lower.endswith("." + ext) and len(lower) > len(ext) + 1:
+            return ext
+    return None
+
+
+def upload_one(provider: Provider, parent: tuple[str, ...], name: str, kind: str, stream, mtime: float | None,
+               on_conflict: str, deny_exts=(), check_only: bool = False) -> dict:
+    """手元のファイル（kind="file"。中身は stream）かフォルダ（kind="dir"。空で作る）を parent に name で置く。
+    名前の衝突は on_conflict に従う（transfer_across と同じ。フォルダは置き換えない＝中身をまぜない）。
+    check_only なら、置けるか（と置く名前）を確かめるだけで、何も変えない（大きなファイルを送る前に尋ねる）。"""
+    vpath.check_name(name)
+    target = parent + (name,)
+    if kind == "file" and (ext := denied_ext(name, deny_exts)):
+        raise ApiError("forbidden", f"この種類のファイル（.{ext}）はアップロードできません", vpath.join(target))
+    if kind == "dir" and "mkdir" not in provider.capabilities:
+        raise ApiError("unsupported", "このマウントにはフォルダを作れません", vpath.join(target))
+    if provider.exists(target):
+        if on_conflict == "error":
+            raise ApiError("exists", "同じ名前の項目があります", vpath.join(target))
+        if on_conflict == "skip":
+            return {"skipped": True}
+        if on_conflict == "rename":
+            name = free_name(provider, parent, name, kind == "dir")
+        else:  # overwrite: ファイル同士だけ。置き換えられるほうは消さずにごみ箱へ
+            if kind == "dir" or _kind(provider, target) == "dir":
+                raise ApiError("exists", "フォルダは置き換えられません", vpath.join(target))
+            if not check_only:
+                _set_aside(provider, target)
+    if check_only:
+        return {"name": name}
+    if kind == "dir":
+        return {"entry": provider.mkdir(parent, name).to_json()}
+    return {"entry": provider.write_file(parent, name, stream, mtime).to_json()}
 
 
 # --- マウントをまたぐコピー・移動 ---

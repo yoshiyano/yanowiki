@@ -20,7 +20,7 @@
 「コンフリクトで3文書マージは不要と判断した」）。起点Aを探す仕組み
 （バックアップの履歴からの復元・編集画面を開いた時点の控え）も一緒に外して
 ある。取り止めるまでの経緯は
-[更新履歴](/Tech/ChangeLog/2026-09-01) に残っている。
+[更新履歴](/ChangeLogTech/System/2026-09-01) に残っている。
 
 ## どこから来るか
 
@@ -103,7 +103,7 @@ def save_merged(wiki_dir, config, ref, merged_text, markup):
                      path=path, known=known):
         return False, "保存できませんでした。"
     if ref.exists and ext != ref.ext:
-        # 記法を移した。前の拡張子のファイルは必ず消す（編集画面と同じ理由。
+        # 書きかたを移した。前の拡張子のファイルは必ず消す（編集画面と同じ理由。
         # 残すと同じ名前のページが2つできる）
         old_path = page_file_path(wiki_dir, ref.subpath, ref.ext)
         if old_path and os.path.isfile(old_path):
@@ -189,7 +189,7 @@ def render_conflict(wiki_dir, config, farm, pagepath, explicit_farm):
         page_url=page_url,
         mine=mine, theirs=theirs,
         base_rev=source_hash(theirs), origin=origin,
-        # 記法の選び直しは編集画面から引き継ぐ（POSTなら送り返されたもの、
+        # 書きかたの選び直しは編集画面から引き継ぐ（POSTなら送り返されたもの、
         # 最初に開いたときはURLの ?markup=…）。この画面には選ぶところが無い
         markup=(request.forms.getunicode("markup", "") if request.method == "POST"
                 else request.query.getunicode("markup", "")),

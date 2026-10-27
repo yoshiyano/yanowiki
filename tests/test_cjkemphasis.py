@@ -14,8 +14,8 @@ CommonMark は、`*` の並びが開き側・閉じ側になれるかを前後�
 まで動かしていないことを示せて初めて安心して入れられる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_cjkemphasis.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_cjkemphasis.py     （このファイルだけ）
 """
 import os
 import sys

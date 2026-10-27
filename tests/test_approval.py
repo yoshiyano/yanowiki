@@ -13,8 +13,8 @@
   - 承認する画面（管理者と助手だけ。承認・断る。承認待ちだけを扱う）
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_approval.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_approval.py     （このファイルだけ）
 """
 import io
 import os
@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.join(ROOT, "_sys"))
 import bottle  # noqa: E402
 from bottle import HTTPResponse  # noqa: E402
 
-from wikilib import approvalsui, auth, groups, privilege_records, sysui, userdb, wikiconfig  # noqa: E402
+from wikilib import approvalsui, auth, groups, pagenotice, privilege_records, sysui, userdb, wikiconfig  # noqa: E402
 from wikilib.paths import LOGIN_AUTH_COOKIE, LOGIN_COOKIE, wiki_cookie_name  # noqa: E402
 
 FARM = "testwiki"
@@ -50,10 +50,14 @@ class ApprovalTestBase(unittest.TestCase):
         groups.add_members(self.wiki_dir, "staff", ["helper"])
         self.kept_secret_path = auth.SECRET_PATH
         auth.SECRET_PATH = os.path.join(self.work, "config", "secret.txt")
+        # 同じIPからの申請の数は、試験ごとに別の記録で数える
+        self.kept_signup_log = auth.SIGNUP_LOG
+        auth.SIGNUP_LOG = os.path.join(self.work, "signup.json")
         bottle.request.bind({})
 
     def tearDown(self):
         auth.SECRET_PATH = self.kept_secret_path
+        auth.SIGNUP_LOG = self.kept_signup_log
         bottle.request.bind({})
         shutil.rmtree(self.work, ignore_errors=True)
 
@@ -79,8 +83,9 @@ class ApprovalTestBase(unittest.TestCase):
         return (f"{wiki_cookie_name(LOGIN_COOKIE, FARM)}={uid}; "
                 f"{wiki_cookie_name(LOGIN_AUTH_COOKIE, FARM)}={token}")
 
-    def signup(self, uid="newbie", pw="p@ssw0rd"):
-        self.form({"cmd": "signup", "uid": uid, "name": "新人", "pw": pw, "pw2": pw, "back": ""})
+    def signup(self, uid="newbie", pw="p@ssw0rd", ip="127.0.0.1", name="新人"):
+        self.form({"cmd": "signup", "uid": uid, "name": name, "pw": pw, "pw2": pw, "back": ""})
+        bottle.request.environ["REMOTE_ADDR"] = ip
         return auth.do_signup({}, FARM, self.wiki_dir, False, "/=testwiki/")
 
     def cookies_in(self, out):
@@ -258,6 +263,129 @@ class TestPrivilege(ApprovalTestBase):
         self.assertEqual(self.check("alice"), "W")
 
 
+class TestSignupLimits(ApprovalTestBase):
+    """申請の受付の限り（同じIPからの回数・承認待ちの上限・期限・表示名の長さ）。"""
+
+    DAY = 24 * 60 * 60
+
+    def setUp(self):
+        super().setUp()
+        self.set_policy("approval")
+
+    def result(self, out):
+        return out.headers["Location"].rsplit("login=", 1)[1]
+
+    def test_同じIPからは1時間に3件まで(self):
+        for n in range(3):
+            self.assertEqual(self.result(self.signup("u%d" % n)), "applied")
+        self.assertEqual(self.result(self.signup("u3")), "busy")
+        self.assertIsNone(userdb.find_by_uid(self.wiki_dir, "u3"))
+        # 別のIPからは受け付ける
+        self.assertEqual(self.result(self.signup("u4", ip="10.0.0.2")), "applied")
+
+    def test_X_Forwarded_For_があればその先頭で数える(self):
+        for n in range(3):
+            self.signup("u%d" % n)
+        self.form({"cmd": "signup", "uid": "u9", "name": "", "pw": "p", "pw2": "p", "back": ""})
+        bottle.request.environ["HTTP_X_FORWARDED_FOR"] = "10.9.9.9, 127.0.0.1"
+        out = auth.do_signup({}, FARM, self.wiki_dir, False, "/=testwiki/")
+        self.assertEqual(self.result(out), "applied")
+
+    def test_受け付けなかった申請は数えない(self):
+        for n in range(3):
+            self.form({"cmd": "signup", "uid": "x%d" % n, "pw": "a", "pw2": "b", "back": ""})
+            auth.do_signup({}, FARM, self.wiki_dir, False, "/=testwiki/")
+        self.assertEqual(self.result(self.signup("ok1")), "applied")
+
+    def test_openのWikiでは回数を数えない(self):
+        self.set_policy("open")
+        for n in range(5):
+            self.assertEqual(self.result(self.signup("o%d" % n)), "made")
+
+    def test_承認待ちが20件あれば受け付けない(self):
+        for n in range(userdb.PENDING_MAX):
+            ok, message = userdb.add_user(self.wiki_dir, "p%d" % n,
+                                          userdb.hash_password(self.wiki_dir, "p%d" % n, "x"), "",
+                                          approved=False)
+            self.assertTrue(ok, message)
+        self.assertFalse(userdb.signup_open(self.wiki_dir))
+        self.assertEqual(self.result(self.signup("late")), "closed")
+        self.assertIsNone(userdb.find_by_uid(self.wiki_dir, "late"))
+        # 1件断れば、受付を再開する
+        userdb.delete_user(self.wiki_dir, userdb.find_by_uid(self.wiki_dir, "p0")["uidnum"])
+        self.assertEqual(self.result(self.signup("late")), "applied")
+
+    def test_承認を取り消したアカウントは上限に数えない(self):
+        uidnum = userdb.find_by_uid(self.wiki_dir, "alice")["uidnum"]
+        userdb.set_approved(self.wiki_dir, uidnum, False)
+        self.assertEqual(userdb.pending_applications(self.wiki_dir), 0)
+        # 期限でも消さない（申請ではない）
+        userdb.expire_pending(self.wiki_dir, now=9999999999)
+        self.assertIsNotNone(userdb.find_by_uid(self.wiki_dir, "alice"))
+
+    def test_3日たっても承認されなければ消える(self):
+        self.signup("slow")
+        applied = userdb.find_by_uid(self.wiki_dir, "slow")["applied_at"]
+        self.assertGreater(applied, 0)
+        self.assertEqual(len(userdb.pending_users(self.wiki_dir, now=applied + 3 * self.DAY - 1)), 1)
+        self.assertEqual(userdb.pending_users(self.wiki_dir, now=applied + 3 * self.DAY), [])
+        self.assertIsNone(userdb.find_by_uid(self.wiki_dir, "slow"))
+        # ID は空く
+        self.assertEqual(self.result(self.signup("slow", ip="10.0.0.3")), "applied")
+
+    def test_承認したアカウントは期限で消えない(self):
+        self.signup("good")
+        user = userdb.find_by_uid(self.wiki_dir, "good")
+        userdb.set_approved(self.wiki_dir, user["uidnum"], True)
+        userdb.expire_pending(self.wiki_dir, now=user["applied_at"] + 30 * self.DAY)
+        self.assertIsNotNone(userdb.find_by_uid(self.wiki_dir, "good"))
+
+    def test_期限切れの申請でログインすると_承認待ちではなくng(self):
+        self.signup("slow")
+        user = userdb.find_by_uid(self.wiki_dir, "slow")
+        with sqlite3.connect(userdb.db_path(self.wiki_dir)) as con:
+            con.execute("UPDATE passwd SET applied_at = ? WHERE uidnum = ?",
+                        (user["applied_at"] - 3 * self.DAY, user["uidnum"]))
+        self.form({"uid": "slow", "pw": "p@ssw0rd"})
+        found, locked, _left = auth.try_password(self.wiki_dir, "slow", "slow", "p@ssw0rd")
+        self.assertIsNone(found)
+        self.assertFalse(locked)
+        self.assertIsNone(userdb.find_by_uid(self.wiki_dir, "slow"))
+
+    def test_助手の承認を元に戻すと_期限は数え直す(self):
+        self.signup("back")
+        user = userdb.find_by_uid(self.wiki_dir, "back")
+        with sqlite3.connect(userdb.db_path(self.wiki_dir)) as con:
+            con.execute("UPDATE passwd SET approved = 1, applied_at = 1 WHERE uidnum = ?",
+                        (user["uidnum"],))
+        userdb.set_approved(self.wiki_dir, user["uidnum"], False, renew=True)
+        self.assertGreater(userdb.find_by_uid(self.wiki_dir, "back")["applied_at"], 1)
+
+    def test_列の無い古いDBの承認待ちは_いまから数える(self):
+        with sqlite3.connect(userdb.db_path(self.wiki_dir)) as con:
+            con.execute("CREATE TABLE p2 AS SELECT uidnum, uid, pw, name, approved, cnt FROM passwd")
+            con.execute("DROP TABLE passwd")
+            con.execute("ALTER TABLE p2 RENAME TO passwd")
+            con.execute("UPDATE passwd SET approved = 0 WHERE uid = 'alice'")
+        alice = userdb.find_by_uid(self.wiki_dir, "alice")
+        self.assertGreater(alice["applied_at"], 0)
+        self.assertEqual(userdb.find_by_uid(self.wiki_dir, "helper")["applied_at"], 0)
+
+    def test_表示名は32文字まで(self):
+        self.assertEqual(self.result(self.signup("n1", name="あ" * 33)), "ng")
+        self.assertIsNone(userdb.find_by_uid(self.wiki_dir, "n1"))
+        self.assertEqual(self.result(self.signup("n2", name="あ" * 32)), "applied")
+        ok, message = userdb.add_user(self.wiki_dir, "n3", userdb.hash_password(self.wiki_dir, "n3", "p"),
+                                      "x" * 33)
+        self.assertFalse(ok)
+        self.assertIn("32文字まで", message)
+        alice = userdb.find_by_uid(self.wiki_dir, "alice")
+        ok, _m = userdb.update_user(self.wiki_dir, alice["uidnum"], "alice", "", "x" * 33)
+        self.assertFalse(ok)
+        ok, _m = userdb.update_user(self.wiki_dir, alice["uidnum"], "alice", "", "x" * 32)
+        self.assertTrue(ok)
+
+
 class TestApprovalsScreen(ApprovalTestBase):
     """承認する画面（`/.admin/approvals`）。"""
 
@@ -282,6 +410,14 @@ class TestApprovalsScreen(ApprovalTestBase):
                 mock.patch.object(approvalsui, "make_plugin_context",
                                   return_value=mock.Mock(base_url="/=testwiki")):
             return approvalsui.render_approvals(self.wiki_dir, {}, FARM, False)
+
+    def test_受付を止めているときは_そう案内する(self):
+        body = lambda res: res.body if isinstance(res.body, str) else res.body.decode()  # noqa: E731
+        self.assertNotIn("受付を止めています", body(self.call("admin")))
+        for n in range(userdb.PENDING_MAX):
+            userdb.add_user(self.wiki_dir, "p%d" % n,
+                            userdb.hash_password(self.wiki_dir, "p%d" % n, "x"), "", approved=False)
+        self.assertIn("受付を止めています", body(self.call("admin")))
 
     def test_未ログインと一般のアカウントは断る(self):
         for uid in (None, "alice"):
@@ -345,6 +481,54 @@ class TestApprovalsScreen(ApprovalTestBase):
         res = self.call("helper")
         body = res.body if isinstance(res.body, str) else res.body.decode()
         self.assertIn("承認制ではありません", body)
+
+
+class TestSignupNotice(ApprovalTestBase):
+    """申請の受付を止めているあいだ、承認できる人の info に知らせを出す（`pagenotice.signup_notice`）。"""
+
+    def setUp(self):
+        super().setUp()
+        self.set_policy("approval")
+
+    def fill(self):
+        for n in range(userdb.PENDING_MAX):
+            userdb.add_user(self.wiki_dir, "p%d" % n,
+                            userdb.hash_password(self.wiki_dir, "p%d" % n, "x"), "", approved=False)
+
+    def info(self, uid, subpath="FrontPage"):
+        bottle.request.bind({"HTTP_COOKIE": self.login_cookie(uid)} if uid else {})
+        return pagenotice.page_info_for({}, FARM, "/=testwiki", self.wiki_dir, subpath)
+
+    def test_受け付けているあいだは出さない(self):
+        self.assertEqual(self.info("admin"), "")
+
+    def test_止めているときは_管理者と助手にだけ出す(self):
+        self.fill()
+        for uid in ("admin", "helper"):
+            html = self.info(uid)
+            self.assertIn("申請の受付を止めています", html, uid)
+            self.assertIn('href="/=testwiki/.admin/approvals"', html, uid)
+        for uid in (None, "alice"):
+            self.assertEqual(self.info(uid), "", uid)
+
+    def test_openのWikiでは出さない(self):
+        self.fill()
+        self.set_policy("open")
+        self.assertEqual(self.info("admin"), "")
+
+    def test_ページに付かない場面でも出す(self):
+        self.fill()
+        self.assertIn("申請の受付を止めています", self.info("admin", subpath=None))
+
+    def test_重複の知らせと並べて出す(self):
+        self.fill()
+        for ext in (".txt", ".md"):
+            with open(os.path.join(self.wiki_dir, "FrontPage" + ext), "w", encoding="utf-8") as f:
+                f.write("x\n")
+        html = self.info("admin")
+        self.assertEqual(html.count("<a "), 2)
+        self.assertLess(html.index("同じ名前のファイル"), html.index("申請の受付を止めています"))
+        self.assertEqual(self.info(None).count("<a "), 1)
 
 
 if __name__ == "__main__":

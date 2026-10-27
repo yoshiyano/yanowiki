@@ -12,8 +12,8 @@
 通さず、**その場でやり直してもらう**（Wiki設計者の指示、2026-09-08）。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_resetpw.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_resetpw.py     （このファイルだけ）
 """
 import builtins
 import importlib.util

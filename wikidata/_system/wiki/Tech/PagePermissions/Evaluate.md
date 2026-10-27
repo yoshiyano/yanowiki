@@ -22,7 +22,7 @@
 - 各行にアカウントの状態（管理者・助手・ロック中・承認待ち）を添える。ロック中・承認待ちは
   判定の上では未認証と同じなので、色を変えて目立たせる（`userdb.is_locked`・`userdb.is_approved`）
 - 判定は `auth.explain_privilege`（`page_privilege(...).check(...)` と同じ決めかたを、当たった
-  行までさかのぼれるようにした版）に任せる。大量判定用の `PagePrivilege` は使わない。
+  行までさかのぼれるようにしたもの）に任せる。大量判定用の `PagePrivilege` は使わない。
   system・plugin をそれぞれ判定し、返り値は `system`／`plugin` キーに分かれる
 - 記録の読み直し（`privilege_records.load`・`load_plugin`）は、表を作る1回の呼び出しにつき1回だけ
   （`rows`／`plugin_rows` 引数で使い回す）

@@ -6,8 +6,8 @@
 始まること、承認する画面）は `tests/test_approval.py` が見る。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_accountpolicy.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_accountpolicy.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -186,7 +186,7 @@ class TestPwSaltScreen(unittest.TestCase):
             data = json.dumps(payload).encode("utf-8")
             bottle.request.bind({"REQUEST_METHOD": "POST", "CONTENT_TYPE": "application/json",
                                  "CONTENT_LENGTH": str(len(data)), "wsgi.input": io.BytesIO(data)})
-            with mock.patch.object(auth, "allows", return_value=True), \
+            with mock.patch.object(auth, "can", return_value=True), \
                     mock.patch.object(configui, "farm_config_path",
                                       return_value=wikiconfig.farm_config_path(self.wiki_dir)):
                 return configui.render_configwiki_api(self.wiki_dir, {}, "wikiA", False)

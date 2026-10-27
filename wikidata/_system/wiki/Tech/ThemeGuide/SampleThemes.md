@@ -91,6 +91,6 @@ CSSも、共通CSSを読み込んでから色と一部のレイアウトだけ�
 
 ## 検索結果ページとの関係
 
-`theme/search.html` は `{% extends themefile + ".html" %}` なので、どちらのテーマでも検索結果は
+検索結果のテンプレート（本体の `_sys/search/search.html`）は `{% extends themefile + ".html" %}` なので、どちらのテーマでも検索結果は
 そのデザインになります。一から書くテーマでも、`breadcrumb` と `content` のブロックを定義しておけば
 `search.html` がそこへ結果を流し込みます。

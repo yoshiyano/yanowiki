@@ -7,19 +7,23 @@
 
 import { setDialogHost } from "./dialog.js";
 import { h } from "./dom.js";
-import { parseFeatures } from "./features.js";
 import { createApp } from "./main.js";
 import { loadPref, savePref } from "./prefs.js";
 
 const SECOND_PANE_KEY = "webfiledir.secondPane";
 
 /**
- * options.features … 画面の機能の ON/OFF（features.js）。どちらの画面にも同じものを渡す。
- *                    dual を false にすると［二画面］を出さず、覚えている二画面の状態も使わない
+ * options.dual … false にすると［二画面］を出さず、覚えている二画面の状態も使わない（組み込む側が二画面を止める。
+ *                2026-09-29 設計者決定、C3。閲覧の操作と同じく、サーバに尋ねる中身が無いので画面の設定にした）
+ * options.folderUpload … false にすると、フォルダごとのアップロード（フォルダのドロップ・［フォルダを選ぶ］）を
+ *                させない（ファイルだけ送れる）。見せかたの切り替えで、BackEnd の制限ではない（フォルダを作る・
+ *                ファイルを送るは、それぞれ BackEnd が許していればできる）
  */
 export function createShell(root, options = {}) {
-  const { features = {} } = options;
-  const dualEnabled = parseFeatures(features).has("dual"); // 知らない名前はここで Error
+  const { dual = true, folderUpload = true } = options;
+  if (typeof dual !== "boolean") throw new Error("createShell の dual は true か false にしてください");
+  if (typeof folderUpload !== "boolean") throw new Error("createShell の folderUpload は true か false にしてください");
+  const dualEnabled = dual;
   root.classList.add("fd-shell");
   const firstEl = h("div", { class: "fd-pane" });
   root.replaceChildren(firstEl);
@@ -28,7 +32,7 @@ export function createShell(root, options = {}) {
   let secondEl = null;
 
   const first = createApp(firstEl, {
-    paneId: "first", features, onToggleDual: dualEnabled ? () => setDual(!second) : null,
+    paneId: "first", folderUpload, onToggleDual: dualEnabled ? () => setDual(!second) : null,
     // フォルダを「隣の画面で開く」。二画面でなければ、二画面にしてそこで開く
     onOpenInOther: dualEnabled ? (mount, path) => {
       if (second) second.actions.go(mount, path);
@@ -45,7 +49,7 @@ export function createShell(root, options = {}) {
       root.append(secondEl);
       second = createApp(secondEl, {
         paneId: "second",
-        features,
+        folderUpload,
         router: "memory",
         storageKey: SECOND_PANE_KEY,
         // 覚えた場所が無ければ、最初の画面と同じ場所から始める

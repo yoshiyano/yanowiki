@@ -65,20 +65,28 @@ import contextlib
 import contextvars
 import hashlib
 import hmac
+import json
 import os
 import secrets
+import tempfile
 import time
 from urllib.parse import parse_qs, quote, urlsplit
 
 from bottle import HTTPResponse, request
 
-from wikilib import authlog, groups, privilege_records, userdb
+from wikilib import authlog, groups, privilege_records, staffperms, userdb
 from wikilib.paths import (
     LOGIN_AUTH_COOKIE, LOGIN_COOKIE, LOGIN_COOKIE_MAX_AGE, LOGIN_URLPATH, SECRET_LENGTH,
-    SECRET_PATH, is_valid_pagepath, wiki_cookie_name,
+    SECRET_PATH, is_valid_pagepath,
 )
 from wikilib.themes import make_plugin_context
+from wikilib.web import delete_wiki_cookie, get_wiki_cookie, set_wiki_cookie
 from wikilib.wikiconfig import account_policy, load_wiki_config
+
+try:
+    import fcntl
+except ImportError:  # Windowsなど。ロック無しで数える
+    fcntl = None
 
 # ---- プリンシパル（誰を指すか） ---------------------------------------------
 
@@ -119,6 +127,19 @@ LOGIN_RESULT_MADE = "made"      # アカウントを作った
 LOGIN_RESULT_APPLIED = "applied"  # 申請した（承認待ち）
 LOGIN_RESULT_PENDING = "pending"  # 承認待ちのアカウントでログインしようとした
 LOGIN_RESULT_REVOKED = "revoked"  # 他の端末のログイン状態を取り消した
+LOGIN_RESULT_CLOSED = "closed"   # 承認待ちが上限に届いていて、申請を受け付けなかった
+LOGIN_RESULT_BUSY = "busy"       # 同じIPからの申請が多すぎて、受け付けなかった
+
+# 承認制のWikiで、同じIPから申請できる回数（設計者の決定、2026-10-19。回数と幅はクロコの案を採用）。
+# IPは `request.remote_addr`（`X-Forwarded-For` があればその先頭）をそのまま使う。ヘッダーの偽装には
+# 対応しない（設計者の判断、2026-10-23）。
+# 数えた記録は一時フォルダのJSON（直近1時間ぶんだけ残す。`updatepageauth` と同じ作り）
+SIGNUP_WINDOW = 60 * 60
+SIGNUP_MAX = 3
+SIGNUP_LOG = os.path.join(
+    tempfile.gettempdir(),
+    "wikisystem-signup-{}.json".format(
+        hashlib.sha1(os.path.abspath(__file__).encode("utf-8")).hexdigest()[:12]))
 
 
 def site_secret():
@@ -212,8 +233,8 @@ def current_user(wiki_dir, wikiname):
     ので、それだけでは何も意味しない。`wikiauth`（合言葉）と突き合わせて、
     サーバー側で作り直した値と一致したときだけ通す（`verify_token`）。"""
     return verify_token(wiki_dir, wikiname,
-                        request.get_cookie(wiki_cookie_name(LOGIN_COOKIE, wikiname)) or "",
-                        request.get_cookie(wiki_cookie_name(LOGIN_AUTH_COOKIE, wikiname)) or "")
+                        get_wiki_cookie(LOGIN_COOKIE, wikiname),
+                        get_wiki_cookie(LOGIN_AUTH_COOKIE, wikiname))
 
 
 # ---- 成り代わり（システムとして動くとき） -----------------------------------
@@ -264,15 +285,45 @@ def acting_as():
     return _acting_as.get()
 
 
+# 要求の時点で cookie から判定した閲覧者を、別のスレッドへ持ち出すための固定。
+# 既定の _UNFIXED なら固定していない（cookie を読む）。None は「未ログインと判定した」
+_UNFIXED = object()
+_fixed_viewer = contextvars.ContextVar("wikisystem_fixed_viewer", default=_UNFIXED)
+
+
+@contextlib.contextmanager
+def fix_viewer(uid):
+    """`with` の中だけ、閲覧者を `uid`（None なら未ログイン）に固定する。
+
+    要求の処理を別のスレッドへ渡すとき（ファイル一覧の webFileDir のジョブ。
+    `wikilib.filesui`）のためのもの。別のスレッドでは bottle の要求（cookie）が
+    読めないので、要求の中で判定した結果を文脈の変数に入れておき、文脈ごと写して
+    渡されたスレッドでも同じ閲覧者として扱う（`contextvars.copy_context`）。
+
+    **成り代わり（`act_as`）とは別物。** 新しい権限は与えず、要求の中で cookie から
+    判定した人（未ログインを含む）を、そのまま持ち運ぶだけ。成り代わりのほうが強い
+    （`current_uid` は成り代わりを先に見る）。"""
+    if uid is not None and not (isinstance(uid, str) and userdb.UID_RE.match(uid)):
+        raise ValueError(f"固定できない名前です: {uid!r}")
+    token = _fixed_viewer.set(uid)
+    try:
+        yield uid
+    finally:
+        _fixed_viewer.reset(token)
+
+
 def current_uid(wiki_dir, wikiname):
     """**いまの閲覧者**のログインID（システムへの問い合わせ窓口）。
 
-    成り代わり中（`act_as`）ならその相手、そうでなければ cookie でログインして
-    いる人、どちらでもなければ None（未ログイン）。ページごとの判定器
-    （`page_privilege`）へ渡す名前は、ここから取る。"""
+    成り代わり中（`act_as`）ならその相手、閲覧者を固定している（`fix_viewer`）なら
+    その人、そうでなければ cookie でログインしている人、どれでもなければ None
+    （未ログイン）。ページごとの判定器（`page_privilege`）へ渡す名前は、ここから取る。"""
     uid = _acting_as.get()
     if uid is not None:
         return uid
+    fixed = _fixed_viewer.get()
+    if fixed is not _UNFIXED:
+        return fixed
     user = current_user(wiki_dir, wikiname)
     return user["uid"] if user else None
 
@@ -288,38 +339,32 @@ def remember_login(out, config, farm, wiki_dir, explicit_farm, user):
     毎日開いている人でも2日で切れてしまう。`user` に None を渡してよい
     （何もしない）。
 
-    **cookieは「返すHTTPResponse自身」に設定する。** bottleは、ハンドラが
-    HTTPResponseを返した場合、スレッドローカルの `response` ではなく返された
-    ほうを使う。`response.set_cookie(...)` と書くとSet-Cookieが落ちる
-    （テーマのcookieで一度これに引っかかっている。wikilib.themes参照）。
+    cookieの名前・Path・属性の決まりは `wikilib.web.set_wiki_cookie` にまとめてある。
 
     Pathはこのwikiの入口に限る。アカウントはWikiごとに別なので、隣のWikiへ
     持ち出されないようにするため。どちらも `httponly`——画面側のJavaScriptから
     読む用が無いうえ、合言葉のほうは読めてしまうと持ち出しが容易になる。"""
     if user is None:
         return
-    path = _base_url(config, farm, wiki_dir, explicit_farm) or "/"
+    path = _base_url(config, farm, wiki_dir, explicit_farm)
     token = session_token(user["uid"], farm, user["pw"], cnt=userdb.user_cnt(user))
     for base, value in ((LOGIN_COOKIE, user["uid"]), (LOGIN_AUTH_COOKIE, token)):
-        out.set_cookie(wiki_cookie_name(base, farm), value, path=path,
-                       max_age=LOGIN_COOKIE_MAX_AGE,
-                       samesite="lax", httponly=True)
+        set_wiki_cookie(out, base, farm, value, path, LOGIN_COOKIE_MAX_AGE, httponly=True)
 
 
 def forget_login(out, config, farm, wiki_dir, explicit_farm):
     """ログイン状態のcookieを捨てる（ログアウト）。
 
-    **`Path` を置いたときと同じにしないと消えない。** cookieは名前とPathの
-    組で決まるので、`/` で消しにいっても `/=<Wiki名>` に置いたものは残る。
+    **`Path` を置いたときと同じにしないと消えない**（`wikilib.web` のcookieの決まり）。
     置く側（`remember_login`）と同じ求めかたにしてある。
 
     **これはブラウザ側から捨てるだけで、合言葉そのものは無効にならない。**
     サーバー側に控えを持たない作りなので、同じ値をもう一度送られれば通る
     （その日のうちは）。取り消したいときは「他端末からの認証を解除する」
     （`do_revoke_others`）か、パスワードを変える。"""
-    path = _base_url(config, farm, wiki_dir, explicit_farm) or "/"
+    path = _base_url(config, farm, wiki_dir, explicit_farm)
     for base in (LOGIN_COOKIE, LOGIN_AUTH_COOKIE):
-        out.delete_cookie(wiki_cookie_name(base, farm), path=path)
+        delete_wiki_cookie(out, base, farm, path)
 
 
 def _base_url(config, farm, wiki_dir, explicit_farm):
@@ -341,7 +386,7 @@ def expand_principal(wiki_dir, principal):
                          登録ユーザ全員になる。未ログインを含めて判定するのは
                          `PagePrivilege`）
 
-    どの形でもない文字列は空集合（安全側——書き間違いや未知の記法を、
+    どの形でもない文字列は空集合（安全側——書き間違いや未知の書きかたを、
     誰にでも当てはまるものとして扱わない）。"""
     if principal == ADMIN_PRINCIPAL:
         return {userdb.ADMIN_UIDNUM}
@@ -377,6 +422,22 @@ def allows(wiki_dir, farm, principals):
     return user["uidnum"] in expand_principals(wiki_dir, principals)
 
 
+def can(wiki_dir, farm, *keys):
+    """いまログインしている相手が、助手の権限 `keys` の**どれか**を持つか。
+
+    管理者は全部持つ。助手は管理者が与えたもの（`wikilib.staffperms`。与えていなければ
+    既定）だけ。助手でも管理者でもない人・未ログインは持たない。画面の関門は、
+    `STAFF` を渡す `allows` ではなく、これ（`sysui.require_perm` 経由）で
+    **画面ごとに必要な権限**を確かめる。
+
+    知らない権限の名前は `KeyError`（書き間違いを黙って「誰にも与えない」にしない）。"""
+    if not keys:
+        raise ValueError("権限の名前を1つ以上渡してください")
+    staffperms.check_keys(keys)
+    held = staffperms.granted_set(wiki_dir, current_user(wiki_dir, farm))
+    return any(k in held for k in keys)
+
+
 def is_staff(wiki_dir, user):
     """そのアカウントは管理者か助手か（＝`STAFF`に当たるか）。
 
@@ -389,13 +450,24 @@ def is_staff(wiki_dir, user):
 
 
 def can_edit_group(wiki_dir, gname, uidnum):
-    """そのグループを編集できるか。**g:<グループ名>、admin、g:staff の誰か**
+    """そのグループを編集できるか。**g:<グループ名>、admin、助手の誰か**
     （Wiki設計者の指示、2026-09-12。「foo グループの編集権は、g:foo, admin,
-    g:staff とする」）。`gname`が`staff`自身のときも同じ式で計算される
-    （結局`admin`と`g:staff`の合併になる）。"""
+    g:staff とする」）。
+
+    助手が使えるかは、管理者が与えた権限で決まる（`wikilib.staffperms`）。助手グループ
+    以外は `groups.others`、助手グループ自身は `groups.staff`。**助手グループは、
+    メンバー（＝助手）であることだけでは編集できない**——でないと、権限を外された
+    助手が、自分の権限を外した管理者の設定とは無関係に助手を増やせてしまう。
+    メンバーであることで編集できるのは、助手グループ以外のグループだけ。"""
     if not uidnum:
         return False
-    return uidnum in expand_principals(wiki_dir, (GROUP_PREFIX + gname,) + STAFF)
+    if uidnum == userdb.ADMIN_UIDNUM:
+        return True
+    user = userdb.get_user(wiki_dir, uidnum)
+    held = staffperms.granted_set(wiki_dir, user)
+    if gname == groups.STAFF_GROUP:
+        return "groups.staff" in held
+    return groups.is_member(wiki_dir, gname, uidnum) or "groups.others" in held
 
 
 # ---- ページごとに何をしてよいか ---------------------------------------------
@@ -599,7 +671,7 @@ class PagePrivilege:
     いても、厳しいほうを採る規則により採用されない（それが「緩和しない」の中身）。
 
     **プラグインの記録にワイルドカード・既定の行（`*`）は無い**（`plugin/
-    _authcommon.py`。`#readauth`・`#writeauth` はページ名にワイルドカードが
+    readauth_.py`。`#readauth`・`#writeauth` はページ名にワイルドカードが
     あれば断る）。plugin側の判定でも同じ `_build_tables`/`_best` を使うが、
     実際に当たるのは完全一致だけになる。
 
@@ -994,12 +1066,21 @@ def do_signup(config, farm, wiki_dir, explicit_farm, back):
     first = request.forms.getunicode("pw", "") or ""
     second = request.forms.getunicode("pw2", "") or ""
     pending = account_policy(load_wiki_config(wiki_dir)) == "approval"
+    # 承認制では、受付の限り（`userdb` の冒頭）と、同じIPからの回数を先に見る
+    ip_key = "{}\t{}".format(farm or "", request.remote_addr or "")
+    if pending:
+        if not userdb.signup_open(wiki_dir):
+            return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_CLOSED)
+        if _count_signups(ip_key, time.time(), record=False) >= SIGNUP_MAX:
+            return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_BUSY)
     ok = bool(first) and first == second
     if ok:
         ok, _message = userdb.add_user(wiki_dir, uid, userdb.hash_password(wiki_dir, uid, first), name,
                                        approved=not pending)
     if not ok:
         return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_NG)
+    if pending:
+        _count_signups(ip_key, time.time(), record=True)  # 数えるのは受け付けた申請だけ
     authlog.note_attempt(wiki_dir, uid, request.remote_addr, passed=True)
     if pending:
         # 入れない（cookieを置かない）。承認されたらログインしてもらう
@@ -1008,6 +1089,26 @@ def do_signup(config, farm, wiki_dir, explicit_farm, back):
     out = _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_MADE)
     remember_login(out, config, farm, wiki_dir, explicit_farm, user)
     return out
+
+
+def _count_signups(key, now, record):
+    """key（Wiki名とIP）の直近 `SIGNUP_WINDOW` 秒の申請の数。`record` なら1件足してから数える。"""
+    fd = os.open(SIGNUP_LOG, os.O_RDWR | os.O_CREAT, 0o600)
+    with os.fdopen(fd, "r+", encoding="utf-8") as f:
+        if fcntl is not None:
+            fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            log = json.loads(f.read() or "{}")
+        except ValueError:
+            log = {}
+        log = {k: [t for t in v if now - t < SIGNUP_WINDOW] for k, v in log.items()}
+        if record:
+            log.setdefault(key, []).append(now)
+        log = {k: v for k, v in log.items() if v}
+        f.seek(0)
+        f.truncate()
+        json.dump(log, f)
+    return len(log.get(key, []))
 
 
 def try_password(wiki_dir, uid, typed, password):
@@ -1033,6 +1134,8 @@ def try_password(wiki_dir, uid, typed, password):
     `typed` は**打たれたそのまま**の文字列（記録用）、`uid` は前後の空白を
     落としたもの（照合と数え用）。"""
     remote = request.remote_addr
+    # 期限切れの申請は、ここで消えて「そのIDが無い」になる（承認待ちとは言わない）
+    userdb.expire_pending(wiki_dir)
     row = userdb.find_by_uid(wiki_dir, uid)
     if row is None:
         authlog.note_attempt(wiki_dir, typed, remote, passed=False, known=False)

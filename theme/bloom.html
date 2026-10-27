@@ -25,6 +25,9 @@
     置いている。subbar内の並びは 目次 → コマンド → menu2 → menu1。
     site_titleはテキストとしては表示せず、代わりにpage-titleの右へ
     headicon.svg（同梱、160x64のロゴ的なSVG）を添えている。
+    アイコンの大きさは高さだけ（64px）を決め、横幅は画像の縦横比に任せる
+    （Wiki設計者の指示、2026-10-13）。<img> の width="160" は、読み込み前に
+    場所を空けるための目安にすぎない（読み込み後は画像の縦横比が優先される）。
 
   ● 変数は common/base.html と同じものが使えます（site_title, page_title,
     topic_path, content, toc, menu1, menu2, base_url, theme_url ほか）。
@@ -45,8 +48,9 @@
    （config/default.yaml、"ページ名,モード"のリスト）でページごとに指定する
    "auto"（既定・狭い画面で帯として折りたたむ）/ "fix"（常時表示、従来どおり）。
    base.htmlと同じ扱い。bloomはmenu1・menu2とも同じ.subbar1本に入るため、
-   どちらかがfixならその.subbar全体の折りたたみを解除する（common.css側）。 #}
-<html lang="ja"{% if menu1_mode == "fix" %} data-menu1-mode="fix"{% endif %}{% if menu2_mode == "fix" %} data-menu2-mode="fix"{% endif %}>
+   どちらかがfixならその.subbar全体の折りたたみを解除する（common.css側）。
+   data-default-zoom / data-default-wide（標準の拡大率と幅）もbase.htmlと同じ。 #}
+<html lang="ja"{% if menu1_mode == "fix" %} data-menu1-mode="fix"{% endif %}{% if menu2_mode == "fix" %} data-menu2-mode="fix"{% endif %}{% if default_zoom %} data-default-zoom="{{ default_zoom }}"{% endif %}{% if default_content_wide %} data-default-wide="1"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -86,7 +90,7 @@
     <img src="{{ theme_url }}/headicon.svg" alt="" width="160" height="64">
   </span>
   <div class="page-header-text">
-    <h1 class="page-title">{{ page_title }}{{ title_note }}</h1>
+    <h1 class="page-title"><span class="page-title-tools"><span class="page-info-slot">{{ page_info|default("", true) }}</span><button type="button" class="content-width-toggle"></button></span>{{ page_title }}{{ title_note }}</h1>
     {% block breadcrumb %}
     <nav class="page-path" aria-label="TopicPath">
       <a href="{{ base_url }}/">ホーム</a>{% for item in topic_path %}<span class="sep">›</span>{% if item.url %}<a href="{{ item.url }}">{{ item.label }}</a>{% else %}<span class="current">{{ item.label }}</span>{% endif %}{% endfor %}

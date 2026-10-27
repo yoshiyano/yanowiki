@@ -1,8 +1,12 @@
 # wikiSystem リポジトリの注意点
 
-## Tech/ChangeLog（テーマ含む）への記録（日付を間違えないために）
+## ChangeLogTech（System・Plugin・Theme）への記録（日付を間違えないために）
 
-`wikidata/wiki/wiki/Tech/ChangeLog/` 配下（`themes/` を含む）の記録は、
+作業の記録は `wikidata/_system/wiki/ChangeLogTech/` 配下（`System/`・`Plugin/`・`Theme/`）に書く
+（2026-10-24 に `ChangeLog/` から改名。main では公開しない）。`ChangeLog/` は公開用の、
+バージョンごとの変更点の要約で、リリースを作るときにだけ更新する。
+
+`ChangeLogTech/` の記録は、
 日付の見出しで作成。時刻も合わせて管理する情報です。
 
 記録の前に必ず次を行うこと。

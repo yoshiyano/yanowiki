@@ -3,7 +3,7 @@
 編集画面と、その保存についての説明です。編集画面は `.edit` という別URLを
 持たず、**そのページ自身の通常URLへ `cmd=edit` をPOSTすることで開きます**
 （詳しくは[POSTで受ける、cmdの一覧](#postで受けるcmdの一覧)参照）。
-使いかたは [使ってみよう](/UsageGuide) の「編集する」をご覧ください。
+使いかたは [編集する](/UsageGuide/Edit) をご覧ください。
 
 ## POSTで受ける、cmdの一覧
 
@@ -42,7 +42,7 @@ GETでは常にただの閲覧画面が返り、`cmd` の有無・値がその�
 |---|---|
 | [テーマを使わない編集画面](/Tech/EditGuide/Theming) | 編集画面がテーマから独立している理由と、資材の持ちかた |
 | [編集画面の構成](/Tech/EditGuide/Screen) | タブ・ボタンの並び・プレビュー・外部エディタ |
-| [ツールバーと記法](/Tech/EditGuide/Toolbar) | ツールバーの書式の定義（`MARKUP_FORMATS`）と記法の選択 |
+| [ツールバーと書きかた](/Tech/EditGuide/Toolbar) | ツールバーの書式の定義（`MARKUP_FORMATS`）と書きかたの選択 |
 | [サイドバーのページ一覧](/Tech/EditGuide/Sidebar) | 編集画面のサイドバーと、狭い画面での出し入れ |
 | [一時保存](/Tech/EditGuide/Draft) | 書きかけの預かりと、競合の判定の基準 |
 | [更新状況（差分とオリジナル）](/Tech/EditGuide/Diff) | 差分とオリジナルのタブ、表示位置の揃えかた |

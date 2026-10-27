@@ -7,12 +7,15 @@ STATUS = {
     "bad_path": 400,
     "bad_name": 400,
     "bad_request": 400,
+    "bad_input": 400,  # 入力の値（コマンドの input）が決まりに合わない。宣言の onError で入力に戻せる
     "not_found": 404,
     "forbidden": 403,
     "unsupported": 403,
     "bad_origin": 403,
+    "too_large": 413,  # アップロードするファイルが、設定の上限（max_upload_size）より大きい
     "exists": 409,
     "into_self": 409,
+    "cancelled": 409,  # ジョブを中止したので、行わなかった項目
     "internal": 500,
 }
 

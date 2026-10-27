@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """削除したページの添付を trashbox へ集める（wikilib.garbagecollect、`/.garbagecollect`。
-Wiki設計者の指示、2026-09-25）のテスト。
+Wiki設計者の指示、2026-09-25）と、ページを消したときに添付を trashbox へ移す
+（editor.delete_page → trash_attachments。2026-10-04）のテスト。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_garbagecollect.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_garbagecollect.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -15,7 +16,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "_sys"))
 
-from wikilib import privilege_records, userdb  # noqa: E402
+from wikilib import privilege_records, staffperms, userdb  # noqa: E402
 from wikilib.adminui import TOOLS  # noqa: E402
 from wikilib.draft import save_draft  # noqa: E402
 from wikilib.garbagecollect import (  # noqa: E402
@@ -157,12 +158,65 @@ class TestCollect(GarbageBase):
         self.assertIsNotNone(self.rule(privilege_records.READ))
 
 
+class TestDeletePage(GarbageBase):
+    """ページを消すと、添付を trashbox へ移す（編集画面・ファイル一覧の両方が通る delete_page）。"""
+
+    def delete(self, pagepath, **kw):
+        from wikilib.editor import delete_page
+        from wikilib.paths import resolve_page_ref
+        return delete_page(self.wiki_dir, {}, resolve_page_ref(self.wiki_dir, pagepath), **kw)
+
+    def test_添付はtrashboxへ移してページを消す(self):
+        self.attach("Live", "a.png")
+        self.attach("Live", "b.txt")
+        ok, message = self.delete("Live")
+        self.assertTrue(ok, message)
+        self.assertIn("2 件は /trashbox へ移しました", message)
+        self.assertFalse(os.path.exists(os.path.join(self.wiki_dir, "Live.md")))
+        self.assertFalse(os.path.exists(os.path.join(self.attach_root, "Live")))
+        self.assertEqual(self.trash(), ["Live__a.png", "Live__b.txt"])
+        self.assertEqual(self.rule(privilege_records.READ)["who"], ["admin", "g:staff"])
+
+    def test_入口のページは自分の添付だけを移す(self):
+        self.put("Tech/index")
+        self.put("Tech/Kid")
+        self.attach("Tech/index", "i.png")
+        self.attach("Tech/Kid", "k.png")
+        ok, message = self.delete("Tech")
+        self.assertTrue(ok, message)
+        self.assertEqual(self.trash(), ["Tech_index__i.png"])
+        self.assertTrue(os.path.isfile(os.path.join(self.attach_root, "Tech", "Kid", "k.png")))
+
+    def test_添付が無ければtrashboxを作らない(self):
+        ok, message = self.delete("Live")
+        self.assertEqual((ok, message), (True, "削除しました。"))
+        self.assertFalse(os.path.exists(os.path.join(self.wiki_dir, "trashbox.txt")))
+
+    def test_trashboxを用意できなければ消さない(self):
+        self.attach("Live")
+        from unittest import mock
+        with mock.patch("wikilib.garbagecollect.ensure_trashbox", return_value=False):
+            ok, message = self.delete("Live")
+        self.assertFalse(ok)
+        self.assertTrue(os.path.isfile(os.path.join(self.wiki_dir, "Live.md")))
+        self.assertTrue(os.path.isfile(os.path.join(self.attach_root, "Live", "a.png")))
+
+    def test_取り消しの削除は添付があれば断る(self):
+        self.attach("Live")
+        ok, _ = self.delete("Live", refuse_attachments=True)
+        self.assertFalse(ok)
+        self.assertTrue(os.path.isfile(os.path.join(self.wiki_dir, "Live.md")))
+        self.assertEqual(self.trash(), [])
+
+
 class TestAdminMenu(unittest.TestCase):
 
     def test_管理者メニューに並ぶ(self):
-        tools = {urlpath: admin_only for urlpath, _l, _n, admin_only in TOOLS}
+        tools = {urlpath: access for urlpath, _l, _n, access in TOOLS}
         self.assertIn(GARBAGECOLLECT_URLPATH, tools)
-        self.assertFalse(tools[GARBAGECOLLECT_URLPATH])  # 管理者と助手
+        # 助手に許せる権限の名前（既定では助手に許してある）
+        self.assertEqual(tools[GARBAGECOLLECT_URLPATH], ("garbagecollect.run",))
+        self.assertIn("garbagecollect.run", staffperms.default_set())
 
 
 if __name__ == "__main__":

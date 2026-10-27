@@ -26,6 +26,12 @@ NOT_UNDOABLE = {
     "wiki.create": "Wikiを消すには /.delwiki を使ってください（書庫を作ってから消します）。",
     "farm.rename": "名前を戻すには、そのWikiの設定の画面（Wiki名）から変えてください。",
     "restart": "戻すものはありません。",
+    "update": "画面からは戻せません。前のバージョンへ戻すには、サーバーで git の操作が要ります。",
+    "page.dupsolve": "「_bak」のページを元の名前へ戻すには、ファイル一覧で名前を変えてください。"
+                     "アクセス制限と添付も、そちらで整理します。",
+    "account.add": "追加したアカウントを消すには、アカウントの画面から消してください。",
+    "account.update": "書き換える前のIDと名前は、下の「操作の前と後」に出ています。戻すには、"
+                      "アカウントの画面から直してください（ハッシュ値は画面に出しません）。",
 }
 
 
@@ -74,11 +80,11 @@ def _undo_page_save(wiki_dir, config, farm, entry):
     if _page_text(wiki_dir, subpath, after["ext"]) != after["text"]:
         return False, CHANGED
     if before["text"] is None:
-        # 新しく作ったページ。消す（添付があれば delete_page が断る）
+        # 新しく作ったページ。消す（添付があれば断る。取り消しで添付を trashbox へ動かさない）
         ref = resolve_page_ref(wiki_dir, pagepath_of_subpath(subpath))
         if ref is None:
             return False, "ページを特定できませんでした。"
-        return delete_page(wiki_dir, config, ref)
+        return delete_page(wiki_dir, config, ref, refuse_attachments=True)
     if not save_page(wiki_dir, config, subpath, before["ext"], before["text"], merge=False):
         return False, "書き戻せませんでした。"
     return True, "保存する前の内容に戻しました。"
@@ -211,7 +217,7 @@ def _undo_approve(wiki_dir, config, farm, entry):
     user = userdb.get_user(wiki_dir, row["uidnum"])
     if user is None or user["uid"] != row["uid"] or not userdb.is_approved(user):
         return False, CHANGED
-    ok, message = userdb.set_approved(wiki_dir, row["uidnum"], False)
+    ok, message = userdb.set_approved(wiki_dir, row["uidnum"], False, renew=True)
     return ok, ("«{}» を承認待ちに戻しました。".format(row["uid"]) if ok else message)
 
 
@@ -223,6 +229,16 @@ def _undo_reject(wiki_dir, config, farm, entry):
     for gname in entry["before"].get("groups") or []:
         groups.add_members(wiki_dir, gname, [row["uid"]])
     return True, "«{}» を承認待ちのアカウントとして入れ直しました。".format(row["uid"])
+
+
+def _undo_account_delete(wiki_dir, config, farm, entry):
+    row = entry["before"]["user"]
+    ok, message = userdb.restore_user(wiki_dir, row)
+    if not ok:
+        return False, message
+    for gname in entry["before"].get("groups") or []:
+        groups.add_members(wiki_dir, gname, [row["uid"]])
+    return True, "«{}» を入れ直しました（パスワードと所属グループも消す前のままです）。".format(row["uid"])
 
 
 def _undo_garbagecollect(wiki_dir, config, farm, entry):
@@ -257,7 +273,7 @@ def _undo_wiki_delete(wiki_dir, config, farm, entry):
         return False, f"書庫（{archive}）が見つかりません。"
     program = delwiki.sevenzip_program()
     if program is None:
-        return False, "7z を展開する道具が見つかりません。"
+        return False, "7z を展開するツールが見つかりません。"
     try:
         done = subprocess.run([program, "x", "-y", "-bd", "-o" + root, "--", path],
                               capture_output=True, timeout=600)
@@ -281,6 +297,7 @@ UNDO = {
     "group.members": _undo_group,
     "account.approve": _undo_approve,
     "account.reject": _undo_reject,
+    "account.delete": _undo_account_delete,
     "garbagecollect": _undo_garbagecollect,
     "wiki.delete": _undo_wiki_delete,
 }

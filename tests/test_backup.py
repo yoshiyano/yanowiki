@@ -13,8 +13,8 @@
 確かめていたため。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_backup.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_backup.py     （このファイルだけ）
 """
 import datetime
 import os

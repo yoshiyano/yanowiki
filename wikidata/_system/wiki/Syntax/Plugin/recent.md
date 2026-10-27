@@ -1,6 +1,6 @@
 # recent — 最近更新されたページの一覧を差し込む
 
-| 使える記法 | |
+| 使える書きかた | |
 |---|---|
 | ブロック `#recent()` | ○ |
 | インライン `&recent();` | — |
@@ -16,8 +16,8 @@
 ```pukiwiki
 #recent()
 #recent(5)
-#recent(5, Tech/ChangeLog)
-#recent(num=5, exclude=Tech/ChangeLog)
+#recent(5, ChangeLog)
+#recent(num=5, exclude=ChangeLog)
 ```
 
 | 引数 | 値 | 既定 | 意味 |
@@ -33,13 +33,13 @@
 
 | 書きかた | 当たるもの |
 |---|---|
-| `Tech/ChangeLog` | 名前に `Tech/ChangeLog` を含むページ（配下のページも） |
+| `ChangeLog` | 名前に `ChangeLog` を含むページ（配下のページも） |
 | `Tech/*` | `Tech/` で始まるページ（`*` `?` を含めばワイルドカードで、全体の一致を見る） |
 | `*Guide` | 名前が `Guide` で終わるページ |
 
-- 複数は `;` で区切ります（`#recent(10, Tech/ChangeLog;Syntax/Plugin)`）。名前に `;` を含めるときは `\;` と書きます
+- 複数は `;` で区切ります（`#recent(10, ChangeLog;Syntax/Plugin)`）。名前に `;` を含めるときは `\;` と書きます
 - `a;;b` や末尾の `;` のように、`;` の前後が空になるとエラーです
-- 除いてから件数を数えます（`#recent(10, Tech/ChangeLog)` は、除いたうえで10件）
+- 除いてから件数を数えます（`#recent(10, ChangeLog)` は、除いたうえで10件）
 
 ### 表示例
 
@@ -54,8 +54,8 @@
 - ページのデータベースにある最終更新日時の新しい順です。全ページが対象です
 - 同じページは何度更新しても1件です。削除したページは消えます
 - 閲覧する権限の無いページは出ません（[ページごとの権限](/Tech/PagePermissions)）
-- フォルダの入口ページは、`ls` と同じくフォルダ名で出ます（`Tech/ChangeLog/index` ではなく `Tech/ChangeLog`）。Wikiの一番上のページは `/` です
+- フォルダの入口ページは、`ls` と同じくフォルダ名で出ます（`ChangeLog/System/index` ではなく `ChangeLog/System`）。Wikiの一番上のページは `/` です
 - 並べるものが無ければ「（まだ更新の記録はありません）」と出ます
 - `num` が1未満・数字でないとエラーになります（[共通の書きかた](/Syntax/Common#うまく動かないとき) 参照）
 
-詳しくは [使ってみよう](/UsageGuide#最近の更新を並べる) をご覧ください。
+詳しくは [使ってみよう](/UsageGuide/Read#最近の更新を並べる) をご覧ください。

@@ -1,0 +1,68 @@
+/* mekuri プラグインの見た目。中身を覆いで隠し、.is-open で右から（既定1.5秒）かけて開く。 */
+
+.mekuri {
+  position: relative;
+}
+.mekuri-inline {
+  display: inline-block;
+  vertical-align: bottom;
+}
+.mekuri-block {
+  display: block;
+}
+
+/* 覆い。左端を支点に横へ縮めると、右端が左へ動いて中身が右から現れる */
+.mekuri::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--mekuri-color, gray);
+  transform-origin: left center;
+  transform: scaleX(1);
+  transition: transform var(--mekuri-time, 1500ms) ease;
+  pointer-events: none;
+}
+.mekuri.is-open::after {
+  transform: scaleX(0);
+}
+
+.mekuri:not(.is-open) {
+  user-select: none;
+}
+.mekuri[data-mekuri="flip"]:not(.is-open) {
+  cursor: pointer;
+}
+.mekuri[data-mekuri="flip"]:focus-visible {
+  outline: 2px solid var(--accent, #36c);
+  outline-offset: 2px;
+}
+
+/* 中身が入るまで（またはめくれない人には最後まで）の大きさ確保用 */
+.mekuri-dummy {
+  display: inline-block;
+}
+.mekuri-inline > .mekuri-dummy {
+  min-width: 3em;
+  height: 1em;
+}
+.mekuri-block > .mekuri-dummy {
+  display: block;
+  min-height: 3em;
+}
+
+/* 戻した中身。閉じている間は見えず（検索・選択・Tab移動の対象にもならず）、
+   場所だけを取るので、覆いは本来の大きさになる */
+.mekuri:not(.is-open) > .mekuri-body {
+  visibility: hidden;
+}
+
+/* めくれない人の目印: 補色（無彩色は明るさを反転した色。サーバーが --mekuri-edge で渡す）の1px枠（大きさを変えないよう outline）。
+   相対色構文に対応していなければ覆いと同じ色のまま */
+.mekuri-locked {
+  outline: 1px solid var(--mekuri-edge, var(--mekuri-color, gray));
+}
+@supports (color: hsl(from red calc(h + 180) s l)) {
+  .mekuri-locked {
+    outline-color: var(--mekuri-edge, hsl(from var(--mekuri-color, gray) calc(h + 180) s l));
+  }
+}

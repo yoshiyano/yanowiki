@@ -6,8 +6,8 @@
 どちらも、書きかけがある・入口（`X/index`）に添付があるフォルダは残す。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_emptyfolders.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_emptyfolders.py     （このファイルだけ）
 """
 import os
 import shutil

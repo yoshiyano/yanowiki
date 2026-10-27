@@ -11,15 +11,16 @@
 | `pagepath_of_subpath(subpath)` → ページパス | `resolve_page_ref`の逆。実体パス（拡張子抜き、`index`込み）からURLのページパスを求める。ファイル側から辿る一覧処理で使う |
 | `full_pagepath(base_pagepath, name)` → ページパス | リンク先に書かれた相対記法（`./abc`・`../abc`・裸の`abc`）を解決する。`base_pagepath`はいま開いているページ（解決の基点）、`name`はリンク先として書かれた文字列 |
 | `resolve_link(page_subpath, href, wiki_dir=None)` → `(kind, value)` | 書かれたリンク先文字列の意味を決める。`page_subpath`は基点となるいま開いているページの実体パス、`href`は書かれたリンク先文字列。`kind`は`"page"`/`"attach"`/`"keep"`のいずれか、`value`は種別に応じた値（ページパス、または実体パス+ファイル名） |
+| `as_attach_link(src)` → 文字列 | `src` を添付ファイルを指す書きかた（先頭に `::`）にする。URL・すでに `::` 付きのもの・`/.attach/…` などはそのまま。添付ファイルかURLしか来ない引数を `resolve_link` に渡す前に通す |
 | `page_file_path(wiki_dir, pagepath, ext)` → 絶対パス | ページの保存先を決める。`wiki_dir`の外へ出るパスは`None` |
-| `page_ext_of_subpath(wiki_dir, subpath)` → 拡張子 | 実体パス（拡張子抜き）から、そのページの記法（`.txt`/`.md`）を決める |
+| `page_ext_of_subpath(wiki_dir, subpath)` → 拡張子 | 実体パス（拡張子抜き）から、そのページの書きかた（`.txt`/`.md`）を決める |
 | `is_valid_pagepath(pagepath)` → bool | `=`（Wiki指定）・`.`（システム資材）で始まる名前を弾く |
 
 ## ページのparse処理（`wikilib.render` / `wikilib.links`）
 
 | 関数 | 役割 |
 |---|---|
-| `render.parse_source(engine, text, ext, env=None)` → tokens | 生テキストをその拡張子の記法（Markdown/PukiWiki記法）でトークン列にする。`env`は`{"wiki": context}`の形（markdown-itのレンダリング環境）。PukiWiki記法もmarkdown-it-py互換のトークン形になるため、この表の関数はどちらの記法でも共通で使える |
+| `render.parse_source(engine, text, ext, env=None)` → tokens | 生テキストをその拡張子の書きかた（Markdown/PukiWiki記法）でトークン列にする。`env`は`{"wiki": context}`の形（markdown-itのレンダリング環境）。PukiWiki記法もmarkdown-it-py互換のトークン形になるため、この表の関数はどちらの書きかたでも共通で使える |
 | `render.render_source(engine, text, ext, first_h1_as_title, context=None, toc_depth=None)` → `(html, title, toc)` | 生テキストを丸ごとHTML化する（parse + タイトル抽出 + 目次組み立て + レンダリングをまとめて行う）。`first_h1_as_title`は先頭のh1見出しをタイトルとして抜き出すか、`toc_depth`は目次に含める見出しの深さの上限、`html`はレンダリングされた本文HTML |
 | `render.build_toc(tokens, max_level=None)` → toc | 見出しトークンから目次データを組み立てる。`max_level`は`toc_depth`と同じ意味（引数名が関数ごとに違う） |
 | `render.heading_positions(tokens)` → positions | 見出しごとの生ソース上の行範囲一覧（`positions`。セクション編集で使う。目次には使わない） |
@@ -57,7 +58,7 @@
 | `pagedb.recent_pages(wiki_dir, limit=None)` → `[{...}, ...]` | 更新の新しい順。全ページ対象、`limit`（返す件数の上限）省略で無制限 |
 | `pagelist.walk(wiki_dir, under="", need, source, privilege)` → `[PageItem, ...]` | **画面に出す一覧はここから取る**（[ページの一覧を作る](/Tech/PageList)）。`scandir`・`glob`・`filter` も同じ形で、閲覧の権限はこの中で見る。使用例: `plugin/recent.py`・`plugin/popular.py` |
 | `pagedb.subpaths_containing(wiki_dir, term)` → `{subpath, ...}` | 本文かタイトルにその語（`term`）を含むページの実体パス集合（絞り込みをSQLite側に任せる） |
-| `paths.iter_pages(wiki_dir)` → `(ページパス, 本文)`の列 | **DBを経由せずファイルシステムを直接走査**する。DB再構築（`pagedb.rebuild`）など特殊な場面向けで、通常の一覧・検索には同じ表の`pagedb.*`（DB版）を使う |
+| `paths.iter_pages(wiki_dir)` → `(ページパス, 本文)`の列 | **DBを経由せずファイルシステムを直接走査**する。DB再構築（`pagedb.rebuild`）など特殊な場面向けで、通常の一覧・検索には同じ表の`pagedb.*`（DB を使うほう）を使う |
 
 ## リンク・バックリンク（`wikilib.pagedb` / `wikilib.links`）
 
@@ -67,7 +68,7 @@
 | `pagedb.backlinks_of(wiki_dir, owner)` → `[ページパス, ...]` | そのページ（または配下の添付ファイル）を指しているページ（名前順、索引ずみで1クエリ）。`owner`はリンクされている側（持ち主）のページパス |
 | `pagedb.link_rows_of(wiki_dir, subpath)` → `{書かれた文字列: (種別, 持ち主, ファイル名)}` | リンクの解決結果 |
 
-`PLUGIN_INFO["args"]` の項目に `"link": True` を宣言すると、その値は自動でリンク元DBに記録され、`backlinks_of` から
+`PLUGIN_INFO["args"]` の項目に `"link": True`（添付ファイルしか取らない引数なら `"link": "attach"`）を宣言すると、その値は自動でリンク元DBに記録され、`backlinks_of` から
 見つかります（[プラグイン仕様](/Tech/dev_plugin/spec/args#引数の宣言args)）。
 
 ## 添付ファイル（`wikilib.attach`）

@@ -85,7 +85,7 @@ DBの行        pageinfo/wikiall.db（本文・タイトル・目次・リンク
 | `os.path.isdir(d)` | `page_children(...)` が空でないか | `pagedb` |
 | `os.walk(d)` | `page_entries(wiki_dir, prefix)`（その下を平坦に全部） | `pagedb` |
 | `glob` | `pagelist.glob(wiki_dir, "Tech/*")`（権限で絞った一覧） | `pagelist` |
-| `os.path.join` の安全版 | `safe_join(base, *parts)`（境界の外へ出たらNone） | `paths` |
+| `os.path.join` の安全な代替 | `safe_join(base, *parts)`（境界の外へ出たらNone） | `paths` |
 
 この表の関数（`pagelist` 以外）はシステム用で、権限を見ません。読み手に見せる一覧は
 `pagelist`（`scandir`・`glob`・`walk`・`filter`）から取ります（[ページの一覧を作る](/Tech/PageList)）。
@@ -117,7 +117,7 @@ DBの行        pageinfo/wikiall.db（本文・タイトル・目次・リンク
 
 `editor.delete_page` は、本文を消したあと空のフォルダを片付け（`remove_empty_dirs`）、
 入口だけになったフォルダをページに戻します（`pagemove.convert_folder_to_page`）。
-添付ファイルが残っているページは削除しません。
+添付ファイルは `/trashbox` へ移します（`garbagecollect.trash_attachments`）。
 それ以外の経緯で残った空のフォルダは、取り込みが片付けます（`pagesync.prune_empty_folders`、
 [書き込まれる手順](/Tech/PageDataBase/Writes#空のフォルダを片付ける)）。
 

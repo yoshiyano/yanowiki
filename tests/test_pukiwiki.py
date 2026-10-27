@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """PukiWiki記法のブロック解析（wikilib.pukiwiki）のテスト。
 
-いまのところ**「`~` で中身を段落にする」記法**に絞ってある。リスト・引用・
+いまのところ**「`~` で中身を段落にする」書きかた**に絞ってある。リスト・引用・
 定義リストで同じ目印を使い回しており、どれか1つを直すと他が釣られやすい
 ためである（[PukiWiki記法](/Syntax/PukiWiki) 参照）。
 
 見ているのはトークンの並びで、HTMLではない。段落かどうかは
 `paragraph_open` が `hidden` かどうかで決まり（hidden なら `<p>` は出ず、
-文字がそのまま並ぶ）、そこが記法の違いそのものだからである。
+文字がそのまま並ぶ）、そこが書きかたの違いそのものだからである。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pukiwiki.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pukiwiki.py     （このファイルだけ）
 """
 import os
 import sys
@@ -120,7 +120,7 @@ class TestAnnotationTip(unittest.TestCase):
         self.assertEqual(self.tips("本文((注釈の中身))です"), ["注釈の中身"])
 
     def test_飾りの記号は落とす(self):
-        # 吹き出しに出るのは素の文字だけ。記法の記号は見せない
+        # 吹き出しに出るのは素の文字だけ。書きかたの記号は見せない
         self.assertEqual(self.tips("本文((''強調''と[[リンク>Page]]))です"),
                          ["強調とリンク"])
 
@@ -194,6 +194,50 @@ class TestRelativeLink(unittest.TestCase):
     def test_外部URLは触らない(self):
         self.assertEqual(link_hrefs("{[本家:https://example.com/]}"),
                          ["https://example.com/"])
+
+
+class TestAttachMark(unittest.TestCase):
+    """`::`（添付ファイルの印。paths.ATTACH_LINK_MARK）を付けたリンク。"""
+
+    def inline(self, text):
+        return [c for t in pukiwiki.parse(text) for c in (t.children or [])]
+
+    def test_表示名から印を外す(self):
+        labels = [c.content for c in self.inline("[[::foo.zip]]") if c.type == "text" and c.content]
+        self.assertEqual(labels, ["foo.zip"])
+        self.assertEqual(link_hrefs("[[::foo.zip]]"), ["::foo.zip"])
+
+    def test_表示名から末尾のスラッシュを外す(self):
+        for text, label in (("[[ver1.2/]]", "ver1.2"), ("[[Tech/]]", "Tech"),
+                            ("[[memo.txt/#見出し]]", "memo.txt#見出し"), ("[[/]]", "/")):
+            labels = [c.content for c in self.inline(text) if c.type == "text" and c.content]
+            self.assertEqual(labels, [label], text)
+        self.assertEqual(link_hrefs("[[ver1.2/]]"), ["ver1.2/"])
+
+    def test_URLの表示名は外さない(self):
+        for text in ("[[https://example.com/]]", "[[mailto:a@example.com/]]"):
+            labels = [c.content for c in self.inline(text) if c.type == "text" and c.content]
+            self.assertEqual(labels, [text[2:-2]], text)
+
+    def test_表示名を書けばそのまま(self):
+        labels = [c.content for c in self.inline("[[資料>::foo.zip]] [[版>ver1.2/]]")
+                  if c.type == "text" and c.content.strip()]
+        self.assertEqual(labels, ["資料", "版"])
+
+    def test_相対版は印のあとにドットスラッシュを補う(self):
+        self.assertEqual(link_hrefs("{[::foo.zip]}"), ["::./foo.zip"])
+        self.assertEqual(link_hrefs("{[::../foo.zip]}"), ["::../foo.zip"])
+
+    def test_画像の埋め込み先は添付として読ませる(self):
+        # 本家どおり拡張子で画像にする。埋め込み先は拡張子の一覧によらず添付
+        srcs = [c.attrGet("src") for c in self.inline("[[図>x.png]] [[::y.png]]")
+                if c.type == "image"]
+        self.assertEqual(srcs, ["::x.png", "::y.png"])
+
+    def test_URLの画像はそのまま(self):
+        srcs = [c.attrGet("src") for c in self.inline("[[図>https://example.com/x.png]]")
+                if c.type == "image"]
+        self.assertEqual(srcs, ["https://example.com/x.png"])
 
 
 def rendered(text, ext=".txt"):

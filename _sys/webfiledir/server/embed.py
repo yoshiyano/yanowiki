@@ -30,7 +30,8 @@ def mount_webfiledir(host: bottle.Bottle, prefix: str, config: Config | str | os
                       （待ち受けは組み込む側のもの）。allowed_origins は変更系の Origin の確認に使う
     authorize       … authorize(request) -> bool。False なら 403。bottle.HTTPResponse を投げれば
                       それを返す（例: bottle.redirect("/login")）
-    mount_access    … mount_access(request, mount_id) -> "rw" | "ro" | None（None は見せない）
+    mount_access    … mount_access(request, mount_id) -> "rw" | "ro" | None（None は見せない）、または
+                      {"access": "rw" | "ro", "disable": [コマンドの id…]}（その人には出さないコマンド）
     live_updates    … 組み込む側が 1 本ずつしか処理しないサーバ（bottle の既定の wsgiref など）で動くなら
                       False にする。自動更新は接続を開いたままにするので、ほかの要求が止まる
     check_roots     … マウントの根を用意し、持ち主などを確かめる（起動時と同じ。使えなければ ConfigError）

@@ -26,8 +26,8 @@ g:staff と admin による操作のみとします」）。再起動もWikiの�
     試しても、入口が呼び忘れていれば素通りになるため
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_servicegate.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_servicegate.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -227,6 +227,29 @@ class TestEntrances(ServiceGateBase):
             self.call(render_newwiki, DEFAULT_FARM, "hito").status_code, 403)
         self.assertEqual(
             self.call(serve_restart, DEFAULT_FARM, "hito").status_code, 403)
+
+    def test_再起動のnow1はGETでは確認画面を出すだけ(self):
+        # 別のサイトから開かせたリンク（GET）で再起動させない
+        from unittest import mock
+        from wikilib import restart
+        self.login_as(DEFAULT_FARM, "admin")
+        bottle.request.environ.update({"REQUEST_METHOD": "GET", "QUERY_STRING": "now=1"})
+        with mock.patch.object(restart, "request_restart") as req, \
+                mock.patch.object(restart, "restart_response") as now:
+            out = restart.serve_restart(self.wiki_dirs[DEFAULT_FARM], self.config, DEFAULT_FARM, False)
+        req.assert_not_called()
+        now.assert_not_called()
+        self.assertIn("restart-form", self.body_of(out))
+
+    def test_再起動のnow1はPOSTで受け付ける(self):
+        from unittest import mock
+        from wikilib import restart
+        self.login_as(DEFAULT_FARM, "admin")
+        bottle.request.environ.update({"REQUEST_METHOD": "POST", "QUERY_STRING": "now=1"})
+        with mock.patch.object(restart, "restart_response", return_value="ok") as now:
+            out = restart.serve_restart(self.wiki_dirs[DEFAULT_FARM], self.config, DEFAULT_FARM, False)
+        now.assert_called_once()
+        self.assertEqual(out, "ok")
 
     def test_Wikiを消す入口も断る(self):
         # **隣のWikiの管理者でも断る。** ここを素通りさせると、Wikiを1つ

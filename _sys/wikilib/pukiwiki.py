@@ -5,13 +5,13 @@
 
 **出力はMarkdownのレンダリング結果に揃える。** そのために、ここで作るのは
 HTML文字列ではなく markdown-it-py のトークン列で、HTML化はmarkdown-itの
-レンダラにそのまま任せる。こうすると次の3つが記法によらず同じになる。
+レンダラにそのまま任せる。こうすると次の3つが書きかたによらず同じになる。
 
   - 出力されるHTMLの形（テーマのCSSがそのまま効く）
   - プラグイン記法（`#name()` / `&name();`）の扱い（同じレンダリング規則を通る）
   - 目次・見出しのid・セクション編集の宛先（どちらもトークン列から取り出すため）
 
-記法ごとにHTMLを直接組み立てると、この3つが記法の数だけ枝分かれしてしまう。
+書きかたごとにHTMLを直接組み立てると、この3つが書きかたの数だけ枝分かれしてしまう。
 
 見出しは本家と同じ3段階・同じタグで、`*`→h2、`**`→h3、`***`→h4 に対応する
 （本家PukiWikiの出力もh2〜h4）。
@@ -26,7 +26,7 @@ h1にしないのは、このシステムではページタイトルをテーマ
 PukiWikiではページ名がそのままタイトルなので、先頭の見出しをタイトルとして
 抜き出す扱い（Markdown側の first_h1_as_title）は適用しない。
 
-未対応の記法は、このファイル末尾の TODO を参照。
+未対応の書きかたは、このファイル末尾の TODO を参照。
 """
 import re
 from html.entities import html5
@@ -35,7 +35,7 @@ from markdown_it.token import Token
 from mdit_py_plugins.anchors.index import slugify, unique_slug
 
 from wikilib.extrarules import MAX_NEST_DEPTH, match_extra_rule
-from wikilib.paths import FOOTNOTE_TIP_MAX, IMAGE_EXTS
+from wikilib.paths import ATTACH_LINK_MARK, FOOTNOTE_TIP_MAX, IMAGE_EXTS, as_attach_link
 from wikilib.subst import DISPLAY_TIME_NAMES
 
 # ---- ブロックの見分けかた ---------------------------------------------------
@@ -603,7 +603,7 @@ class _HeadingLikeNode(_Node):
 class _OpaqueNode(_Node):
     """引用・表・CSV形式の表・定義リスト・ブロックプラグイン・寄せ指定など、
     それ自身の関数が複数行をまとめて読み切り、完結したトークン列を返してくる
-    もの。それらの記法どうしの連続吸収は各関数が内部ですでに行っているため、
+    もの。それらの書きかたどうしの連続吸収は各関数が内部ですでに行っているため、
     ここでは _HeadingLikeNode と同じく「これ以上何も受け付けない」だけでよい
     （リスト項目の子要素として取り込まれる余地は can_contain の側で判定される
     ので、ここが常にFalseでも問題ない）。"""
@@ -1092,7 +1092,7 @@ def append_deflist(tokens, lines, i, offset):
 
     連続する行を1つの `<dl>` にまとめる（本家と同じ）。トークンの形はMarkdown側の
     定義リスト（Pandoc形式の `用語` / `: 説明`）と同じ dl/dt/dd に揃えてあるので、
-    テーマのCSSはそのまま両方に効く（このシステムではMarkdown側の記法そのものは
+    テーマのCSSはそのまま両方に効く（このシステムではMarkdown側の書きかたそのものは
     意図的に無効にしてあるが、出力の形だけ合わせておくことで、あとでテーマ側に
     CSSを1種類だけ用意してもらえばよいようにしている）。
 
@@ -1238,7 +1238,7 @@ def assign_heading_ids(tokens):
 
     振りかたはMarkdown側（mdit_py_plugins の anchors）と同じ関数を使う。
     idは目次のリンク先だけでなくページ内アンカーやセクション編集の宛先にも使うため、
-    記法が違っても同じ見出しからは同じidが得られるようにしておく。
+    書きかたが違っても同じ見出しからは同じidが得られるようにしておく。
     `[#anchor]` で明示されていればそちらを優先する。"""
     slugs = set()
     for i, token in enumerate(tokens):
@@ -1291,7 +1291,7 @@ def parse_inline(text, _rule_depth=0):
     pos = 0
     while True:
         # 「ユーザ定義ルール」「フェイスマーク定義ルール」（wikilib.extrarules）は
-        # 管理者が明示的に書いた定義なので、他の記法と同じ位置から始まる場合は
+        # 管理者が明示的に書いた定義なので、他の書きかたと同じ位置から始まる場合は
         # 最優先で使う（例: facemark_rules に "&smile;" を定義していれば、
         # HTML5の実体参照名との衝突判定より先にそちらが勝つ）。
         extra = (match_extra_rule(_active_extra_rules, text, pos)
@@ -1301,9 +1301,9 @@ def parse_inline(text, _rule_depth=0):
         else:
             extra_start = -1
 
-        # 注釈 "((…))" の開始は、他の記法とは別に探す（find_annotation_end の
+        # 注釈 "((…))" の開始は、他の書きかたとは別に探す（find_annotation_end の
         # 説明を参照）。"&…"（プラグイン・数値文字参照）も同じ理由で別に探す
-        # （find_amp_token参照）。同じ位置から始まる記法は無いので、
+        # （find_amp_token参照）。同じ位置から始まる書きかたは無いので、
         # 最も手前のものから順に使う。
         ann_start = text.find("((", pos)
         amp_found = find_amp_token(text, pos)
@@ -1377,7 +1377,7 @@ def parse_inline(text, _rule_depth=0):
                                     content=text[ann_start + 2:ann_end]))
                 pos = ann_end + 2
                 continue
-            # 閉じる "))" が最後まで見つからなかった。記法として扱わず、
+            # 閉じる "))" が最後まで見つからなかった。書きかたとして扱わず、
             # この2文字だけを地の文として進める（この先に別の、閉じている
             # "((…))" があれば、そちらは改めて見つかる）
             buffer.append(text[pos:ann_start + 2])
@@ -1404,7 +1404,7 @@ def parse_inline(text, _rule_depth=0):
         buffer.append(text[pos:m.start()])
         result = inline_match(m)
         if isinstance(result, str):
-            buffer.append(result)  # 記法ではなかった。書かれたままの文字として扱う
+            buffer.append(result)  # 書きかたではなかった。書かれたままの文字として扱う
         else:
             flush()
             tokens.extend(result)
@@ -1431,7 +1431,7 @@ def amp_tokens(result):
         # （本家PukiWikiでも実体参照はallow_html相当の設定と無関係に働く。
         # Wiki設計者の報告: allow_html=falseだと`&amp;`が二重エスケープされ
         # `&amp;amp;`とそのまま表示されてしまっていた。とくにPukiWiki
-        # Formattingの文書のように、インラインプラグインの記法を
+        # Formattingの文書のように、インラインプラグインの書きかたを
         # `&amp;counter;`と書いて説明する慣習と相性が悪かった）。
         return [Token("char_ref", "", 0, content="&" + name + ";")]
     if name in DISPLAY_TIME_NAMES:
@@ -1471,7 +1471,7 @@ def find_annotation_end(text, start):
 
 
 def inline_match(m):
-    """INLINE_RE のマッチ1つをトークンにする。記法でなければ文字列のまま返す。
+    """INLINE_RE のマッチ1つをトークンにする。書きかたでなければ文字列のまま返す。
 
     "&…"（インラインプラグイン・数値文字参照）は INLINE_RE に含まれない
     （find_amp_token/amp_tokens が別に処理する）ため、ここでは扱わない。"""
@@ -1502,7 +1502,7 @@ def inline_match(m):
 
 
 def wrap_tokens(kind, tag, inner, markup):
-    """強調・斜体・取消線。中身も入れ子の記法として解釈する。"""
+    """強調・斜体・取消線。中身も入れ子の書きかたとして解釈する。"""
     tokens = [Token(kind + "_open", tag, 1, markup=markup)]
     tokens.extend(parse_inline(inner))
     tokens.append(Token(kind + "_close", tag, -1, markup=markup))
@@ -1525,7 +1525,7 @@ def link_tokens(inner, relative=False):
     リンク先は**書かれたまま**トークンに載せる。`ページ名` のように `/` を
     付けずに書いた場合の意味づけ（相対パスとして解き、ページがあればページ、
     無ければ添付）は Markdown と共通で、paths.resolve_link が引き受ける。
-    ここで `/` を補ってしまうと、同じ書きかたが記法によって違う意味になり、
+    ここで `/` を補ってしまうと、同じ書きかたが PukiWiki と Markdown で違う意味になり、
     解釈も2か所に分かれてしまう。
 
     `relative=True`（`{[…]}`）のときだけ、`relativize_target` が
@@ -1554,6 +1554,20 @@ def link_tokens(inner, relative=False):
         if href is not None:
             return autolink_tokens(href, label)
 
+    if not arrow and not (is_url(target) or "://" in target
+                          or target.startswith(("mailto:", "tel:"))):
+        # 書き分けの印（先頭の `::`・末尾の `/`）は表示名から外す。`[[::foo.zip]]` は
+        # `foo.zip`、`[[ver1.2/]]` は `ver1.2`。印はリンク先の読みかたを決めるだけで、
+        # 読み手に見せるものではない（paths.resolve_link「ページか添付ファイルか」）。
+        # このWikiの中を指すものだけが対象（URL・InterWiki は上で済んでいる）。
+        # 外すと空になるもの（`[[/]]`）は書かれたまま
+        bare, sharp, anchor = label.partition("#")
+        if bare.startswith(ATTACH_LINK_MARK):
+            bare = bare[len(ATTACH_LINK_MARK):]
+        elif bare.endswith("/"):
+            bare = bare.rstrip("/")
+        label = (bare + sharp + anchor) if bare else label
+
     if relative:
         target = relativize_target(target)
 
@@ -1562,8 +1576,10 @@ def link_tokens(inner, relative=False):
     # PukiWiki記法には無いため、`[[alt>image.jpg]]` のような通常のリンク記法を
     # そのまま使う）。判定は拡張子だけで行う（実在確認はしない。resolve_link と
     # 同じく、書かれた形だけで意味を決める）。
+    # 埋め込み先は添付ファイルか外のURLなので、拡張子の一覧によらず添付として読ませる
+    # （as_attach_link。一覧から画像の拡張子を外しても、画像がページと読まれない）。
     if is_image_target(target):
-        return image_tokens(target, label)
+        return image_tokens(as_attach_link(target), label)
 
     open_token = Token("link_open", "a", 1)
     open_token.attrSet("href", target)
@@ -1577,6 +1593,10 @@ def relativize_target(target):
     `mailto:`・`tel:`で始まる場合はそのまま返す——`[[…]]`側で既に
     書き手が明示した意味（絶対・相対・外部・アンカー単体）を、
     `{[…]}`が上書きしてしまわないようにするため。"""
+    if target.startswith(ATTACH_LINK_MARK):
+        # `{[::x.zip]}` は `::./x.zip`（印は先頭のまま。paths.resolve_link）
+        rest = target[len(ATTACH_LINK_MARK):]
+        return ATTACH_LINK_MARK + relativize_target(rest) if rest else target
     if not target or target.startswith(("#", "mailto:", "tel:", "/", "./", "../")):
         return target
     if "://" in target:
@@ -1688,7 +1708,7 @@ def append_annotations(tokens):
 
 
 # ---- TODO -------------------------------------------------------------------
-# 次の記法はまだ実装していない（本家のテキスト整形ルールにはあるもの）。
+# 次の書きかたはまだ実装していない（本家のテキスト整形ルールにはあるもの）。
 #   - 定義リストの項目を子要素にする `|~`（リストの `-~` は実装済み）
 #   - WikiName（CamelCaseの自動リンク）とInterWiki
 #   - `&heart;` `&smile;` のような顔文字系の文字参照

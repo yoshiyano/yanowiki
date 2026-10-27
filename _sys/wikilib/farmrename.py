@@ -166,10 +166,10 @@ def rename_farm(old, new, config):
         try:
             os.rename(dest, source)
         except OSError:
-            return False, (f"既定のWikiの指定（config/server.yaml の farm.default）を"
+            return False, (f"起点Wikiの指定（config/server.yaml の farm.default）を"
                            f"書き換えられず、実体も「{old}」へ戻せませんでした。"
                            f"server.yaml の farm.default を手で「{new}」にしてください。"), None
-        return False, ("既定のWikiの指定（config/server.yaml の farm.default）を"
+        return False, ("起点Wikiの指定（config/server.yaml の farm.default）を"
                        "書き換えられなかったので、名前は変えていません。"), None
     return True, (f"Wikiの名前を「{new}」に変えました。"
-                  "既定のWikiの指定も新しい名前に付け替えました。"), new
+                  "起点Wikiの指定も新しい名前に付け替えました。"), new

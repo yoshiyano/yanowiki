@@ -1,6 +1,6 @@
 # サーバとして公開する
 
-[入れかた・動かしかた](/InstallGuide) で動かしたWikiを、サービスとして常に動かし、Webサーバの後ろで公開する手順です。
+[インストールと起動](/InstallGuide) で動かしたWikiを、サービスとして常に動かし、Webサーバの後ろで公開する手順です。
 
 ## サービスとして起動
 
@@ -11,15 +11,15 @@
 | リバースプロキシ | gunicornを裏で動かし続け、nginx・Apacheが外からの通信を受けて中継する | 必要 |
 | WSGI直結 | nginx・Apacheが直接Pythonアプリを読み込む | 不要（Apacheのみ対応） |
 
-### gunicorn を入れる
+### gunicorn をインストールする
 
 ```bash
 uv pip install --python _venv/bin/python gunicorn
 ```
 
-あとから入れた部品なので、wikiSystem を更新するときは `uv sync --inexact` を使います
+あとからインストールした部品なので、wikiSystem を更新するときは `uv sync --inexact` を使います
 （`--inexact` が無いと消えます。[更新する](/InstallGuide#更新する)）。OSを更新して `_venv` を
-作り直したときは、入れ直します（[OSを更新してPythonの版が変わったとき](/InstallGuide#osを更新してpythonの版が変わったとき)）。
+作り直したときは、インストールし直します（[OSを更新してPythonのバージョンが変わったとき](/InstallGuide#osを更新してpythonのバージョンが変わったとき)）。
 
 ### gunicorn で動かす
 
@@ -37,7 +37,7 @@ _venv/bin/gunicorn --chdir ~/wikiSystem -b 127.0.0.1:8619 'wiki:app'
 _venv/bin/gunicorn --chdir ~/wikiSystem -b 0.0.0.0:8700 'wiki:app'   # 例: 他のパソコンからポート8700で
 ```
 
-更新後の再起動は `/.restart` から行えます（既定のWikiの管理者・助手だけ。**サービスを止めずに**反映されます。
+更新後の再起動は `/.restart` から行えます（起点Wikiの管理者・助手だけ。**サービスを止めずに**反映されます。
 [サービスの再起動](/Tech/Restart)）。
 
 ### gunicorn をサービスとして登録する
@@ -72,7 +72,7 @@ sudo systemctl enable --now wikisystem
 
 ### nginx でリバースプロキシを構成する
 
-nginx が入っている前提です（`wiki.example.com` は自分のドメインに）。
+nginx がインストールされている前提です（`wiki.example.com` は自分のドメインに）。
 
 ```nginx
 server {
@@ -88,9 +88,11 @@ server {
 
 書いたら `sudo nginx -t` で確かめ、`sudo systemctl reload nginx` で反映します。
 
+`proxy_set_header Host $host;`（Apache では `ProxyPreserveHost On`）は省かないでください。wikiSystem は、ブラウザが送ってきた `Origin` と `Host` が同じかを見て、別のサイトから送られた POST を断ります。`Host` が `127.0.0.1:8619` に書き替わると、保存などの送信が「受け付けません」（403）になります。`Host` を引き継げないプロキシでは、外向きのホスト名を `X-Forwarded-Host` で渡してください。
+
 ### Apache でリバースプロキシを構成する
 
-Apache が入っている前提です。`mod_proxy` を有効にしてから設定を書きます。
+Apache がインストールされている前提です。`mod_proxy` を有効にしてから設定を書きます。
 
 ```bash
 sudo a2enmod proxy proxy_http
@@ -179,8 +181,8 @@ sudo a2enmod wsgi
 
 #note(){{
 `libapache2-mod-wsgi-py3` はOSのPython用に作られています（Ubuntu 24.04 なら 3.12、26.04 なら 3.14）。
-`_venv` もOSのPythonと**同じ版**で作ってください。uv の用意する別の版で `_venv` を作った場合
-（[決まった版のPythonを使う](/InstallGuide#決まった版のpythonを使う)）は、gunicorn を使ってください。
+`_venv` もOSのPythonと**同じバージョン**で作ってください。uv の用意する別のバージョンで `_venv` を作った場合
+（[決まったバージョンのPythonを使う](/InstallGuide#決まったバージョンのpythonを使う)）は、gunicorn を使ってください。
 }}
 
 ### nginx（uWSGIを使う場合）
@@ -191,7 +193,7 @@ gunicorn の代わりに **uWSGI** を使えます（サービスとしての登
 uv pip install --python _venv/bin/python uwsgi
 ```
 
-gunicorn と同じく、更新では `uv sync --inexact` を使い、`_venv` を作り直したら入れ直します。
+gunicorn と同じく、更新では `uv sync --inexact` を使い、`_venv` を作り直したらインストールし直します。
 
 `/etc/systemd/system/wikisystem.service` を gunicorn と同じ要領で作り、`ExecStart` だけ差し替えます。
 

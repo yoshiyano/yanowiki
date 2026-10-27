@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="460" viewBox="0 0 900 460" font-family="'Noto Sans CJK JP', 'Noto Sans JP', sans-serif" font-size="15">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="900" height="460" fill="#ffffff"/>
+
+  <!-- ブラウザ -->
+  <rect x="20" y="20" width="460" height="340" rx="10" fill="#f3f6fb" stroke="#8a94a6" stroke-width="1.5"/>
+  <text x="38" y="46" font-size="16" font-weight="bold" fill="#333">ブラウザ</text>
+
+  <rect x="50" y="64" width="400" height="116" rx="8" fill="#ffffff" stroke="#3178c6" stroke-width="2"/>
+  <text x="70" y="94" font-weight="bold" fill="#1d4f8f">編集画面</text>
+  <text x="70" y="124" fill="#333">editor.js（プレビュー）</text>
+  <text x="70" y="152" fill="#333">editor.link.js（エディタとの連動）</text>
+
+  <rect x="50" y="244" width="400" height="96" rx="8" fill="#ffffff" stroke="#7a5cc4" stroke-width="2"/>
+  <text x="70" y="274" font-weight="bold" fill="#4e3596">ブラウザ拡張機能 wikiedit</text>
+  <text x="70" y="304" fill="#333">relay.js（コンテンツスクリプト）</text>
+  <text x="70" y="328" fill="#333">background.js（バックグラウンド）</text>
+
+  <!-- 編集画面と拡張機能のあいだ（中継） -->
+  <line x1="200" y1="184" x2="200" y2="240" stroke="#333" stroke-width="1.5" stroke-dasharray="6,4" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="214" y="217" fill="#333" font-size="14">window.postMessage</text>
+
+  <!-- 手元のパソコン -->
+  <rect x="610" y="20" width="270" height="340" rx="10" fill="#f4f9f2" stroke="#8aa68e" stroke-width="1.5"/>
+  <text x="628" y="46" font-size="16" font-weight="bold" fill="#333">手元のパソコン</text>
+
+  <rect x="636" y="120" width="220" height="150" rx="8" fill="#ffffff" stroke="#2e8b57" stroke-width="2"/>
+  <text x="656" y="150" font-weight="bold" fill="#1f6b41">エディタのプラグイン</text>
+  <text x="656" y="180" fill="#333">VS Code・Emacs・Neovim</text>
+  <text x="656" y="214" fill="#333" font-size="14">ws://localhost:4100/</text>
+  <text x="656" y="240" fill="#333" font-size="14">で待ち受ける</text>
+
+  <!-- ① 直接 -->
+  <line x1="454" y1="122" x2="632" y2="168" stroke="#333" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="492" y="100" fill="#333" font-size="14">① 直接</text>
+  <text x="492" y="118" fill="#333" font-size="13">（WebSocket）</text>
+
+  <!-- ② 拡張機能を通す -->
+  <line x1="454" y1="292" x2="632" y2="236" stroke="#333" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="492" y="304" fill="#333" font-size="14">② 拡張機能を</text>
+  <text x="492" y="322" fill="#333" font-size="14">通す</text>
+  <text x="492" y="340" fill="#333" font-size="13">（WebSocket）</text>
+
+  <!-- 凡例 -->
+  <line x1="30" y1="392" x2="80" y2="392" stroke="#333" stroke-width="2"/>
+  <text x="92" y="397" fill="#333" font-size="14">WebSocket。エディタのプラグインが待ち受け、ブラウザ側からつなぐ（① か ② のどちらか）</text>
+  <line x1="30" y1="422" x2="80" y2="422" stroke="#333" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="92" y="427" fill="#333" font-size="14">ブラウザの中の中継（② のときだけ使う）</text>
+  <text x="30" y="450" fill="#555" font-size="13">① は LAN の Wiki など。② は、公開した Wiki を http で開いたときや、拡張機能でそのサイトを許しているとき</text>
+</svg>

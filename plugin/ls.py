@@ -32,9 +32,9 @@
        (default: 設定 `pukiwiki.listname` から決まる。既定は FILE)
 
 PukiWiki記法はファイル名を基準に書く歴史的な流儀、Markdownは見出し
-（タイトル）を基準に書く流儀があり、一覧の見せかたも記法ごとに既定が
+（タイトル）を基準に書く流儀があり、一覧の見せかたも書きかたごとに既定が
 違います（Wiki設計者の指示、2026-09-18）。1つの `#ls()` の中にMarkdownと
-PukiWiki記法のページが混ざっていても、それぞれの記法の既定・指定に従って
+PukiWiki記法のページが混ざっていても、それぞれの書きかたの既定・指定に従って
 別々に見せかたが決まります。
 
 `folder`は常に1番目で、これは省略もできます（`#ls(, recursive)`のように
@@ -45,7 +45,7 @@ folderより後ろなら書きたいものだけ好きな順で書けます。`e
 
 フォルダの入口ページ（index）は、一覧の項目としては並びません。代わりに
 そのフォルダの名前が入口ページへのリンクになります（フォルダの見せかたは、
-入口ページの記法に対応する`format_md`/`format_pk`で決まります）。
+入口ページの書きかたに対応する`format_md`/`format_pk`で決まります）。
 
 階層表示（recursive）のフォルダは <details> で畳めます。ここはJavaScript不要です。
 """
@@ -173,7 +173,7 @@ headless Chromeで、ボタンを押しても`<details>`の開閉状態
 
 ## 自然順ソート（`natural`）の追加（2026-09-04）
 
-`Tech/ChangeLog/plugin/index.md`の「今後の予定」に置かれていた案（Wiki設計者の
+`ChangeLog/Plugin/index.md`の「今後の予定」に置かれていた案（Wiki設計者の
 提供のkey案。正の整数だけを前提にできるなら、と付記されていた）の考えかたを
 採用した:
 
@@ -307,7 +307,7 @@ Wiki設計者の指示:「exclude オプションを作り、指定されたフ�
 `folder` からの相対パスにした。** `recent` はWiki全体を対象にした一覧
 （`exclude` はどこにあるページかを問わず除外したい）だが、`ls` は
 「指定したフォルダの中」を見せるプラグインなので、subpath全体で照合すると
-`#ls(/Tech/ChangeLog, exclude=ChangeLog)` のように**対象フォルダ自身の
+`#ls(/ChangeLog, exclude=ChangeLog)` のように**対象フォルダ自身の
 名前を含むだけで一覧が丸ごと空になる**事故が起きる（`ChangeLog/2026-08-11`
 のようなsubpathの多くが`ChangeLog`という文字列を部分一致で含むため）。
 `_relative_to()` で `folder` を基準に取り除いてから照合することで、
@@ -327,7 +327,7 @@ Wiki設計者の指示:「exclude オプションを作り、指定されたフ�
 壊れる**。`kw_only` は wikiSystem 本体（`_sys/wikilib/plugins.py`）への
 要望として `request_65c6c6.md` にまとめ、Wiki設計者の承認を経て実装を
 依頼した（コミット `4bfd219`。依頼の経緯は
-[更新履歴](/Tech/ChangeLog/plugin/2026-09-18)参照）。実装は依頼した設計
+[更新履歴](/ChangeLog/Plugin/2026-09-18)参照）。実装は依頼した設計
 どおりで、`#ls(Tech, BADSORT)`／`#ls(Tech, exclude か何かを位置で書こうと
 した場合)` のどちらも引き続きエラーになることを確認済み。
 
@@ -383,14 +383,14 @@ PukiWiki記法の`RightBar`は本文の見出し「演習やポイント」と�
 新設の設定`markdown.listname`/`pukiwiki.listname`（`wikiconfig.listname_for`。
 既定はmarkdown=title、pukiwiki=fname）を、`ls`の見せかたの既定にも使う。
 1つの`#ls()`の中にMarkdownとPukiWiki記法のページが混ざっていても、
-ページごとの記法で見せかたが変わる必要があるため、**単一の`format`では
+ページごとの書きかたで見せかたが変わる必要があるため、**単一の`format`では
 表現できない**——そこで`format`を廃止し、`format_md`（Markdown向け）・
 `format_pk`（PukiWiki記法向け）の2本に分けた。値の候補（FILE/TITLE/BOTH）は
 変えていない。
 
 ### 後方互換は取らなかった
 
-`format`をそのまま残し「明示されたときだけ両方の記法へ一律適用する」形も
+`format`をそのまま残し「明示されたときだけ両方の書きかたへ一律適用する」形も
 検討候補として提示したが、Wiki設計者は「formatを廃止し既存ページを書き
 換える」を選んだ。`Tech/ChangeLog`配下・`Syntax/Plugin/ls`など`format=`を
 使っていた呼び出し（15箇所前後）は、実際に稼働している`#ls(...)`呼び出し
@@ -404,11 +404,11 @@ PukiWiki記法の`RightBar`は本文の見出し「演習やポイント」と�
 - `PageItem`（`wikilib.pagelist`）に`ext`を足した。DB側（`page_entries`の
   `path`列）・平文側（`_file_rows`が`os.path.splitext`で拾ったもの）の
   どちらからも拾えるようにしてある
-- `_format_for(item, fmt_md, fmt_pk)`が、`item.ext`から記法
+- `_format_for(item, fmt_md, fmt_pk)`が、`item.ext`から書きかた
   （`paths.markup_name_for`）を引いて`format_md`/`format_pk`のどちらを
-  使うか選ぶ。記法が分からない項目（実体の無い通り道のフォルダ）はFILE扱い
-- フォルダの見せかたは、フォルダ自体が記法を持たないため**入口ページ
-  （index）の記法**で決める（`_render_tree`の`folder_fmt`）
+  使うか選ぶ。書きかたが分からない項目（実体の無い通り道のフォルダ）はFILE扱い
+- フォルダの見せかたは、フォルダ自体が書きかたを持たないため**入口ページ
+  （index）の書きかた**で決める（`_render_tree`の`folder_fmt`）
 - `format_md`/`format_pk`は`exclude`と同じ`kw_only: True`。`sort`も
   `TITLE`という値を持てるため、自由順序（位置引数）に混ぜると衝突しうる
   （旧`format`で経験済みの問題。技術資料「`sort`/`format`は両方とも
@@ -649,12 +649,12 @@ def _folder_sort_item(folder_name, index_page):
 
 
 def _format_for(item, fmt_md, fmt_pk):
-    """そのページの記法（拡張子）から、`format_md`/`format_pk`のどちらを
+    """そのページの書きかた（拡張子）から、`format_md`/`format_pk`のどちらを
     使うか選ぶ（Wiki設計者の指示、2026-09-18。「pukiwiki はファイル名を
     基準に、markdown はタイトルを基準にするのがファイルの記述方法の背景に
     あるので、双方で統一のルールにはできない」）。
 
-    記法が分からない項目（実体の無い通り道のフォルダなど。`item.ext`が
+    書きかたが分からない項目（実体の無い通り道のフォルダなど。`item.ext`が
     無い）は FILE 扱いにする——出せる名前がファイル名しか無いため。"""
     markup = markup_name_for(item.ext) if item and item.ext else None
     if markup == "markdown":
@@ -718,7 +718,7 @@ def _render_tree(node, fmt_md, fmt_pk, key, reverse, ajaxview=False, natural=Fal
     なっていた。Wiki設計者の報告により発見）。
 
     **見せかたは`fmt_md`/`fmt_pk`の2本を受け取り、ページごとに`_format_for`
-    で選ぶ**（Wiki設計者の指示、2026-09-18。記法ごとに見せかたの既定が
+    で選ぶ**（Wiki設計者の指示、2026-09-18。書きかたごとに見せかたの既定が
     違うため、1つの一覧にMarkdownとPukiWiki記法のページが混ざっていても
     それぞれの既定・指定どおりに描ける）。"""
     entries = [(_sort_key(page, key, natural),
@@ -741,8 +741,8 @@ def _render_tree(node, fmt_md, fmt_pk, key, reverse, ajaxview=False, natural=Fal
             continue  # 中身も入口も無いフォルダは出さない
 
         folder_key = _sort_key(_folder_sort_item(folder["name"], index_page), key, natural)
-        # フォルダの見せかたは、入口ページ（index）の記法で決まる
-        # （フォルダ自体は記法を持たないため）。入口が無ければファイル名扱い。
+        # フォルダの見せかたは、入口ページ（index）の書きかたで決まる
+        # （フォルダ自体は書きかたを持たないため）。入口が無ければファイル名扱い。
         folder_fmt = _format_for(index_page, fmt_md, fmt_pk) if index_page is not None else "FILE"
 
         if not inner:

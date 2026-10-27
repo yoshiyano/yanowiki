@@ -10,9 +10,12 @@ from wikilib.accesslog import record_access
 from wikilib.dbbackup import maybe_backup
 from wikilib.paths import (
     LOGIN_URLPATH, SEARCH_URLPATH, default_markup_ext, farm_plugin_dir, is_valid_pagepath,
-    pagepath_of_subpath,
+    pagepath_of_subpath, resolve_page_ref,
 )
+from wikilib.pagenotice import page_info_for
 from wikilib.pagedb import page_updated_at, published_ref
+from wikilib.pagesave import watch_writes
+from wikilib.pagesync import MAX_REVIEW
 from wikilib.plugins import build_markdown_renderer
 from wikilib.render import render_source
 from wikilib.wikiconfig import default_markup
@@ -87,8 +90,16 @@ def render_no_page(wiki_dir, config, farm, pagepath, explicit_farm):
         "</div>"
     )
     title = os.path.basename(pagepath) or farm
+    # フォルダ `X/` に入口が無く、同じ名前の `X.md` だけがあるときも、このページは無い。
+    # 中身は残っているので、info に整理の画面への ⚠ を出す（`pagenotice.folder_notice`）。
+    # ページに付かない知らせ（申請の受付の停止など）は、無いページでも出す
+    ref = resolve_page_ref(wiki_dir, pagepath) if is_valid_pagepath(pagepath) else None
+    info = page_info_for(config, farm, context.base_url, wiki_dir,
+                         ref.subpath if ref is not None else None, pagepath=pagepath,
+                         explicit_farm=explicit_farm)
     return render_theme(engine, wiki_dir, config, farm, pagepath, title, body,
-                       editable=False, explicit_farm=explicit_farm, context=context, status=404)
+                       editable=False, explicit_farm=explicit_farm, context=context, status=404,
+                       page_info=info)
 
 
 def _login_link_html(base_url, pagepath):
@@ -286,7 +297,7 @@ def render_page(wiki_dir, config, farm, pagepath, explicit_farm, had_trailing_sl
     # DBの控えが前日以前なら取り直す（別スレッド。ふだんは日付を1つ見るだけ）
     maybe_backup(wiki_dir)
 
-    # 記法（.md ならMarkdown、.txt ならPukiWiki記法）の違いは
+    # 書きかた（.md ならMarkdown、.txt ならPukiWiki記法）の違いは
     # render_source が引き受けるので、ここでは拡張子をそのまま渡す。
     #
     # 編集の権限（`W`）が無ければ `editable=False` で描く（Wiki設計者の指示、
@@ -294,6 +305,22 @@ def render_page(wiki_dir, config, farm, pagepath, explicit_farm, had_trailing_sl
     # 目印も、セクション編集の目印（`data-editable`）も落とす。**画面から
     # 消すだけでなく、編集の入口自体も断る**（`editor.render_edit`・
     # `editor.serve_section`）。
-    return render_with_theme(
-        wiki_dir, config, farm, pagepath, ref.body, explicit_farm, ref.subpath, ref.ext,
-        source_path=ref.path, editable=ref.privilege == auth.PAGE_WRITE)
+    #
+    # **描画の中で本文が書き換わったら、新しい本文で最初から描き直す**（`pagesave.watch_writes`。
+    # 表示しているページ・メニュー・差し込んだページのどれが書き換わっても同じ）。
+    # 回数の上限は取り込みの描き直しと同じ `MAX_REVIEW`。達したら最後の描画をそのまま出す
+    for _ in range(MAX_REVIEW):
+        with watch_writes() as written:
+            response = render_with_theme(
+                wiki_dir, config, farm, pagepath, ref.body, explicit_farm, ref.subpath, ref.ext,
+                source_path=ref.path, editable=ref.privilege == auth.PAGE_WRITE)
+        if not written:
+            break
+        ref = published_ref(wiki_dir, pagepath)
+        # 書き換えでページが消えた・読めなくなったら、描き直さずにそう出す
+        if ref is not None and ref.privilege == auth.PAGE_NONE:
+            return render_no_view(wiki_dir, config, farm, pagepath, explicit_farm,
+                                  logged_in=auth.current_uid(wiki_dir, farm) is not None)
+        if ref is None or not ref.exists:
+            return render_no_page(wiki_dir, config, farm, pagepath, explicit_farm)
+    return response

@@ -8,6 +8,9 @@
  *   .content[data-editable]   本文（編集できるページのみ）＝セクション編集
  *   .content[data-draft]      別で編集中（セクション編集を開くだけにする）
  *   .toc a[href^="#"]         目次のリンク
+ *   li.menu-fold > details    メニューの開け閉めできる項目（Markdownのメニューで、
+ *                             下の階層を持つ `+`・`-` の項目）。開け閉めの状態を覚える
+ *   [data-menu-fold]          上のメニューの一番外の <ul>。値はメニューごとの目印
  *
  * (2) テーマがHTMLで用意する、決まったクラス名（検索）
  *
@@ -92,6 +95,12 @@
    * 気にしなくてよくなる（詳細は/Tech/SectionEditingの「保存のやりとり」）。
    * 1回のPOSTの上限に届く長さのページは、編集画面の一時保存と同じ仕組み
    * （chunk_id/chunk_index/chunk_total/part）で分けて送る。
+   *
+   * 外部エディタとの連動（Wiki設計者の指示、2026-10-27）: 「保存」「閉じる」の右に、編集画面と
+   * 同じ連動のボタンを置く。つないでいるあいだは本文の欄を隠し、プレビューだけにする。連動の中身は
+   * 本体の _sys/editor/editor.link.js（WikiEditorLink.attach）で、ここは開いたときに読み込んで
+   * 欄を渡すだけ。エディタからの保存は「保存」と同じで、閉じたら（保存して読み直したときも）
+   * エディタのバッファも閉じる（Tech/EditorSync）。
    */
   (function () {
     var content = document.querySelector(".content[data-editable]");
@@ -159,6 +168,23 @@
         });
       }
       return step();
+    }
+
+    // 外部エディタとの連動のスクリプト（本体の /.editor.link.js）。セクション編集を開いたときに
+    // 初めて読み込む（ふつうに読むだけの人には要らないため）。読めなければ連動のボタンを出さない
+    var linkScript = null;
+    function loadEditorLink() {
+      if (window.WikiEditorLink) return Promise.resolve(window.WikiEditorLink);
+      if (!linkScript) {
+        linkScript = new Promise(function (resolve, reject) {
+          var script = document.createElement("script");
+          script.src = baseUrl + "/.editor.link.js";
+          script.onload = function () { window.WikiEditorLink ? resolve(window.WikiEditorLink) : reject(); };
+          script.onerror = function () { linkScript = null; reject(); };
+          document.head.appendChild(script);
+        });
+      }
+      return linkScript;
     }
 
     function isHeading(el) {
@@ -306,9 +332,13 @@
       closeButton.type = "button";
       closeButton.className = "section-editor-close";
       closeButton.textContent = "閉じる";
+      // 外部エディタとの連動のボタンと状態の表示を置く場所（中身は editor.link.js が作る）
+      var linkSlot = document.createElement("span");
+      linkSlot.className = "section-editor-link";
       toolbar.appendChild(status);
       toolbar.appendChild(saveButton);
       toolbar.appendChild(closeButton);
+      toolbar.appendChild(linkSlot);
 
       var preview = document.createElement("div");
       preview.className = "section-editor-preview content";
@@ -320,7 +350,11 @@
       rangeEls[0].parentNode.insertBefore(wrap, rangeEls[0]);
       rangeEls.forEach(function (el) { el.remove(); });
 
+      var link = null;   // 外部エディタとの連動（WikiEditorLink.attach の戻り値）
+      var closed = false;
       function close() {
+        closed = true;
+        if (link) link.detach(true);   // エディタのバッファも閉じる
         rangeEls.forEach(function (el) { wrap.parentNode.insertBefore(el, wrap); });
         wrap.remove();
       }
@@ -351,11 +385,35 @@
           saveButton.disabled = false;
           textarea.focus();
           renderPreview(preview, previewUrl, textarea.value);
+          startLink(data);
         })
         .catch(function () {
           status.classList.add("is-error");
           status.textContent = "取得に失敗しました";
         });
+
+      // エディタに見せる名前は「ページ名#見出し.拡張子」（編集画面のバッファと別にするため、
+      // セッション ID も開くたびに新しくなる）
+      function startLink(data) {
+        var info = data.page;
+        if (!info) return;
+        var label = owner ? owner.textContent.trim() : "";
+        loadEditorLink().then(function (api) {
+          if (closed) return;
+          link = api.attach({
+            source: textarea,
+            box: wrap,
+            container: linkSlot,
+            page: function () {
+              return { path: info.path, title: info.path + (label ? "#" + label : "") + (info.ext || ""),
+                       markup: info.markup, url: new URL(info.url, location.href).href };
+            },
+            attachments: function () { return data.attachments || []; },
+            // エディタからの保存は「保存」を押したのと同じ。変わっていなければ閉じる
+            onSave: function () { saveButton.click(); }
+          });
+        }, function () { /* 読めなければ連動のボタンを出さない */ });
+      }
 
       var timer = null;
       textarea.addEventListener("input", function () {
@@ -1191,12 +1249,18 @@
    * 反映できない（ブラウザ既定の16px基準に固定される）ため、拡大率と
    * 連動させたいレスポンシブしきい値はこちらで肩代わりしている。
    * 持たないテーマ（bloom/fresh等）では何もしない＝従来どおり@media任せ。
+   *
+   * 標準の拡大率（設定 theme.zoom）は、本体が <html data-default-zoom="115"> で
+   * 渡す。読み手の保存値が無いときの初期値になる（ボタンの有無に関わらず効く）。
+   * ボタンの無いテーマ（post_it_1・pkwk）は、読み手が選べないので保存値を使わず、
+   * 標準だけを効かせる。標準が100のときは<html>のfont-sizeを書かない。pxで書くと、
+   * common.cssが画面幅で出し分けている文字の大きさが、読み込み時の値に固定される。
    */
   (function () {
     var zoomIn = document.querySelector(".zoom-in");
     var zoomOut = document.querySelector(".zoom-out");
     var zoomValue = document.querySelector(".zoom-value");
-    if (!zoomIn && !zoomOut && !zoomValue) return;
+    var hasControls = !!(zoomIn || zoomOut || zoomValue);
 
     // ボタンで移動する段階（縮小側3・既定・拡大側4）。既定を「100%」と呼ぶ。
     // 50/60は実機検証の結果、本文・メニューフォントとも70%以下と体感差が
@@ -1214,7 +1278,20 @@
     // （画面幅に応じてcommon.cssが出し分けている既定値）を基準にする
     var BASE_PX = parseFloat(getComputedStyle(root).fontSize);
 
-    var current = DEFAULT_LABEL;
+    // 標準の拡大率。属性が無い・数でない・範囲の外は100
+    var defaultZoom = parseFloat(root.getAttribute("data-default-zoom"));
+    if (isNaN(defaultZoom) || defaultZoom < MIN_VALUE || defaultZoom > MAX_VALUE) {
+      defaultZoom = DEFAULT_LABEL;
+    }
+
+    if (!hasControls) {
+      if (defaultZoom !== DEFAULT_LABEL) {
+        root.style.fontSize = (BASE_PX * defaultZoom / 100) + "px";
+      }
+      return;
+    }
+
+    var current = defaultZoom;
     try {
       var saved = parseFloat(localStorage.getItem(STORAGE_KEY));
       if (!isNaN(saved) && saved >= MIN_VALUE && saved <= MAX_VALUE) current = saved;
@@ -1309,6 +1386,207 @@
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(updateBreakpoints, 100);
     });
+  })();
+
+  /* ---- 本文の幅の上限を外す／戻す(.content-width-toggle) ----------------------
+   * テーマがタイトル(h1)の右端に置いたボタン。.zoom-in と同じく、テーマが決まった
+   * クラス名のボタンを用意し、ここで振る舞いを付ける。押すたびに <html> の class
+   * "content-wide" を付け外しし、状態を localStorage に覚えて次のページへ引き継ぐ
+   * (拡大縮小ボタンと同じ流儀)。localStorageが使えなくても、その場の切り替えは動く。
+   *
+   * 「外す」の中身(どの要素の幅の上限を外すか)はテーマごとに作りが違うので、
+   * html.content-wide のときの見た目は各テーマのCSSが決める。common.css が持つのは
+   * ボタンの矢印(↗/↙)の見た目だけ。ボタンを置いていないテーマでは何もしない。
+   *
+   * 標準（設定 theme.content_wide）は、本体が <html data-default-wide="1"> で渡す。
+   * 読み手の保存値が無いときの初期値になる。保存値は "1"（外す）・"0"（外さない）で、
+   * 標準と同じ状態へ戻したときは記録を消す。標準を後から変えたとき、自分で選んだ
+   * つもりの無い読み手が標準に追従するため（標準が「外さない」なら、これまでどおり
+   * 「外した」ときだけ "1" を覚え、戻すと消える）。
+   */
+  (function () {
+    var buttons = document.querySelectorAll(".content-width-toggle");
+    if (!buttons.length) return;
+
+    var CLASS_NAME = "content-wide";
+    var STORAGE_KEY = "wikiTheme.contentWide";
+    var root = document.documentElement;
+    var defaultWide = root.getAttribute("data-default-wide") === "1";
+
+    var wide = defaultWide;
+    try {
+      var saved = localStorage.getItem(STORAGE_KEY);
+      if (saved === "1") wide = true;
+      else if (saved === "0") wide = false;
+    } catch (e) {
+      // 使えなくても、ボタンはページ内での切り替えとして機能する
+    }
+
+    // 見出しの名前(スクリーンリーダーの見出し一覧など)に、ボタンや info の文字が
+    // 混ざらないよう、ボタンを置いた道具置き場(.page-title-tools)を除いた
+    // 文字で固定しておく。
+    Array.prototype.forEach.call(buttons, function (button) {
+      var heading = button.closest("h1");
+      if (!heading || heading.hasAttribute("aria-label")) return;
+      var copy = heading.cloneNode(true);
+      Array.prototype.forEach.call(copy.querySelectorAll(".page-title-tools"), function (el) {
+        el.remove();
+      });
+      heading.setAttribute("aria-label", copy.textContent.trim());
+    });
+
+    function apply() {
+      root.classList.toggle(CLASS_NAME, wide);
+      var label = wide ? "本文の幅の上限を元に戻す" : "本文の幅の上限を外す";
+      Array.prototype.forEach.call(buttons, function (button) {
+        button.title = label;
+        button.setAttribute("aria-label", label);
+      });
+    }
+
+    Array.prototype.forEach.call(buttons, function (button) {
+      button.addEventListener("click", function () {
+        wide = !wide;
+        apply();
+        try {
+          if (wide === defaultWide) localStorage.removeItem(STORAGE_KEY);
+          else localStorage.setItem(STORAGE_KEY, wide ? "1" : "0");
+        } catch (e) {
+          // 保存できなくても、その場での切り替えは動く
+        }
+      });
+    });
+
+    apply();
+  })();
+
+  /* ---- メニューの開け閉めを覚える（li.menu-fold > details） -----------------
+   * 本体が Markdown のメニューに出す、開け閉めできる項目（`+` は最初は閉、`-` は
+   * 最初は開。_sys/wikilib/menufold.py）の状態を localStorage に覚え、次のページを
+   * 開いたときも同じ状態にする。深いページを続けて見るとき、移るたびに閉じ直されない
+   * ようにするため。
+   *
+   * 覚えかた: { メニューの目印: { 項目の鍵: 開いているか } }
+   *   - メニューの目印は、一番外の <ul> の data-menu-fold（Wikiの入口＋メニューの
+   *     ページ名）。mainmenu と submenu、別のWikiの記録が混ざらない
+   *   - 項目の鍵は、<summary> の最初のリンクの href（リンクが無ければ文字）。
+   *     同じ鍵が続けば "#2"、"#3" を付けて区別する
+   *   - 覚えるのは、最初の状態（サーバーが出した open の有無）から変えたものだけ。
+   *     最初の状態へ戻したら記録を消す
+   *
+   * メニューは書き換えられるので、使えなくなった記録は捨てる。ページを開くたびに、
+   * そのページに出ているメニューごとに、記録を「いまある項目」と突き合わせる。
+   *   - 項目が無くなった（リンク先・文字を変えた、消した）記録は消す
+   *   - 管理者が記号を変えて、最初の状態が記録と同じになった記録は消す
+   *   - 形が壊れた記録（JSON として読めない、値が true/false でない等）も消す
+   * そのページに出ていないメニュー（別のWiki・権限で見えない枠）の記録には触らない。
+   *
+   * localStorage が使えない（プライベートブラウジング等）ときは、覚えないだけで、
+   * 開け閉めそのものは今までどおり動く。 */
+  (function () {
+    var STORAGE_KEY = "wikiTheme.menuFold";
+    var roots = document.querySelectorAll("[data-menu-fold]");
+    if (!roots.length) return;
+
+    function isObject(v) {
+      return v !== null && typeof v === "object" && !Array.isArray(v);
+    }
+
+    // 記録が無ければ {}、壊れていて読めなければ null（使えない場合も同じ）
+    function load() {
+      try {
+        var text = localStorage.getItem(STORAGE_KEY);
+        if (text === null) return {};
+        var data = JSON.parse(text);
+        return isObject(data) ? data : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function save(data) {
+      try {
+        if (Object.keys(data).length) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch (e) {
+        // 覚えられなくても、その場での開け閉めは動く
+      }
+    }
+
+    function keyOf(details) {
+      var summary = details.querySelector("summary");
+      if (!summary) return "";
+      var link = summary.querySelector("a[href]");
+      return link ? link.getAttribute("href") : summary.textContent.trim();
+    }
+
+    // メニューごとに、そのメニューの開け閉めできる項目を集める（同じメニューが
+    // 離れた複数の <ul> に分かれていても、1つにまとめる）
+    var menus = {};
+    Array.prototype.forEach.call(roots, function (root) {
+      var id = root.getAttribute("data-menu-fold");
+      var items = menus[id] || (menus[id] = []);
+      Array.prototype.forEach.call(root.querySelectorAll("li.menu-fold > details"), function (d) {
+        items.push(d);
+      });
+    });
+
+    var store = load();
+    var dirty = false;
+    if (store === null) {  // 壊れた記録は捨てる
+      store = {};
+      dirty = true;
+    }
+
+    Object.keys(menus).forEach(function (id) {
+      var raw = store[id];
+      var saved = isObject(raw) ? raw : {};
+      var kept = {};
+      var seen = {};
+      menus[id].forEach(function (details) {
+        var key = keyOf(details);
+        seen[key] = (seen[key] || 0) + 1;
+        if (seen[key] > 1) key += "#" + seen[key];
+        var initial = details.open;  // サーバーが出した最初の状態
+        if (typeof saved[key] === "boolean" && saved[key] !== initial) {
+          details.open = saved[key];
+          kept[key] = saved[key];
+        }
+        details.addEventListener("toggle", function () {
+          // 別のタブで変えた分を消さないよう、書くたびに読み直す
+          // （最初から open のものは、ページを開いた直後にも toggle が来る。変わって
+          // いなければ書かない）
+          var current = load() || {};
+          var before = JSON.stringify(current);
+          var record = isObject(current[id]) ? current[id] : {};
+          if (details.open === initial) {
+            delete record[key];
+          } else {
+            record[key] = details.open;
+          }
+          if (Object.keys(record).length) {
+            current[id] = record;
+          } else {
+            delete current[id];
+          }
+          if (JSON.stringify(current) !== before) save(current);
+        });
+      });
+      // 残した記録と食い違えば、捨てるものがあったということ
+      if (raw !== undefined && JSON.stringify(kept) !== JSON.stringify(raw)) {
+        dirty = true;
+        if (Object.keys(kept).length) {
+          store[id] = kept;
+        } else {
+          delete store[id];
+        }
+      }
+    });
+
+    if (dirty) save(store);
   })();
 
   /* ---- 浮いたパネルのドラッグ移動（.page-search-panel・任意で.search-modal-panel） ----

@@ -176,7 +176,7 @@
 .grp-table th,
 .grp-table td {
   padding: 0.5em 0.4em;
-  border-bottom: 1px solid var(--border, #d0d7de);
+  border-bottom: 1px solid var(--table-border, var(--border, #d0d7de));
   text-align: left;
   vertical-align: middle;
 }

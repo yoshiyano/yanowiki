@@ -10,8 +10,8 @@
 ユーザ」欄を外した）。登録されている全ユーザ＋未認証、それぞれの判定を表で返す。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_privilegesui.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_privilegesui.py     （このファイルだけ）
 """
 import io
 import json

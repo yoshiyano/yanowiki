@@ -108,6 +108,7 @@ import sqlite3
 import time
 import zlib
 
+from wikilib import bulkscope
 from wikilib.backup import first_backup_stamp as _first_backup_stamp
 from wikilib.paths import (
     INDEX_NAME, PAGE_EXTS, PageRef, farm_pageinfo_dir, iter_pages,
@@ -167,8 +168,15 @@ def connect(wiki_dir):
     作ると、次にページを取り込んだ差分が「空→内容」として記録され、
     それより古い履歴が現在とつながらなくなる。控えを戻しておけば、
     取り込みは「控えの時点 → いま」というまっとうな1本になり、そこから
-    先の過去へは辿れる。"""
+    先の過去へは辿れる。
+
+    まとめて書き換える範囲（`bulkscope.scope`）の中では、1つの接続を使い回し、
+    範囲を出るときに1回だけ確定する。"""
     path = db_path(wiki_dir)
+    return bulkscope.adopt(path, lambda: _open(wiki_dir, path)) or _open(wiki_dir, path)
+
+
+def _open(wiki_dir, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if not os.path.exists(path):
         # 読み込みの途中で呼ばれることもあるので、失敗しても黙って進む
@@ -203,7 +211,7 @@ def record_page(wiki_dir, subpath, ext, body, path=None, now=None, created=None)
     これまでどおり引き継ぐので、渡しても上書きにはならない）。行を失ったページを
     入れ直す場面で、バックアップから分かる本当の日時を戻すためのもの。
 
-    **`updated`（最終更新日時）は、本文か記法（拡張子）が変わったときだけ進める。**
+    **`updated`（最終更新日時）は、本文か書きかた（拡張子）が変わったときだけ進める。**
     同じ中身を入れ直すたびに進めると、`updatepage --force` のような全ページの
     取り込み直しで、どのページも取り込んだ時刻になり、「最新の更新」やファイル一覧の
     更新日時が並んでしまう（2026-09-29 に起きた）。中身が同じ保存は差分も残らない
@@ -782,8 +790,11 @@ def shadowed_pages(wiki_dir):
     （[Tech/Reference](/Tech/Reference/Resolve#対象ページの特定)参照）ため、`X/index` が
     無ければ「そのページは無い」ことになってしまう。`X.拡張子` の中身は
     残っているのに読めないという、気づきにくい食い違いだけを拾う
-    （直しかたは決めていない。手でファイルを置いたときだけ起きるまれな形
-    なので、ここでは知らせるだけにとどめる）。"""
+    （ここでは知らせるだけ。直すのはページの info の ⚠ から開く整理の画面
+    `/.solveDupPage`。`wikilib.solvedup` の「同じ名前のファイルとフォルダ」）。
+
+    `X/index` があるときの `X.拡張子` は、ページ `X` が読めるので、ここには入らない
+    （info の ⚠ だけが知らせる）。"""
     found = []
     for pagepath, _ in iter_pages(wiki_dir):
         ref = resolve_page_ref(wiki_dir, pagepath)

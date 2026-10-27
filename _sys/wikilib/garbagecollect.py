@@ -25,6 +25,13 @@ Wiki設計者の指示、2026-09-25）。
 置き換える（`講義/第01回/a.png` → `講義_第01回__a.png`）。同じ名前が trashbox に
 あれば、拡張子の前に `_2`・`_3`… を付けて上書きしない。
 
+## ページを消したときにも移す
+
+ページを消すと（編集画面で本文を空にして保存・ファイル一覧の削除。どちらも
+`editor.delete_page`）、そのページの添付をすぐここへ移す（`trash_attachments`。
+Wiki設計者が選んだ決まり、2026-10-04。それまでは添付のあるページは消さずに断っていた）。
+名前の付けかた・権限の用意は、1時間ごとに集めるときと同じ。
+
 ## trashbox は管理者と助手だけ
 
 添付は持ち主のページの閲覧権限で配信される。閲覧を絞っていたページの添付が
@@ -39,7 +46,7 @@ from html import escape
 
 from bottle import request
 
-from wikilib import auth, privilege_records
+from wikilib import privilege_records
 from wikilib.attach import attach_dir_for, has_attach_files, safe_attach_name
 from wikilib.diskusage import invalidate
 from wikilib.draft import drafted_subpaths
@@ -132,6 +139,58 @@ def ensure_trashbox(wiki_dir, config):
     return True
 
 
+def _move_files(wiki_dir, src_dir, sub, files, dst_dir):
+    """src_dir（attach/ から sub）の files を trashbox へ移す。移したものの一覧。"""
+    moved = []
+    for name in files:
+        new_name = trash_name(sub, name)
+        if new_name is None:
+            continue
+        os.makedirs(dst_dir, exist_ok=True)
+        new_name = _free_name(dst_dir, new_name)
+        try:
+            os.replace(os.path.join(src_dir, name), os.path.join(dst_dir, new_name))
+        except OSError:
+            continue
+        moved.append((sub, name, new_name))
+    return moved
+
+
+def trash_attachments(wiki_dir, config, subpath, tree=False):
+    """そのページ（実体パス subpath）の添付を trashbox へ移す（モジュール冒頭「ページを
+    消したときにも移す」）。tree なら下のフォルダ（下位ページの置き場所）の添付も移す
+    （フォルダごと消したあとの残り）。
+
+    移したものの一覧 `[(元の実体パス, 元の名前, 移した名前), …]` を返す。trashbox の
+    権限かページを用意できなければ、何も移さず None。trashbox 自身の添付は移さない。"""
+    root = attach_root_of(wiki_dir)
+    top = attach_dir_for(wiki_dir, subpath)
+    if top is None or not os.path.isdir(top) or subpath == TRASHBOX_PAGE:
+        return []
+    found = []
+    for dirpath, dirnames, filenames in os.walk(top):
+        dirnames[:] = sorted(dirnames) if tree else []
+        sub = os.path.relpath(dirpath, root).replace(os.sep, "/")
+        files = sorted(f for f in filenames if os.path.isfile(os.path.join(dirpath, f)))
+        if files and sub != TRASHBOX_PAGE:
+            found.append((dirpath, sub, files))
+    if not found:
+        return []
+    from wikilib import stafflog
+    with stafflog.quiet():   # trashbox の用意は、ページの削除の記録にまとめる
+        if not ensure_trashbox(wiki_dir, config):
+            return None
+    dst_dir = attach_dir_for(wiki_dir, TRASHBOX_PAGE)
+    moved = []
+    for dirpath, sub, files in found:
+        moved += _move_files(wiki_dir, dirpath, sub, files, dst_dir)
+    for dirpath, _sub, _files in reversed(found):
+        _remove_empty_up(dirpath, root)
+    if moved:
+        invalidate(wiki_dir)
+    return moved
+
+
 def collect(wiki_dir, config):
     """持ち主のページが無い添付を trashbox へ移す。
 
@@ -151,17 +210,7 @@ def collect(wiki_dir, config):
         src_dir = attach_dir_for(wiki_dir, sub)
         if src_dir is None:
             continue
-        for name in files:
-            new_name = trash_name(sub, name)
-            if new_name is None:
-                continue
-            os.makedirs(dst_dir, exist_ok=True)
-            new_name = _free_name(dst_dir, new_name)
-            try:
-                os.replace(os.path.join(src_dir, name), os.path.join(dst_dir, new_name))
-            except OSError:
-                continue
-            moved.append((sub, name, new_name))
+        moved += _move_files(wiki_dir, src_dir, sub, files, dst_dir)
         _remove_empty_up(src_dir, root)
     if moved:
         invalidate(wiki_dir)
@@ -202,8 +251,8 @@ def serve_garbage_collect(wiki_dir, config, farm, explicit_farm):
     from wikilib.paths import ACCOUNTS_URLPATH
     from wikilib.themes import make_plugin_context
 
-    denied = sysui.require(wiki_dir, config, farm, explicit_farm,
-                           GARBAGECOLLECT_URLPATH, auth.STAFF)
+    denied = sysui.require_perm(wiki_dir, config, farm, explicit_farm,
+                                GARBAGECOLLECT_URLPATH, "garbagecollect.run")
     if denied is not None:
         return denied
     context = make_plugin_context(config, farm, wiki_dir, GARBAGECOLLECT_URLPATH, explicit_farm)

@@ -281,7 +281,7 @@
 .attach-table td {
   padding: 0.45rem 0.6rem;
   text-align: left;
-  border-bottom: 1px solid var(--e-border);
+  border-bottom: 1px solid var(--table-border, var(--e-border));
 }
 .attach-table th {
   font-size: 0.8rem;
@@ -723,6 +723,64 @@
   border: 1px solid var(--accent, #0969da);
 }
 
+/* ページの削除の確かめ（本文を空にして保存したとき）。名前を変えるダイアログと
+   同じ見た目にし、［はい］は内容破棄と同じ赤にする */
+.edit-delete-dialog {
+  width: min(30rem, 92vw);
+  padding: 0;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 25%);
+}
+.edit-delete-dialog::backdrop { background: rgb(0 0 0 / 35%); }
+.edit-delete-form { display: flex; flex-direction: column; }
+.edit-delete-head {
+  padding: 0.8rem 1rem;
+  font-size: 0.98rem;
+  border-bottom: 1px solid var(--border, #d0d7de);
+}
+.edit-delete-message {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  white-space: pre-line;   /* 文の改行（\n）をそのまま見せる */
+  overflow-wrap: anywhere;
+}
+.edit-delete-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--border, #d0d7de);
+}
+.edit-delete-no,
+.edit-delete-yes {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 1.2rem;
+  cursor: pointer;
+  border-radius: var(--radius, 6px);
+}
+.edit-delete-no {
+  color: var(--fg, #1f2328);
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d0d7de);
+}
+.edit-delete-yes {
+  color: #fff;
+  background: #c62828;
+  border: 1px solid #c62828;
+}
+/* 最初に選ばれている［いいえ］が分かるように（Enter で押されるもの） */
+.edit-delete-no:focus,
+.edit-delete-yes:focus {
+  outline: 2px solid var(--accent, #0969da);
+  outline-offset: 2px;
+}
+
 /* ツリーの見た目は共通の TreeView（/.treeview.css）が持つ。
    ここは、この画面ならではの字下げと右寄せだけを足す */
 .pp-row { padding-left: calc(0.4rem + var(--pp-depth, 0) * 1.1rem); }
@@ -762,7 +820,7 @@
 }
 .edit-tool:hover { border-color: var(--e-accent); color: var(--e-accent); }
 .edit-tool:active { background: var(--e-panel); }
-/* ボタンの並び。記法を切り替えると中身がまるごと入れ替わる */
+/* ボタンの並び。書きかたを切り替えると中身がまるごと入れ替わる */
 .edit-tools {
   display: flex;
   gap: 0.25rem;
@@ -856,9 +914,9 @@
 }
 .edit-size-preset:hover { border-color: var(--e-accent); color: var(--e-accent); }
 
-/* ---- 記法の選択 ---- */
+/* ---- 書きかたの選択 ---- */
 /* 保存先の拡張子を決める操作でもあるので、ツールバーの右端に
-   「いまどの記法で書いているか」として常に見えるようにしてある。 */
+   「いまどの書きかたで書いているか」として常に見えるようにしてある。 */
 .edit-markup {
   display: flex;
   gap: 0.5rem;
@@ -933,6 +991,15 @@
   resize: none;
 }
 .edit-source:focus { outline: none; }
+/* エディタとつながっているあいだは本文の欄を隠し、プレビューを広げる（Wiki設計者の指示、
+   2026-10-08。editor.link.js が .page-editor に data-editor-link-hidden を付ける） */
+.page-editor[data-editor-link-hidden] .edit-source-col { display: none; }
+.page-editor[data-editor-link-hidden] .edit-panes { grid-template-columns: minmax(0, 1fr); }
+/* ツールバーの帯も隠す。書式のボタンは隠れた欄のカーソルの位置に入り、どこに入ったかが見えない
+   （Wiki設計者の指示、2026-10-10）。書きかたの切り替えもエディタには伝わらないので隠す（同日、設計者
+   「記法表示の切り替えをエディタとの通信でサポートしないなら、記法切り替えも非表示にする」）。
+   書きかたを変えるときは切断してから */
+.page-editor[data-editor-link-hidden] .edit-toolbar { display: none; }
 /* テキスト側は枠の代わりに、囲んでいる .edit-panes 側を強調する
    （テキストの直接の outline は入力の邪魔になるため、以前から外してある）。
    今どちらに入力が向いているか（本文かページ一覧か）を見て取れるようにする。 */
@@ -1211,6 +1278,59 @@
   margin: 0.3rem 0;
   border-radius: 4px;
 }
+/* 一覧に出す名前の切り替え（自動・ファイル名・タイトル）。ボタンを3つ並べた
+   つなぎ目のない帯にする。押している1つだけを塗る。サイドバーは幅が狭いので、
+   足りなければ折り返す。
+   **サイドバーの上端に貼り付ける。** 開いた直後は、いま編集している行を一覧の真ん中へ
+   置くためにサイドバー全体がスクロールし、見出しもこの帯も画面の上に隠れてしまう。
+   貼り付けておけば、どこまで下がっていても切り替えられる。下を流れる行が
+   透けないよう、地の色を敷く */
+.ep-listmode {
+  display: flex;
+  flex-wrap: wrap;
+  position: sticky;
+  /* .edit-side の上の余白（0.6rem）のぶん上へ寄せ、サイドバーの上端にぴったり止める。
+     寄せないと、余白の隙間から下の行が見える */
+  top: -0.6rem;
+  z-index: 2;
+  padding: 0.3rem 0;
+  background: var(--e-panel);
+}
+/* 狭い画面では、サイドバーの上に固定した開閉ボタンの分（3.2rem）が空けてあり、
+   帯はその下に止める */
+@media (max-width: 60rem) {
+  .ep-listmode { top: 0; }
+}
+.ep-listmode-btn {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+  color: var(--e-fg);
+  background: transparent;
+  border: 1px solid var(--e-border);
+  white-space: nowrap;
+}
+/* 隣り合う枠線が二重にならないよう、つなぎ目を1本にする */
+.ep-listmode-btn + .ep-listmode-btn { margin-left: -1px; }
+.ep-listmode-btn:first-child { border-radius: var(--e-radius) 0 0 var(--e-radius); }
+.ep-listmode-btn:last-child { border-radius: 0 var(--e-radius) var(--e-radius) 0; }
+.ep-listmode-btn:hover { border-color: var(--e-accent); color: var(--e-accent); }
+.ep-listmode-btn[aria-pressed="true"] {
+  color: #fff;
+  background: var(--e-accent);
+  border-color: var(--e-accent);
+}
+/* 押している1つは、隣の枠線に隠されないよう手前に出す */
+.ep-listmode-btn[aria-pressed="true"],
+.ep-listmode-btn:hover,
+.ep-listmode-btn:focus-visible { position: relative; z-index: 1; }
+.ep-listmode-btn:focus-visible {
+  outline: 2px solid var(--e-accent);
+  outline-offset: 1px;
+}
 /* 階層の字下げ。深さは TreeView が --ep-depth に入れる
    （リネーム画面の .rp-row・バックアップ管理画面の .bk-row と同じやりかた） */
 .ep-row { padding-left: calc(0.3em + var(--ep-depth, 0) * 1.1em); }
@@ -1270,6 +1390,45 @@
   white-space: nowrap;
 }
 .edit-continuous input { margin: 0; cursor: pointer; }
+
+/* 外部エディタとの編集同期（editor.link.js）。連続編集の右に、同じ控えめさで並べる。
+   状態は先頭の小さな丸の色で示す（待機中は点滅しない。編集の邪魔にならないように） */
+.edit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--e-muted);
+  white-space: nowrap;
+}
+.edit-link::before {
+  content: "";
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--e-border);
+}
+.edit-link[data-state="waiting"]::before { background: #d4a72c; }
+.edit-link[data-state="connected"]::before { background: #2da44e; }
+.edit-link[data-state="closed"]::before { background: var(--e-muted); }
+.edit-link button {
+  font: inherit;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+  background: var(--e-bg);
+  color: var(--e-fg);
+  cursor: pointer;
+}
+.edit-link button:hover { border-color: var(--e-accent); color: var(--e-accent); }
+.edit-link-settings { position: relative; }
+.edit-link-settings summary { cursor: pointer; }
+.edit-link-settings[open] > label {
+  display: block;
+  margin-top: 0.3rem;
+  white-space: nowrap;
+}
+.edit-link-settings input { width: 6em; }
 
 /* 連続編集で保存・破棄したあとの知らせ。一時保存の知らせより控えめにする
    （保存できたという普通のことなので、枠の色は強くしない） */
@@ -1344,7 +1503,7 @@
   .edit-draft-state { font-size: 0.72rem; }
   .edit-hint { display: none; }
 
-  /* 編集画面: 記法のボタンを出さない。
+  /* 編集画面: 書きかたのボタンを出さない。
      **4枚の高さを揃える約束はここでは崩れる**（編集側だけ帯が1つ減る）が、
      書く場所を確保するほうを採る（Wiki設計者の指示） */
   .edit-toolbar { display: none; }

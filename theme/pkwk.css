@@ -24,6 +24,7 @@
   --pi-outer-bg: #ffffff;
   --pi-base-bg: #ffffff;
   --pi-heading-bg: #ddeeff;
+  --table-border: #888899;
 }
 
 /* 付箋風の外枠（暗い1px枠＋青灰の下地＋太い左枠線）を外し、素の白地にする */
@@ -125,7 +126,9 @@ body {
 
 /* ---- サイドバー（menu1 / 目次 / menu2）の見出し ----
    post_it_1 はレベル別の色帯（赤/青/緑）を付けていた。PukiWiki の menubar/
-   rightbar は見出しも本文と同じ薄青の下地なので、それに合わせて帯を外す。 */
+   rightbar は見出しも本文と同じ見た目なので、色帯を外して本文の見出しと
+   同じ系統にする。h2: 薄青の帯 / h3: 薄青の枠 / h4: 太い左線
+   （以前は3段とも同じ薄青の帯で見分けにくかった。2026-10-03）。 */
 #rightbar h2,
 #rightbar h3,
 #rightbar h4 {
@@ -133,13 +136,29 @@ body {
   border: 0;
   padding: 0.25em 0.5em;
 }
+#rightbar h3 {
+  background-color: transparent;
+  padding: 0.15em 0.4em;
+  border-top: 1px solid #ddeeff;
+  border-right: 3px solid #ddeeff;
+  border-bottom: 2px solid #ddeeff;
+  border-left: 6px solid #ddeeff;
+}
+#rightbar h4 {
+  background-color: transparent;
+  padding: 0.1em 0.4em;
+  border-left: 10px solid #ddeeff;
+}
 
 /* ---- ヘッダのロゴ ----
    参照サイト（1ev-py）は img#logo { float:left; margin-right:20px } で
    高さ80pxのロゴを出している。#header は既にflexなのでfloatは使わず、
    #header の align-items: center で縦中央に揃える。
    ロゴは .header-rows（タイトル行＋TopicPath行の2行ぶん）の左に置いて
-   2行にまたがらせる（pkwk.html のマークアップで決まる）。 */
+   2行にまたがらせる（pkwk.html のマークアップで決まる）。
+   大きさは高さだけを 64px に決め、横幅は画像の縦横比に応じて自由にする
+   （pukiwiki_default と同じ仕様。Wiki設計者の指示、2026-10-13。
+   pkwk はもともと高さだけの指定だった）。 */
 .pkwk-logo-link {
   display: block;
   flex: 0 0 auto;

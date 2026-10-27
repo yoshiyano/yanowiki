@@ -3,6 +3,7 @@
 本文HTMLは呼び出し側が用意する。ここはその外側（ヘッダ・メニュー・目次・
 TopicPath）を組み立てて1枚のページにするところまでを受け持つ。
 """
+import copy
 import datetime
 import os
 import re
@@ -19,7 +20,7 @@ from markupsafe import Markup
 
 from wikilib.paths import (
     LOGIN_URLPATH, MARKERS_PANEL_URLPATH,
-    MARKERS_URLPATH, SEARCH_URLPATH, THEME_COOKIE,
+    MARKERS_URLPATH, SEARCH_DIR, SEARCH_TEMPLATE_PREFIX, SEARCH_URLPATH, THEME_COOKIE,
     THEME_COOKIE_MAX_AGE, THEME_DIR, THEMESELECT_URLPATH, THEME_URLPATH,
     farm_plugin_dir, is_valid_pagepath, resolve_page, safe_join, wiki_cookie_name,
 )
@@ -28,8 +29,11 @@ from wikilib.draft import has_draft
 from wikilib.plugins import (
     PluginContext, build_markdown_renderer, plugin_script_urls, plugin_style_urls,
 )
-from wikilib.render import parse_source, render_source, rewrite_content_links
-from wikilib.web import plain, static_file
+from wikilib.menufold import fold_menu_lists
+from wikilib.pagenotice import page_info_for
+from wikilib.slottheme import find_slot_theme, list_slot_theme_names
+from wikilib.render import is_pukiwiki, parse_source, render_source, rewrite_content_links
+from wikilib.web import delete_wiki_cookie, get_wiki_cookie, plain, set_wiki_cookie, static_file
 from wikilib.wikiconfig import farm_base_url, version_label
 
 DEFAULT_THEMEFILE = "base"  # 既定のテーマ名（theme/base.html を参照する）
@@ -76,6 +80,13 @@ def theme_search_dirs(wiki_dir, themefile):
     return dirs
 
 
+def jinja_theme_exists(wiki_dir, themefile):
+    """Jinja2 のテーマ（`<themefile>.html`）が、テーマの探索で見つかるか。"""
+    return bool(themefile) and any(
+        os.path.isfile(os.path.join(d, themefile + ".html"))
+        for d in theme_search_dirs(wiki_dir, themefile))
+
+
 def list_theme_names(wiki_dir):
     """選べるテーマ名の一覧（個別Wiki固有・全Wiki共通の両方、重複を除いて昇順）。
 
@@ -85,12 +96,12 @@ def list_theme_names(wiki_dir):
     （wikitheme プラグインの `_list_themes` と同じ仕様。Wiki設計者の指示、
     2026-09-04）。
 
-    `search.html` のような、他のテーマへ `{% extends %}` する断片テンプレートも
-    この規則では拾えてしまう（自分自身への継承で無限再帰になる）。**それを
-    ここで見分けようとはしない**——`render_theme` が描画に失敗しても既定の
-    テーマへ後退する仕組みを持っているため（`render_theme` のdocstring参照）、
-    選ばれてもサイトは止まらない。"""
-    names = set()
+    **テーマの探索先（theme/）には、テーマだけを置く。** 他のテーマへ
+    `{% extends %}` する断片テンプレートを置くと、この規則ではテーマとして
+    拾われ、選ぶと自分自身への継承で描けなくなる（`theme.name` に選ぶと、
+    既定のテーマへも後退しない）。検索結果のテンプレートは、そのため theme/ から
+    `_sys/search/` へ移した（`paths.SEARCH_TEMPLATE`。2026-10-14）。"""
+    names = set(list_slot_theme_names(wiki_dir))   # スロットHTML（wikilib.slottheme）も選べる
     for d in theme_dirs(wiki_dir):
         if not os.path.isdir(d):
             continue
@@ -151,7 +162,7 @@ def cookie_theme(wiki_dir, farm):
     自由に書き換えられる値で、そのまま `theme_search_dirs` へ渡す入り口に
     なるため（`safe_join` で境界の外には出られないが、確かめられるものは
     確かめておく）。"""
-    name = (request.get_cookie(wiki_cookie_name(THEME_COOKIE, farm)) or "").strip()
+    name = get_wiki_cookie(THEME_COOKIE, farm).strip()
     if not name:
         return None
     return name if name in list_theme_names(wiki_dir) else None
@@ -221,27 +232,18 @@ def serve_theme_select(wiki_dir, config, farm, explicit_farm):
         # 「このWikiのページパス」以外を受け取らないほうが意図が明確なため。
         pagepath = ""
 
-    # cookieのPathは、このWikiの入口。空（既定のfarmをサブパス無しで
-    # 使っている）ときは "/" にする——Pathを空にするとブラウザが
-    # 「いまのURLのディレクトリ」を使い、ページによって届いたり届かなかったり
-    # してしまうため。
-    cookie_path = base_url or "/"
-
-    # **cookieは「返すHTTPResponse自身」に設定する。** bottleは、ハンドラが
-    # HTTPResponseを返した場合、スレッドローカルの`response`ではなく返された
-    # ほうを使う。`response.set_cookie(...)`と書くとSet-Cookieが落ちて
-    # 何も起きない（実際にこれで一度動かなかった）。
+    # cookieのPathは、このWikiの入口（名前・Path・属性の決まりは
+    # `wikilib.web.set_wiki_cookie`。返すHTTPResponse自身に置く）
     out = HTTPResponse(status=303, headers={"Location": base_url + "/" + pagepath})
 
     if request.forms.get("reset") == "1":
-        out.delete_cookie(wiki_cookie_name(THEME_COOKIE, farm), path=cookie_path)
+        delete_wiki_cookie(out, THEME_COOKIE, farm, base_url)
     else:
         name = (request.forms.getunicode("theme", "") or "").strip()
         if not name:
-            out.delete_cookie(wiki_cookie_name(THEME_COOKIE, farm), path=cookie_path)
+            delete_wiki_cookie(out, THEME_COOKIE, farm, base_url)
         elif name in list_theme_names(wiki_dir):
-            out.set_cookie(wiki_cookie_name(THEME_COOKIE, farm), name, path=cookie_path,
-                           max_age=THEME_COOKIE_MAX_AGE, samesite="lax")
+            set_wiki_cookie(out, THEME_COOKIE, farm, name, base_url, THEME_COOKIE_MAX_AGE)
         # 実在しない名前は黙って無視する（cookieは触らない）。画面から選ぶ
         # 限り起こらず、起きても既定のテーマのまま表示されるだけでよい
 
@@ -254,6 +256,11 @@ def get_jinja_env(dirs):
     if env is None:
         env = Environment(
             loader=ChoiceLoader([
+                # 本体の画面のテンプレート（検索結果。`_sys/search/search.html`）。テーマでは
+                # ないので theme/ の外に置き、`search/` の名前でだけ読む。**テーマの探索より
+                # 先に置く**——同じ名前のフォルダ形式のテーマ（theme/search/）があっても、
+                # そちらに取られないように
+                PrefixLoader({SEARCH_TEMPLATE_PREFIX: FileSystemLoader(SEARCH_DIR)}, delimiter="/"),
                 FileSystemLoader(dirs),
                 # 個別Wiki固有テーマから全Wiki共通テーマを継承できるようにするための別名。
                 # 単に "base.html" をextendsすると自分自身を継承して無限再帰するため、
@@ -275,9 +282,50 @@ def html_page(title, body_html):
     )
 
 
+def _menu_context(context, name, ext):
+    """メニューページ `name` を描くための context（`render_menu`）。本文の context の
+    浅いコピーで、`page`・`ext` をメニューのものにし、`in_menu` を立てる。
+
+    - `registry`・`used_plugins` や、プラグインが載せた `_` で始まる属性（フォームの
+      部品の番号など。ページ名をキーにしたものが多い）は、**同じものを共有する**。
+      メニューが使ったプラグインの CSS・JS も本文と同じく読み込まれ、`#comment` などの
+      DOM の id も本文と重ならない
+    - `in_menu` は、`mainmenu` 自身を開いたときのように本文と同じページ名になっても、
+      メニューの中かを見分けたいプラグインのための印（いま見ているプラグインは無い）
+    - 本文の context を渡されなかった（None）ときは None のまま"""
+    if context is None:
+        return None
+    menu_context = copy.copy(context)
+    menu_context.page = name
+    menu_context.ext = ext
+    menu_context.in_menu = True
+    return menu_context
+
+
+def _merge_menu_context(context, menu_context):
+    """メニューを描いたあと、メニューで起きたことのうち、ページ全体に効くものだけを
+    本文の context へ戻す。
+
+    - メニューを描いている間に新しく作られた `_` 付きの属性（コピーにだけ付くので、
+      戻さないと次のメニュー枠・本文に引き継がれず、番号が重なる）
+    - `theme_override`（`#wikitheme`）と `plugin_debug_override`（`#plugin_debug`）。
+      これまでメニューに書いても効いていたので、効かなくならないようにする
+    - **`view_block` は戻さない**（メニューの閲覧期間の外れで、見ているページの本文まで
+      止めないため）"""
+    if context is None:
+        return
+    for key, value in vars(menu_context).items():
+        if key.startswith("_") and key not in vars(context):
+            setattr(context, key, value)
+    if context.theme_override is None and menu_context.theme_override is not None:
+        context.theme_override = menu_context.theme_override
+    if menu_context.plugin_debug_override:
+        context.plugin_debug_override = True
+
+
 def render_menu(engine, wiki_dir, base_url, name, context=None):
     """メニューページ（mainmenu/submenu等）をレンダリングする。
-    本文と同じく、そのページの拡張子の記法で描く（メニューだけMarkdownに
+    本文と同じく、そのページの拡張子の書きかたで描く（メニューだけMarkdownに
     縛られると、PukiWiki記法で書いているWikiでメニューが書けなくなる）。
     該当ページが無い場合は空文字列を返す（メニュー無しとして扱われる）。
 
@@ -294,8 +342,24 @@ def render_menu(engine, wiki_dir, base_url, name, context=None):
     if ref is None or not ref.exists or ref.privilege == PAGE_NONE:
         return ""
     ext, body = ref.ext, ref.body
-    env = {"wiki": context}
-    html = engine.renderer.render(parse_source(engine, body, ext, env), engine.options, env)
+    # **メニューページ自身を `page` にした context で描く**（`_menu_context`）。見ている
+    # ページの context のまま描くと、プラグインが「描いている本文がどのページのものか」を
+    # 知れず、メニューの中の `#comment`・`#vote` の書き込み先を決められなかった。
+    # 副作用として、メニューの中の `#contents`・`#login`・`#newpage`・相対指定の
+    # `#ls` などは、見ているページではなくメニューページが基準になる（クロコは
+    # `context.menu_page` を足して `comment`・`vote` だけが見る案のほうが影響が小さい
+    # と見たが、この副作用を示したうえで、Wiki設計者が本案を選んだ。2026-10-05）
+    menu_context = _menu_context(context, name, ext)
+    env = {"wiki": menu_context}
+    try:
+        tokens = parse_source(engine, body, ext, env)
+        if not is_pukiwiki(ext):
+            # 下の階層を持つ項目を開け閉めできるようにする（`+` は閉、`-` は開。menufold）。
+            # 開け閉めの記録をメニューごとに分けるため、Wikiの入口とページ名を目印にする
+            tokens = fold_menu_lists(tokens, f"{base_url}/{name}")
+        html = engine.renderer.render(tokens, engine.options, env)
+    finally:
+        _merge_menu_context(context, menu_context)
     return rewrite_content_links(html, base_url, name, wiki_dir)
 
 
@@ -451,6 +515,35 @@ def menu_slot_numbers(theme_conf):
     return sorted(nums)
 
 
+# 標準の拡大率（%）。範囲は theme/common.js が拡大率として受け付ける
+# （MIN_VALUE・MAX_VALUE）のと同じにしてある。これより外は 100 に戻す
+DEFAULT_ZOOM = 100
+ZOOM_MIN, ZOOM_MAX = 10, 400
+
+
+def default_zoom(config):
+    """`theme.zoom`（標準の拡大率、%）を数にして返す。
+
+    未設定・数でない・`ZOOM_MIN`〜`ZOOM_MAX` の外・真偽値のときは `DEFAULT_ZOOM`。
+    設定は人が手で書くことがあるので、`"115"` のような数字の文字列は数として読む。
+    整数で書けるものは整数で返す（テーマが `data-default-zoom="115"` と出せるように）。"""
+    value = (config.get("theme") or {}).get("zoom")
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return DEFAULT_ZOOM
+    try:
+        number = float(value)
+    except ValueError:
+        return DEFAULT_ZOOM
+    if not ZOOM_MIN <= number <= ZOOM_MAX:      # NaN もここで外れる
+        return DEFAULT_ZOOM
+    return int(number) if number == int(number) else number
+
+
+def default_content_wide(config):
+    """`theme.content_wide`（本文の幅の上限を標準で外すか）。未設定は偽。"""
+    return _flag(config, "content_wide", default=False)
+
+
 def resolve_menu_mode(page, entries):
     """`theme.menu1_mode`/`theme.menu2_mode` の宣言から、このページの
     開閉モードを決める（menu1・menu2共通。判定の中身に違いは無いため）。
@@ -494,7 +587,7 @@ def render_theme(engine, wiki_dir, config, farm, pagepath, title, content, toc=(
     # **cookieを1番目にしてあるのは、そうしないとセレクタが黙って効かない
     # ページができてしまうため。** 当初はページ単位の指定を優先していたが、
     # `#wikitheme(名前)` が書かれたページではセレクタで選んでも何も起きず、
-    # Wiki設計者が「セレクタが機能しない」として本文の記法を消して回避する、
+    # Wiki設計者が「セレクタが機能しない」として本文の `#wikitheme(名前)` を消して回避する、
     # という状態になった（2026-09-04）。設定の重なりとしても、
     # 「閲覧者本人がいま選んだもの」＞「ページの書き手の既定」＞
     # 「サイト管理者の既定」の順が自然（ダークモードの切替と同じ関係）。
@@ -522,7 +615,7 @@ def render_theme(engine, wiki_dir, config, farm, pagepath, title, content, toc=(
     # ときだけ）。**テーマ側のテンプレートを1つも直さずに、menu1を出す
     # どのテーマでも使えるようにするため**（Wiki設計者の指示、2026-09-04。
     # menu1のページ（mainmenu）へ書く手も試されたが、ページが無いWikiでは
-    # 出せない・記法の制約を受ける、という理由でこちらになった）。
+    # 出せない・書きかたの制約を受ける、という理由でこちらになった）。
     # menu1のページが無く中身が空でも、セレクタだけは出す。
     if show_selector(config):
         html, mode = menu_slots.get(1, ("", "auto"))
@@ -544,6 +637,12 @@ def render_theme(engine, wiki_dir, config, farm, pagepath, title, content, toc=(
         "plugin_styles": plugin_styles,
         "plugin_scripts": plugin_scripts,
         "site_title": theme_conf.get("site_title", "wikiSystem"),
+        # 標準の拡大率（%、数）と、本文の幅の上限を標準で外すか（真偽）。
+        # テーマは <html> の data-default-zoom・data-default-wide にして common.js へ渡す
+        # （スロットHTMLのテーマは slottheme が付ける）。読み手が拡大縮小や幅のボタンで
+        # 選んだ値があれば、そのブラウザではそちらが先
+        "default_zoom": default_zoom(config),
+        "default_content_wide": default_content_wide(config),
         # フッタのcopyright表示用。現在の年を渡すだけ（固定年の設定は今のところ無い）
         "copyright_year": datetime.date.today().year,
         # 版と改訂（"Ver 0.49 Rev 7.1"）。値は wiki.py が持つ
@@ -583,6 +682,9 @@ def render_theme(engine, wiki_dir, config, farm, pagepath, title, content, toc=(
         # テーマはタイトルの脇に {{ title_note }} を出し、本文には data-draft が付く
         "editing": False,
         "title_note": Markup(""),
+        # タイトル右端の info に出す知らせ（<a>）。ページを描くとき（render_with_theme）
+        # だけ入れる。空のあいだ、テーマは幅を取らない
+        "page_info": Markup(""),
         "content": Markup(rewrite_content_links(
             content, base_url, attach_subpath, wiki_dir) + marker_asset_tags(base_url)),
         "toc": toc,
@@ -597,6 +699,20 @@ def render_theme(engine, wiki_dir, config, farm, pagepath, title, content, toc=(
         context[f"menu{n}_mode"] = mode
     context.update(extra)
 
+    # スロットHTML のテーマ（wikilib.slottheme）。同じ名前の Jinja2 のテーマがあればそちらを描き、
+    # テンプレートを名指しする画面（検索結果）は Jinja2 のテーマで描く（設計者の決定、2026-10-04。
+    # 同じ名前なら Jinja2 を描くのはクロコの実装例）
+    if not jinja_theme_exists(wiki_dir, themefile):
+        slot_path = find_slot_theme(wiki_dir, themefile)
+        if slot_path and template is None:
+            from wikilib import slottheme
+            html, _report = slottheme.render(wiki_dir, slot_path, themefile, context)
+            return HTTPResponse(body=html, status=status, content_type="text/html; charset=utf-8")
+        if slot_path:
+            configured = theme_conf.get("name", DEFAULT_THEMEFILE)
+            themefile = configured if jinja_theme_exists(wiki_dir, configured) else DEFAULT_THEMEFILE
+            context["themefile"] = themefile
+
     env = get_jinja_env(theme_search_dirs(wiki_dir, themefile))
     try:
         html = env.get_template(template or themefile + ".html").render(**context)
@@ -604,8 +720,8 @@ def render_theme(engine, wiki_dir, config, farm, pagepath, title, content, toc=(
         default_themefile = theme_conf.get("name", DEFAULT_THEMEFILE)
         if template is None and themefile != default_themefile:
             # ページ単位のtheme_overrideが原因で描画できなかった可能性がある
-            # （例: 他のテーマへ{% extends %}する断片テンプレート（search.html
-            # 等）をtheme_overrideに指定され、自分自身への継承で無限再帰＝
+            # （例: 他のテーマへ{% extends %}する断片テンプレート（以前 theme/ に
+            # あった search.html 等）をtheme_overrideに指定され、自分自身への継承で無限再帰＝
             # RecursionErrorになる、といった事故）。テンプレート自体が
             # 見つからない場合を含め、Jinja2の例外はすべてTemplateError系に
             # まとまっている（TemplateNotFoundもその1つ）。
@@ -687,7 +803,10 @@ def render_with_theme(wiki_dir, config, farm, pagepath, body, explicit_farm, att
         if editing else Markup("")
     render_ms = round((time.perf_counter() - render_start) * 1000, 1)
 
-    extra = {"editing": editing, "title_note": note, "render_ms": render_ms}
+    extra = {"editing": editing, "title_note": note, "render_ms": render_ms,
+             "page_info": page_info_for(config, farm, context.base_url, wiki_dir, attach_subpath,
+                                        shown_ext=ext, pagepath=pagepath,
+                                        explicit_farm=explicit_farm)}
     # 平文ファイル（DBではなく実ファイル）の最終更新日時（wikiThemesからの
     # 要望）。DBは「公開された内容」の最後の取り込み時点のスナップショットで、
     # 直接編集された分は取り込む（updatepage）まで反映されない

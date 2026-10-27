@@ -1,12 +1,10 @@
-// ツールバー: 戻る・進む・上へ・更新、作成・名前の変更・削除（ごみ箱では 元に戻す・完全に削除・空にする）、
-// 並べ替え、表示形式、隠しファイル。マウントの capabilities に無い操作は灰色にする。
-// 画面の機能（features.js）で止めた操作は、灰色にせずボタンごと出さない。
+// ツールバー: 戻る・進む・上へ・更新（画面に組み込み）、操作のボタン（サーバが宣言したコマンドのうち places に
+// toolbar があるもの。今の場所で使えなければ灰色、ごみ箱の中か種類が合わなければ出さない）、並べ替え、表示形式、
+// 隠しファイル、二画面。
 
 import { h, icon } from "./dom.js";
 import { parentPath } from "./location.js";
-import {
-  attributesOf, canCopyFrom, canDeleteEntries, canMoveEntries, canPutInto, capsOf, enabled, selectedEntries,
-} from "./model.js";
+import { attributesOf } from "./model.js";
 import { effectiveSort } from "./sort.js";
 
 export const VIEW_MODES = [
@@ -29,21 +27,10 @@ export function createToolbar(store, actions) {
   const up = button("up", "上のフォルダへ（Alt+↑）", actions.up);
   const refresh = button("refresh", "最新の情報に更新（F5）", actions.refresh);
 
-  // ふだんの操作
-  const newFolder = button("new-folder", "新しいフォルダ（Ctrl+Shift+N）", () => actions.newItem("dir"));
-  const newFile = button("new-file", "新しいテキスト ドキュメント", () => actions.newItem("file"));
-  const cut = button("cut", "切り取り（Ctrl+X）", actions.cutSelected);
-  const copy = button("copy", "コピー（Ctrl+C）", actions.copySelected);
-  const paste = button("paste", "貼り付け（Ctrl+V）", () => actions.paste());
-  const rename = button("rename", "名前の変更（F2）", actions.startRename);
-  const del = button("delete", "削除（Delete。Shift+Delete で完全に削除）", () => actions.deleteSelected());
-  const normalOps = h("div", { class: "fd-group" }, [newFolder, newFile, cut, copy, paste, rename, del]);
-
-  // ごみ箱の操作
-  const restore = button("restore", "元に戻す", actions.restoreSelected, "元に戻す");
-  const purge = button("delete", "完全に削除", actions.purgeSelected, "完全に削除");
-  const empty = button("trash", "ごみ箱を空にする", actions.emptyTrash, "ごみ箱を空にする");
-  const trashOps = h("div", { class: "fd-group" }, [restore, purge, empty]);
+  // 操作のボタン（宣言から作る。マウント・場所・宣言が変わったら作り直す）
+  const ops = h("div", { class: "fd-group fd-commands" });
+  let opsFor = null;
+  let opButtons = []; // [{cmd, button}]
 
   const viewButtons = VIEW_MODES.map(([mode, ic, label]) => {
     const b = button(ic, label, () => actions.setView(mode));
@@ -73,15 +60,9 @@ export function createToolbar(store, actions) {
     "aria-label": "隠しファイルを表示", onclick: () => actions.setShowHidden(!store.get().showHidden),
   }, [icon("hidden")]);
 
-  // 止めた機能のボタンは出さない（作ったあとに features は変わらないので、ここで 1 回だけ決める）
-  const byFeature = [[newFolder, "newFolder"], [newFile, "newFile"], [cut, "cut"], [copy, "copy"], [paste, "paste"],
-    [rename, "rename"], [del, "delete"], [restore, "trash"], [purge, "purge"], [empty, "purge"]];
-  for (const [b, feature] of byFeature) if (!enabled(store.get(), feature)) b.remove();
-
   const el = h("div", { class: "fd-toolbar", role: "toolbar" }, [
     h("div", { class: "fd-group" }, [back, forward, up, refresh]),
-    normalOps,
-    trashOps,
+    ops,
     h("div", { class: "fd-spacer" }),
     h("div", { class: "fd-group" }, [sortKey, sortDir]),
     h("div", { class: "fd-group", role: "group", "aria-label": "表示形式" }, viewButtons),
@@ -94,33 +75,29 @@ export function createToolbar(store, actions) {
 
   function render(s) {
     const trash = !!(s.location && s.location.trash);
-    const caps = capsOf(s);
-    const selectedItems = selectedEntries(s);
-    const selected = selectedItems.length;
-    // 権限（Wiki「画面設計 > 権限」）: 作る＝今いるフォルダの「書く」、名前の変更・切り取り・削除＝選んだ項目の
-    // 「動かす」、コピー＝選んだ項目の「読む」
-    const canPut = canPutInto(s.dir);
-    const canMove = canMoveEntries(selectedItems);
-    const canDelete = canDeleteEntries(selectedItems);
-    const ready = !!s.location && !s.error;
-
     back.disabled = !s.canBack;
     forward.disabled = !s.canForward;
     up.disabled = !s.location || trash || parentPath(s.location.path) == null;
     refresh.disabled = !s.location;
 
-    normalOps.hidden = trash || !normalOps.childElementCount;
-    trashOps.hidden = !trash;
-    newFolder.disabled = !ready || !caps.has("mkdir") || !canPut;
-    newFile.disabled = !ready || !caps.has("touch") || !canPut;
-    cut.disabled = !ready || !caps.has("move") || selected === 0 || !canMove;
-    copy.disabled = !ready || selected === 0 || !canCopyFrom(selectedItems);
-    paste.disabled = !ready || !actions.canPaste();
-    rename.disabled = !ready || !caps.has("rename") || selected !== 1 || !!s.editing || !canMove;
-    del.disabled = !ready || selected === 0 || !(caps.has("trash") || caps.has("delete")) || !canDelete;
-    restore.disabled = !caps.has("trash") || selected === 0;
-    purge.disabled = !caps.has("trash") || selected === 0;
-    empty.disabled = !caps.has("trash") || s.entries.length === 0;
+    // 操作のボタン。ごみ箱の中のコマンドは、0.x と同じく文字も添える
+    const ready = !!s.location && !s.error && !s.editing;
+    const here = s.location ? actions.commandsHere("toolbar") : [];
+    const opsSignature = JSON.stringify([s.location && s.location.mount, trash, here.map(({ cmd }) => cmd.id)]);
+    if (opsSignature !== opsFor) {
+      opsFor = opsSignature;
+      opButtons = here.map(({ cmd }) => {
+        const title = cmd.key ? `${cmd.label}（${cmd.key}）` : cmd.label;
+        const withText = trash || (cmd.when && cmd.when.view === "trash");
+        const b = button(cmd.icon, title, () => actions.run(cmd), withText ? cmd.label : null);
+        b.dataset.command = cmd.id;
+        return { cmd, button: b };
+      });
+      ops.replaceChildren(...opButtons.map((x) => x.button));
+    }
+    ops.hidden = !opButtons.length;
+    const states = new Map(here.map(({ cmd, ev }) => [cmd.id, ev.state]));
+    for (const { cmd, button: b } of opButtons) b.disabled = !ready || states.get(cmd.id) !== "enabled";
 
     for (const b of viewButtons) b.setAttribute("aria-pressed", String(b.dataset.mode === s.view));
     // 並べ替えのキーは名前と、今の画面の属性（マウントごとに違う）

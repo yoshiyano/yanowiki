@@ -94,7 +94,7 @@ if (typeof document !== "undefined") {
    PukiWikiが無いため、こちらで定義する（wikiPluginセッションによる作成）。
 
    各トークンは、本家PukiWikiの一般論ではなく**このシステムが実際に
-   解釈する記法**（`_sys/wikilib/pukiwiki.py` の HEADING_RE・HR_RE・
+   解釈する書きかた**（`_sys/wikilib/pukiwiki.py` の HEADING_RE・HR_RE・
    LIST_RE・QUOTE_RE・TABLE_RE・DEFLIST_RE・PLUGIN_BLOCK_RE・INLINE_RE・
    NUMREF_AMP_RE・match_amp_token）を典拠にしている。並び順にも意味が
    あり、Prismは上から順に当てるため、長いほうを先に置く必要がある

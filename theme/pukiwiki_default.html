@@ -34,6 +34,8 @@
       置いたものが優先され、無ければ共通の theme/ の wikiSystem のロゴが出る
       （本家ロゴは商標・著作権の都合で同梱しない。theme/README.txt
       「pkwk / pukiwiki_default のヘッダロゴについて」参照）。
+      大きさは高さだけ（72px）を決め、横幅は画像の縦横比に任せる（Wiki設計者の
+      指示、2026-10-13）。正方形でなくてよい。
 
   ● 参考: PukiWiki 1.5系 の既定スキン
     - h1/h2: 薄青(#DDEEFF)の背景、枠なし
@@ -112,6 +114,9 @@
           <button type="button" class="zoom-out" aria-label="表示を縮小"></button>
         </span>
         {{ command_links() }}
+        {# info の場所（本体が変数 page_info で渡す <a>）と、本文の幅の上限を外す／戻す
+           ボタン。「新規」の右（Wiki設計者の指示 2026-10-12）。 #}
+        <span class="header-tools"><span class="page-info-slot">{{ page_info|default("", true) }}</span><button type="button" class="content-width-toggle"></button></span>
       </div>
       {# サイト全体検索の詳細条件パネル。position:fixed でフロート表示される
          ため段には属さない。base の定義をそのまま使う。 #}
@@ -124,6 +129,11 @@
 
 {# タイトルと TopicPath は header の中へ移したので、base 標準の位置では出さない #}
 {% block page_header %}{% endblock %}
+
+{# タイトル右端の info の場所と「本文の幅の上限を外す／戻す」ボタンは、見出しの中ではなく、
+   ヘッダのコマンド群の2段目の末尾（検索の下・「新規」の右。上の commands ブロック）に置く
+   （Wiki設計者の指示 2026-10-12）。base.html の page_title_tools（見出しの中）は、空に上書きする。 #}
+{% block page_title_tools %}{% endblock %}
 
 {# メニューの先頭に、ログイン〜新規を埋める。
    メニュー1（左）が帯へ畳まれる幅（html.bp-narrow）になったときだけ CSS で

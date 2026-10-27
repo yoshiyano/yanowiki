@@ -1,6 +1,6 @@
 # calendar_viewer — calendar・calendar2 で作った日ごとのページの中身を、まとめて表示する
 
-| 使える記法 | |
+| 使える書きかた | |
 |---|---|
 | ブロック `#calendar_viewer()` | ○ |
 | インライン `&calendar_viewer();` | × |

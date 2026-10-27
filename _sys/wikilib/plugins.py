@@ -1,6 +1,6 @@
 """プラグイン機構。
 
-プラグインの読み込み・引数の解釈・markdown-itへの記法の登録・呼び出しをまとめる。
+プラグインの読み込み・引数の解釈・markdown-itへの書きかたの登録・呼び出しをまとめる。
 1つのプラグインの不備がwiki全体を巻き込まないよう、例外はすべてこの中で受け止め、
 使っている箇所だけのエラー表示に変える。
 """
@@ -30,7 +30,7 @@ from mdit_py_plugins.footnote.index import (
 from wikilib.paths import (
     PLUGIN_DEFAULT_INFO, PLUGIN_DIR, PLUGIN_MAX_DEPTH, PLUGIN_URLPATH,
 )
-from wikilib.paths import farm_plugin_dir
+from wikilib.paths import as_attach_link, farm_plugin_dir
 from wikilib.render import is_pukiwiki, render_softbreak
 from wikilib.subst import render_display_time
 from wikilib.web import plain, static_file
@@ -38,7 +38,7 @@ from wikilib.wikiconfig import is_debug, plugin_debug_enabled
 
 # 見出しにidを振る範囲。目次のリンク先だけでなく、ページ内アンカー（#見出し）や
 # セクション編集の宛先にも使うため、表示の都合（toc_depth）とは切り離して
-# システム側の方針として全レベルに振る。記法が増えても同じ約束にするための取り決め。
+# システム側の方針として全レベルに振る。書きかたが増えても同じ約束にするための取り決め。
 HEADING_ID_MAX_LEVEL = 6
 
 
@@ -133,8 +133,13 @@ def _load_plugins_uncached(farm_plugin_dir):
             spec.loader.exec_module(module)
             entry["module"] = module
             info = getattr(module, "PLUGIN_INFO", None)
-            if isinstance(info, dict):
-                entry["info"].update(info)
+            if not isinstance(info, dict):
+                # PLUGIN_INFO を宣言していないモジュールは、プラグインとして登録しない
+                # （Wiki設計者の指示、2026-10-02「プラグインとしての定義が宣言されていない
+                # コードはプラグインとして読ませるべきではない」。2026-10-19 にA案で採用）。
+                # 実行時に例外が出たファイルは、宣言の有無が分からないので下でエラー付きで登録する
+                continue
+            entry["info"].update(info)
         except Exception:
             entry["error"] = traceback.format_exc()
         if entry["info"].get("args"):
@@ -540,6 +545,15 @@ def _is_blank(raw):
     return raw is None or (isinstance(raw, str) and raw.strip() == "")
 
 
+def link_arg_href(item, href):
+    """`"link"` を宣言した引数の値を、リンクとして記録・解決するときの書きかたにする。
+
+    `"link": "attach"` なら `::` を付けた形（paths.as_attach_link）、それ以外は
+    書かれたまま。リンクの記録（links.plugin_arg_links）とリネームでの書き換え
+    （pluginlinks）は、記録の鍵（書かれた文字列）をそろえるために必ずこれを通す。"""
+    return as_attach_link(href) if item.get("link") == "attach" else href
+
+
 def bind_plugin_args(args, kwargs, schema):
     """位置引数（args）と名前付き引数（kwargs）を、宣言（schema）の順番に沿って
     `{名前: 値}` へ束ねる。(束ねた結果, エラー文言) を返す（エラーなら結果はNone）。
@@ -554,6 +568,7 @@ def bind_plugin_args(args, kwargs, schema):
         {"name": "sort", "candidate": ["FNAME", "MTIME", "TITLE"], "default": "FNAME"}
         {"name": "code", "candidate": [(r"[A-Za-z]{2}-\\d{3}", "re")]}  正規表現で検証。defaultが無いので必須
         {"name": "target", "link": True}                       値をページ/添付への参照として扱う
+        {"name": "src", "link": "attach"}                      値を常に添付ファイル（かURL）として扱う
         {"name": "rest"}                                     rest_params: True と組み合わせて可変長引数に使う（下記）
         {"name": "wrap", "flag": True, "default": False}      flag糖衣構文（下記）
         {"name": "src", "num_order": 1, "candidate": [FREE_TEXT]}  自由順序＋位置固定（下記）
@@ -570,6 +585,10 @@ def bind_plugin_args(args, kwargs, schema):
     するための目印。値が実際にこのWiki内の場所を指しているかどうか（外部URL
     なら対象外、等）は `wikilib.pagelinks.resolve_href` が判断するので、
     ここでは「この引数はリンクかもしれない」と宣言するだけでよい。
+    **`link: "attach"`** は、値が添付ファイルか外のURLしか取らない引数
+    （ref・img の src）の目印。拡張子が添付の一覧（attach.link_exts）に無い
+    ファイル名もページと読まないよう、`::` を付けた形で記録・解決する
+    （`link_arg_href`）。
     リネーム時に値そのものを書き換える処理（`wikilib.pluginlinks`）は、
     ここではなく `bind_plugin_args_spans`（この関数と同じ束ねを行いつつ、
     argstr内の位置も一緒に返す版）を使う。
@@ -969,9 +988,9 @@ class PluginContext:
 
     plugins  … 名前→エントリのレジストリ（他のプラグインを呼びたい場合に使える）
     partial  … 部分プレビュー中か。Trueのとき need_outer_info なプラグインは処理されない
-    ext      … いま描いているページの記法の拡張子（".md"/".txt"）。expand_*で
-               プラグインの出力を再展開するとき、どちらの記法で解釈するかに使う
-               （wikilib.plugins.expand_body）。ページの記法と無関係な
+    ext      … いま描いているページの書きかたの拡張子（".md"/".txt"）。expand_*で
+               プラグインの出力を再展開するとき、どちらの書きかたで解釈するかに使う
+               （wikilib.plugins.expand_body）。ページの書きかたと無関係な
                画面（バックアップ管理・検索など）は既定の ".md" のままでよい。
     plugin_debug_override … ページ内で `#plugin_debug(true)` が使われたか
                （`plugin/plugin_debug.py`が立てる）。config の `plugin.debug`
@@ -1003,6 +1022,12 @@ class PluginContext:
     privilege … いまの閲覧者のアクセス権の判定器（`auth.PagePrivilege`）。
                `context.privilege.check(ページ名)` で `W`/`R`/`-` を返す
                （Wiki設計者の指示、2026-09-15）。詳しくは `privilege` を参照。
+    in_menu … メニューページ（`mainmenu` など）を描いているときだけ True
+               （`themes.render_menu` が、メニューページを `page` にした context の
+               コピーに立てる）。`page` が本文と同じ名前になっても（`mainmenu` 自身を
+               開いたとき）、本文とメニューを見分けたいプラグインのための印。いま見て
+               いるプラグインは無い。ふつうのプラグインは見なくてよい（`page` が
+               メニューページ自身になる）。
     """
 
     def __init__(self, config=None, farm=None, wiki_dir=None, page="", base_url="", partial=False,
@@ -1011,6 +1036,7 @@ class PluginContext:
         self.farm = farm
         self.wiki_dir = wiki_dir
         self.page = page
+        self.in_menu = False
         self.base_url = base_url
         self.partial = partial
         self.ext = ext
@@ -1452,7 +1478,7 @@ def call_plugin(context, name, args, body, func_name, sigil, depth=0, body_error
     show_long_help = plugin_debug_enabled(context.config) or context.plugin_debug_override
 
     # 本体（{…}）の書きかたそのものが崩れている場合、プラグインを呼ばずに
-    # ここで終える（記法の誤りであって、プラグイン側の話ではないため）
+    # ここで終える（書きかたの誤りであって、プラグイン側の話ではないため）
     if body_error:
         return plugin_error_html(name, body_error, info.get("help", ""), context.debug,
                                  long_help=long_help, show_long_help=show_long_help)
@@ -1510,7 +1536,7 @@ def expand_body(text, info, context, depth, is_inline=False):
     既定ではどれも無効＝書かれたものをそのままプラグインへ渡す。プラグインの入れ子は
     プラグインごとに考えかたが違うため、受け入れるものだけが明示的に宣言する形にしている。
 
-    **どちらの記法で展開するかは、いま描いているページの記法
+    **どちらの書きかたで展開するかは、いま描いているページの書きかた
     （`context.ext`）に合わせる。** 以前はここが常にMarkdownで固定されて
     いて、PukiWikiページの中でプラグインの中身にPukiWiki記法（強調・
     リンクなど）を書いても展開されなかった。
@@ -1555,7 +1581,7 @@ def expand_pukiwiki_output(text, engine, context, want_block, env, policy=None):
     あるので、レンダー規則をそのまま共有できる（`engine.block.ruler`/
     `engine.inline.ruler` へ足したパーサー側の規則はMarkdown解析にしか
     効かないが、それらを登録していても実害は無い＝PukiWiki解析では
-    そもそも参照されないため、build_expand_renderer 自体は記法によらず
+    そもそも参照されないため、build_expand_renderer 自体は書きかたによらず
     共通のまま使える）。"""
     from wikilib import pukiwiki
     from wikilib.extrarules import load_extra_rules

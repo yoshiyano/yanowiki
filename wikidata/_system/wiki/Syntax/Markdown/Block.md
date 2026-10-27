@@ -173,19 +173,19 @@
 
 ```markdown
 PukiWiki
-: 1996年に生まれた日本製のWikiクローン。ここでの記法のもとになっている
+: 1996年に生まれた日本製のWikiクローン。ここでの書きかたのもとになっている
 
 Markdown
-: John Gruberが考案した軽量マークアップ言語。このWikiのもう一つの記法
+: John Gruberが考案した軽量マークアップ言語。このWikiのもう一つの書きかた
 ```
 
 ↓ こう表示されます
 
 PukiWiki
-: 1996年に生まれた日本製のWikiクローン。ここでの記法のもとになっている
+: 1996年に生まれた日本製のWikiクローン。ここでの書きかたのもとになっている
 
 Markdown
-: John Gruberが考案した軽量マークアップ言語。このWikiのもう一つの記法
+: John Gruberが考案した軽量マークアップ言語。このWikiのもう一つの書きかた
 
 見た目は [PukiWiki記法の定義リスト](/Syntax/PukiWiki/Block#deflist) と同じです。
 

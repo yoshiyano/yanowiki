@@ -6,8 +6,8 @@
 いっぱいにする。回り込まないときの出力は変えない。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_img_float.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_img_float.py     （このファイルだけ）
 """
 import os
 import shutil

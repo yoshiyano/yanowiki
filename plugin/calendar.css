@@ -2,7 +2,7 @@
  * カレンダー系プラグイン（calendar・calendar_edit・calendar_read・calendar2・
  * calendar3・calendar_viewer）の共通の見た目。クラス名は本家PukiWikiのまま
  * （style_calendar・style_td_*）。どのプラグインからも、このファイルが読み込まれる
- * （plugin/_calendar.py の use_css）。
+ * （plugin/calendar_.py の use_css）。
  *
  * 色はテーマの変数（--border・--muted・--accent・--panel-bg）を使い、無ければ
  * 代わりの値にする。土日・今日の色は半透明にして、暗い配色でも文字が読めるように

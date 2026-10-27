@@ -35,7 +35,7 @@
 の判定に使う）、`off` は今日のページを出すか。
 
 リンクの `href` は、はじめは**このページを問い合わせ付きで開き直すURL**だった
-（`_calendar.nav_url`・`nav_query`）。JavaScriptが動かない環境のために、それを
+（`calendar_.nav_url`・`nav_query`）。JavaScriptが動かない環境のために、それを
 そのまま残している。`file` は基準のページ名で、`*` のときは `*`（本家は空文字列
 だった。本家のURLとの行き来は無いので、読みやすさを取った）。
 
@@ -46,17 +46,17 @@
 
 本家は `?cmd=edit&page=…&refer=…` へのリンクで、`PKWK_READONLY` なら素の数字に
 した。wikiSystemの編集画面はPOSTでしか開けないので、**`cmd=edit` をPOSTするボタン**
-（`_calendar.new_page_button`。2026-09-27、Wiki設計者の指示。それまではページのURLへの
+（`calendar_.new_page_button`。2026-09-27、Wiki設計者の指示。それまではページのURLへの
 リンクで、「このページを作る」を1回経由していた）にして、新規編集の画面を直接開く。
 素の数字にするのは、閲覧者にそのページの編集の権限が無いとき（本家の
 `PKWK_READONLY` にあたる）。
 
-閲覧できない日のページは**無いページと同じ扱い**（`_calendar.readable_pages`。
+閲覧できない日のページは**無いページと同じ扱い**（`calendar_.readable_pages`。
 `#ls` と同じく、見えないページの存在を知らせない）。
 
 ## 今日のページの中身
 
-`include` と同じ `_embedpage` で差し込む（閲覧の権限・表示を止めたページ・
+`include` と同じ `include_` で差し込む（閲覧の権限・表示を止めたページ・
 差し込み済みのページの記録を共有する。カレンダーを置いたページ自身が今日の
 ページのときの無限ループもここで止まる）。本家は差し込んだ本文の後ろに
 `[この日記を編集]`（`?cmd=edit` へのリンク）を付けた。ここでは編集の権限が
@@ -116,14 +116,14 @@ def _day_link(cal, context, page, day, readable):
         return (f'<a href="{escape(cal.page_url(context, page))}" title="{escape(page)}">'
                 f'<strong>{day}</strong></a>')
     if cal.can_write(context, page):
-        # まだ無い日は、新規編集の画面を直接開く（_calendar.py「まだ無い日は」）
+        # まだ無い日は、新規編集の画面を直接開く（calendar_.py「まだ無い日は」）
         return cal.new_page_button(context, page, str(day), "small")
     return f'<span class="small">{day}</span>'
 
 
 def _today_html(cal, context, page):
     """今日（別の月ならその1日）のページの中身。"""
-    embed = _load("_embedpage")
+    embed = _load("include_")
     state = embed.state(context)
     link = f'<a href="{escape(cal.page_url(context, page))}">{escape(page)}</a>'
     if page in state["included"]:
@@ -225,7 +225,7 @@ def _year_month(cal, date):
 
 
 def _convert(resolved, body, context):
-    cal = _load("_calendar")
+    cal = _load("calendar_")
     cal.use_css(context)
     base, prefix, file = _base_of(cal, context, cal.strip_bracket(resolved.get("page") or ""))
     date = resolved.get("date") or ""
@@ -246,7 +246,7 @@ def _convert(resolved, body, context):
 def _action(context):
     """`/.plugin/calendar2?file=<基準のページ|*>&date=<yyyymm>&page=<置いたページ>&off=<0|1>`
     で、枠の中身（カレンダーと今日のページの中身）だけを返す（`calendar2.js`）。"""
-    cal = _load("_calendar")
+    cal = _load("calendar_")
     file = (request.query.getunicode("file", "") or "").strip("/")
     page = (request.query.getunicode("page", "") or "").strip("/")
     if page and is_valid_pagepath(page):

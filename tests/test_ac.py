@@ -6,8 +6,8 @@
 開閉の動き（`h` の見出し・全て開く）は plugin/ac.js の受け持ちで、ブラウザで確かめた。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_ac.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_ac.py     （このファイルだけ）
 """
 import os
 import re
@@ -52,7 +52,7 @@ class TestAc(unittest.TestCase):
         self.assertIn('<div class="plugin-ac-body">\n<ul>\n<li>手順1</li>', html)
         self.assertIn("ac", self.used)
 
-    def test_見出しには記法が使える(self):
+    def test_見出しには書きかたが使える(self):
         html = self.render("#ac(&color(red){注意};){{\nx\n}}")
         self.assertIn('<span class="plugin-ac-title"><span style="color:red">注意</span></span>', html)
 

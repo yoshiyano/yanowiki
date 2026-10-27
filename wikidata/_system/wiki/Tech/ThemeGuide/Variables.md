@@ -17,6 +17,9 @@
 | `menu1` / `menu2` | `theme.menu1_page`（既定: `mainmenu`）・`theme.menu2_page`（既定: `submenu`）のHTML。該当ページが無い・読めないときは空。`theme.menu3_page` のように番号を足せば `menu3` 以降も渡る |
 | `menu1_mode` / `menu2_mode` | その枠を狭い画面で畳むか（`auto`）開いたままにするか（`fix`）。`theme.menu1_mode` などで、ページごとに決まる |
 | `editing` / `title_note` | そのページを誰かが編集の途中（一時保存を預かっている）か。テーマはタイトルの脇に `{{ title_note }}` を出す |
+| `page_info` | タイトル右端の info に出す知らせ（`<a ...>...</a>` の `Markup`）。出すかどうかとつなぐ先は本体が決め、テーマは描くだけ（[ブロック](/Tech/ThemeGuide/Blocks) の `page_info`）。知らせが複数あれば `<a>` が並んで渡る。知らせがなければ空で、通常のページ以外（検索など）も空。何を・誰に出すかは [タイトル右端の info に出す知らせ](/Tech/PageNotice)。スロットHTMLのテーマには、変数ではなくスロット `page-info` で渡す（[スロット型のテーマでデザインを変える](/SlotThemeGuide)） |
+| `default_zoom` | 標準の拡大率（%の数。`theme.zoom`。既定 100）。テーマは `<html>` の `data-default-zoom` に書く（下の「標準の拡大率と幅」） |
+| `default_content_wide` | 本文の幅の上限を標準で外すか（真偽。`theme.content_wide`。既定は偽）。真のときだけ `<html>` に `data-default-wide="1"` と書く（下の「標準の拡大率と幅」） |
 | `source_mtime` | 平文ファイルの最終更新日時（`2026-09-24 12:34`）。ふつうのページだけ |
 | `render_ms` | 本文の変換にかかった時間（ミリ秒）。ふつうのページだけ |
 
@@ -24,7 +27,7 @@
 
 | 変数 | 内容 |
 |---|---|
-| `base_url` | URL接頭辞（`server.prefix` とWiki指定を含む）。`/=Wiki名` でアクセスしていた場合、既定のWikiでもその明示を保持する（詳細は [設計方針](/Tech/DesignPolicy) を参照） |
+| `base_url` | URL接頭辞（`server.prefix` とWiki指定を含む）。`/=Wiki名` でアクセスしていた場合、起点Wikiでもその明示を保持する（詳細は [設計方針](/Tech/DesignPolicy) を参照） |
 | `theme_url` | テーマ資材のURL接頭辞（例: `/.theme`） |
 | `search_url` | 検索ページのURL（例: `/.search`） |
 | `edit_url` | 編集の送り先の接頭辞（`base_url` と同じ）。`{{ edit_url }}/{{ page }}` へ `cmd=edit` をPOSTすると編集画面が開く |
@@ -43,7 +46,7 @@
 
 | 変数 | 内容 |
 |---|---|
-| `version` | wikiSystemの版と改訂（`Ver 0.49 Rev 7.1` の形）。[ファイル構成](/Tech/ThemeGuide/Files#バージョン表示テーマ作成時の必須埋め込み) を参照 |
+| `version` | wikiSystemのバージョンとリビジョン（`Ver 0.49 Rev 7.1` の形）。[ファイル構成](/Tech/ThemeGuide/Files#バージョン表示テーマ作成時の必須埋め込み) を参照 |
 | `copyright_year` | いまの年（著作権表示向け） |
 | `login_as` | いま入っている人の表示（`Logged in as 山田太郎`）。**未ログインなら空文字** |
 | `disk_usage` | そのWikiが使っている場所（ページと添付）。下の「使用量の表示」を参照 |
@@ -53,7 +56,7 @@
 | 変数 | 内容 |
 |---|---|
 | `query` / `mode` / `target` / `path_filter` | 検索フォームの現在値。ふつうのページでは既定値（`query` だけは、検索結果から来たときに `?q=` の値が入る） |
-| `terms` / `results_block` | 検索画面（`search.html`）だけに渡る、検索語と結果のHTML |
+| `terms` / `results_block` | 検索画面（本体の `_sys/search/search.html`）だけに渡る、検索語と結果のHTML |
 
 **プラグイン**
 
@@ -66,6 +69,26 @@
 
 目次はデータのまま渡すので、階層表示・折りたたみ・深さの制限はテンプレート側で決められます。
 `toc` の `level` は、そのページで最も浅い見出しを1とした相対的な深さです（章を `#` で書いても `##` で書いても同じ字下げになります）。
+
+## 標準の拡大率と幅（`default_zoom`・`default_content_wide`）
+
+管理者が設定「テーマと画面」で決める、ページを開いたときの拡大率（`theme.zoom`）と、本文の幅の上限を
+外した状態で始めるか（`theme.content_wide`）です。テーマは `<html>` に属性として書くだけで、
+読み取りと反映は `common.js` が行います。
+
+```jinja
+<html lang="ja"{% if default_zoom %} data-default-zoom="{{ default_zoom }}"{% endif %}{% if default_content_wide %} data-default-wide="1"{% endif %}>
+```
+
+- **拡大率**は、拡大縮小のボタン（`.zoom-in` など）の有無に関わらず効きます。読み手が自分で選んだ値
+  （ブラウザの `localStorage` の `wikiTheme.zoom`）は、ボタンのあるテーマでは標準より優先されます。
+  ボタンの無いテーマは、読み手が選べないので標準だけが効き、標準が 100 のときは、`common.js` は
+  `<html>` の文字の大きさを書き換えません（画面幅による出し分けを、そのまま生かすため）
+- **幅**は、本文の幅の上限を外す／戻すボタン（`.content-width-toggle`）と、`html.content-wide` のときの
+  CSS を持つテーマにだけ効きます。持たないテーマでは属性が付いても何も起きません
+- 拡大率は `<html>` の文字の大きさを変えるので、文字だけでなく、`rem`・`em` で組んだ余白・幅・見出しも
+  同じ比率で変わります。`px` で固定した幅（`post_it_1`・`pkwk` の外枠の 1100px など）は変わりません
+- スロットHTMLのテーマは、本体が同じ属性を `<html>` に付けます（テーマの作者が書く必要はありません）
 
 ## 共通メニュー（`common_menu`）
 

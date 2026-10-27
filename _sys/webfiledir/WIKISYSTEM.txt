@@ -19,17 +19,22 @@ webFileDir は wikiSystem と同じ作者（Yano Labo / AIT）の著作物で、
 
 ## 更新するとき
 
-同梱しているのは **0.2 系**（webFileDirs の dev0 ブランチと、そのタグ v0.2.x。0.2 系は
-dev0 で続いている、と設計者から聞いている）。webFileDirs の dev は 1.0.0 系の作り直し
-（操作をサーバが宣言するコマンドにする）で、wikilib.filesui の組み込みとは互換が無いので、
-いまは取り込んでいない（クロコの判断。1.0.0 系へ移るかは設計者が決めていない）。
-0.2 系の文書は webFileDir の Wiki の ver.0/ にある。
+同梱しているのは **1.0 系**（webFileDirs の dev・main と、そのタグ v1.0.x。2026-10-01 に
+0.2.3 から 1.0.1 へ入れ替えた。設計者が 1.0 への移行を前提に webFileDirs へ作業を依頼した）。
+1.0 は操作をサーバが宣言するコマンドにした作り直しで、wikilib.filesui は 1.0 の形で組み込む
+（0.2 系は読み込んでも使わない）。
+
+2026-10-03 から、**webFileDirs の dev から作った配布物**を同梱している。今は 832d770
+（2026-10-06。1.2.0 の、削除の前にプロバイダが問い返す before_delete が入ったもの。ファイル一覧は
+これで添付のあるページの削除を尋ねる。版の表示は 1.2.0+g832d770）。タグの無い版なので、v1.2.0 の
+タグが出たら、下の手順でそのタグに入れ替える（手順 1 の clone は --branch dev でもよい）。文書は webFileDir の Wiki（=webfiledir/）の Design/・
+how_to_embed にある（ver_0/ は 0.2 系の文書）。
 
   1. 同梱する版のタグを一時ディレクトリに複製し、そこで配布物を作る
-     （webFileDirs の作業ツリーは dev のことがあるので、切り替えない）
-       git clone --branch v0.2.x ~/ClaudeWS/webFileDirs /tmp/wfd
+     （webFileDirs の作業ツリーで開発が進んでいることがあるので、切り替えない）
+       git clone --branch v1.0.x ~/ClaudeWS/webFileDirs /tmp/wfd
        cd /tmp/wfd && ./tools/make_dist.py --out /tmp/wfd-dist \
-           --wiki ~/ClaudeWS/wikiSystem/wikidata/webfiledir/wiki/ver.0/how_to_embed.md
+           --wiki ~/ClaudeWS/wikiSystem/wikidata/webfiledir/wiki/how_to_embed.md
   2. 展開して、server/ static/ VERSION EMBED.md README.md をここへ置き換える
      （古い server/・static/ は消してから置く。消えたファイルが残らないように）
   3. wikiSystem のテスト（tests/test_filesui.py）を通し、サービスを再起動する

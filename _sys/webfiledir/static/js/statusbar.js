@@ -8,7 +8,18 @@ export function createStatusBar(store, actions) {
   const counts = h("span", { class: "fd-status-counts" });
   const clip = h("span", { class: "fd-status-clip" });
   const message = h("span", { class: "fd-status-message", role: "status", "aria-live": "polite" });
-  const el = h("div", { class: "fd-statusbar" }, [counts, clip, message]);
+  const progress = h("span", { class: "fd-status-progress", hidden: true });
+  const el = h("div", { class: "fd-statusbar" }, [counts, clip, progress, message]);
+
+  // ジョブ（BackEnd が裏で行っているコマンド）の進み具合
+  function renderProgress(p) {
+    progress.replaceChildren();
+    progress.hidden = !p;
+    if (!p) return;
+    const bar = h("progress", { max: String(Math.max(p.total, 1)), value: String(p.done) });
+    // text … 数えかたが個数でないとき（アップロードのバイト数）
+    progress.append(bar, `${p.label} ${p.text ?? (p.total ? `${p.done} / ${p.total}` : "…")}`);
+  }
 
   // コピーは項目の見た目が変わらないので、ここに出さないと入っていることに気付けない
   function renderClip(c) {
@@ -53,6 +64,7 @@ export function createStatusBar(store, actions) {
   store.subscribe((s, changed) => {
     if (["visibleEntries", "selection", "loading", "message"].some((k) => changed.has(k))) render(s);
     if (changed.has("clipboard")) renderClip(s.clipboard);
+    if (changed.has("progress")) renderProgress(s.progress);
   });
   render(store.get());
   renderClip(store.get().clipboard);

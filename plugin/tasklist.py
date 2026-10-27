@@ -33,7 +33,7 @@ Markdown記法（`.md`）のページ専用です）。
 
 """ 技術資料
 Wiki設計者の指示: 「tasklistでチェックが変化したら、markdownの内容も連動して
-更新する」（`Tech/ChangeLog/plugin/index.md`の「今後の予定」より）。
+更新する」（`ChangeLog/Plugin/index.md`の「今後の予定」より）。
 
 ## `sync`（書き戻しは既定でオフ、Wiki設計者の指示2026-09-08）
 
@@ -100,7 +100,7 @@ checkbox" ...>`という**生HTML**（`html_inline`トークン）として挿�
 トークン（`html_block`/`html_inline`）をすべて`allow_html`の方針で
 一律に濾す設計になっている（`_sys/wikilib/htmlpolicy.py`の`install()`。
 「PukiWiki側のパーサーも同じトークン型を出すので、この2つを差し替えれば
-両方の記法に効く」との同ファイルのdocstringどおり、記法によらず一律）。
+両方の書きかたに効く」との同ファイルのdocstringどおり、書きかたによらず一律）。
 `markdown.allow_html`の既定値は`false`（`config/default.yaml`）のため、
 **既定設定のままでは、tasklistのチェックボックスは実際の`<input>`に
 ならず、エスケープされた文字列（`&lt;input ...&gt;`）としてそのまま

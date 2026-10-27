@@ -4,3 +4,5 @@
 
 このメニューは `submenu` ページの内容です。
 [見た目を変えよう](/ThemeGuide) で、表示するページを変えられます。
+
+- [ChangeLog](ChangeLog)

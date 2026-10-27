@@ -64,7 +64,7 @@ class PageItem:
                    フォルダ**も返すので、その場合だけ偽になる
         has_children  その下にページがあるか（折りたたむかどうかの判断に使う）
         privilege  いまの閲覧者のアクセス権（`W`/`R`/`-`）
-        ext        実体ファイルの拡張子（`.txt`/`.md`）。記法（PukiWiki/
+        ext        実体ファイルの拡張子（`.txt`/`.md`）。書きかた（PukiWiki/
                    Markdown。`wikilib.paths.markup_name_for`）を知るために持つ。
                    実体が無い・出どころが分からないときは None
 

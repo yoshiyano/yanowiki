@@ -12,14 +12,15 @@ CREATE TABLE passwd (
     uidnum INTEGER PRIMARY KEY,   -- 内部の番号
     uid    TEXT NOT NULL,         -- ログインに使う名前（#loginプラグインで入れるほう）
     pw     TEXT NOT NULL,         -- パスワードのハッシュ値
-    name   TEXT NOT NULL,         -- 画面に出す名前
+    name   TEXT NOT NULL,         -- 画面に出す名前（32文字まで。userdb.NAME_MAX）
     approved INTEGER NOT NULL DEFAULT 1, -- 承認済みか（0は承認待ち）
-    cnt    INTEGER NOT NULL DEFAULT 0     -- ログイン状態の世代（上げると合言葉が全部無効になる）
+    cnt    INTEGER NOT NULL DEFAULT 0,    -- ログイン状態の世代（上げると合言葉が全部無効になる）
+    applied_at INTEGER NOT NULL DEFAULT 0 -- 申請した日時（UNIX時刻）。0は申請でない
 );
 ```
 
-`approved` と `cnt` はあとから足した列で、古いDBを開いたときに自動で足されます
-（既存のアカウントは承認済み・0）。
+`approved`・`cnt`・`applied_at` はあとから足した列で、古いDBを開いたときに自動で足されます
+（既存のアカウントは承認済み・0。`applied_at` を足したときの承認待ちは、その時点を申請の日時にします）。
 
 番号1に `admin` と `管理者` が入ります。最初のパスワードは作る人が決めます（`/.newwiki` では
 必須の入力欄、`./wiki.py initusers` では実行時に聞く）。`userdb.create_db` をパスワードなしで
@@ -42,7 +43,7 @@ CREATE TABLE passwd (
 #   [sandbox] アカウントの記録を用意しました（admin / 入力されたパスワード）。
 ```
 
-すでにあれば何もしません。Wikiを省略すると、いまいる場所か既定のWikiが対象です
+すでにあれば何もしません。Wikiを省略すると、いまいる場所か起点Wikiが対象です
 （`updatepage` と同じ決めかた）。
 
 以前は画面に触れた時点で作っていたので、見ず知らずの相手のアクセスで、既定のパスワードを

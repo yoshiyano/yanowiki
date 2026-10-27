@@ -17,8 +17,8 @@ Wiki設計者の報告（2026-09-10）。iPhoneで本文を編集して保存し
 記録を残してある。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_emptysave.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_emptysave.py     （このファイルだけ）
 """
 import os
 import shutil

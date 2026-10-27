@@ -29,7 +29,7 @@
  * **ただしこれは詳細度が同じときだけ成り立ちます。** "input, button" の
  * ような型セレクタでまとめて指定すると詳細度が上がり、テーマ側の
  * .search-word のようなクラスセレクタ単体では読み込み順に関係なく
- * 負けてしまいます（実際に踏んだ不具合。/Tech/ChangeLog/themes/2026-08-17
+ * 負けてしまいます（実際に踏んだ不具合。/ChangeLog/Theme/2026-08-17
  * 参照）。部品ごとに決まったクラス名がある場合は、型セレクタでまとめず
  * そのクラス名を直接書いてください。
  *
@@ -142,6 +142,91 @@ html {
   margin: 0;
 }
 .zoom-value:focus { outline: none; border-color: var(--accent, #0969da); }
+
+/* ---- タイトル右端の道具置き場（.page-title-tools） ----
+   テーマがタイトルの <h1> の中、**文字より前**に <span class="page-title-tools"> を置き、
+   その中に info の場所（.page-info-slot）と、本文の幅の上限を外す／戻すボタン
+   （.content-width-toggle。振る舞いは common.js）を左から並べる。
+
+   道具置き場は見出しの右端へ浮かべる。浮かべた要素は、文字より前にあれば、タイトルが
+   折り返しても最初の行の右端に来る（後ろに置くと、最後の行の右端に来る）。
+   大きさ・位置は見出しの文字を基準にする（高さは見出しの1行ぶん＝1lh）ので、
+   見出しの大きさがテーマごとに違っても、そのまま釣り合う。
+   「幅の上限を外す」の中身（html.content-wide のときの見た目）はテーマごとに違うので、
+   各テーマのCSSが書く。ここにあるのは、ボタンの矢印と、info の場所の整えかただけ。 */
+.page-title-tools {
+  float: right;
+  display: flex;
+  align-items: center;
+  height: 1lh;
+}
+.page-title-tools > * { margin-left: 0.5rem; }
+
+/* info の場所。中身（本体が変数 page_info で渡す <a ...>...</a>）が空のあいだは
+   幅も余白も取らない。見出しの文字（大きく太い）を引き継ぐと、文字のリンクも
+   アイコンも大きすぎるので、ここで文字の大きさ・太さを落とし、アイコン
+   （img・svg）は高さで揃える。アイコンの大きさは、右隣の矢印のボタンとの
+   釣り合いで目で決めた数値。知らせが複数あれば <a> が並ぶので、間を空ける。 */
+.page-info-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.5em;
+  font-weight: normal;
+  line-height: 1;
+}
+.page-info-slot:empty { display: none; }
+.page-info-slot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+.page-info-slot img,
+.page-info-slot svg {
+  display: block;
+  height: 1.4em;
+  width: auto;
+  max-width: 6em;
+}
+
+/* 本文の幅の上限を外す／戻すボタン。矢印は上のズームボタンと同じく SVG を
+   mask-image で埋め込み、色はテーマの --muted（グレー）に追従させる。
+   矢印の右端を見出しの右端にぴったり揃えるため、SVG の viewBox は矢印
+   （5〜19、線の太さを含めて4〜20）に1だけ余白を足した範囲に詰めてある。
+   ↗ は「上限を外す」、↙ は html.content-wide のとき「元に戻す」。 */
+.content-width-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 1.4em;
+  height: 1lh;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.content-width-toggle::before {
+  content: "";
+  display: block;
+  width: 0.525em;
+  height: 0.525em;
+  background-color: var(--muted, #656d76);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 3 18 18' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='19' x2='19' y2='5'/%3E%3Cpolyline points='8 5 19 5 19 16'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 3 18 18' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='5' y1='19' x2='19' y2='5'/%3E%3Cpolyline points='8 5 19 5 19 16'/%3E%3C/svg%3E");
+}
+html.content-wide .content-width-toggle::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 3 18 18' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='19' y1='5' x2='5' y2='19'/%3E%3Cpolyline points='16 19 5 19 5 8'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 3 18 18' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='19' y1='5' x2='5' y2='19'/%3E%3Cpolyline points='16 19 5 19 5 8'/%3E%3C/svg%3E");
+}
+.content-width-toggle:hover::before { background-color: var(--fg, #1f2328); }
 
 /* ---- マーカー操作（.marker-controls、Tech/MarkerSystem.md参照） ----
    状態を持つ本体は _sys/markers/markers.js（全ページ末尾へ自動で差し込まれる）で、
@@ -532,6 +617,7 @@ html[data-menu1-mode="fix"].bp-narrower body:has(.layout:not(:has(.mainbar))) {
 }
 .section-editor-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.5rem;
@@ -591,6 +677,50 @@ html[data-menu1-mode="fix"].bp-narrower body:has(.layout:not(:has(.mainbar))) {
   border-top: 1px dashed var(--border, #d0d7de);
 }
 .section-editor-preview:empty { display: none; }
+/* 外部エディタとの連動（_sys/editor/editor.link.js が「閉じる」の右に置く）。見た目は編集画面の
+   .edit-link（_sys/editor/editor.css）と同じ作りで、状態は先頭の小さな丸の色で示す。
+   つながっているあいだは本文の欄を隠し、プレビューだけにする（Wiki設計者の指示、2026-10-27） */
+.section-editor .edit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted, #656d76);
+  white-space: nowrap;
+}
+.section-editor .edit-link::before {
+  content: "";
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--border, #d0d7de);
+}
+.section-editor .edit-link[data-state="waiting"]::before { background: #d4a72c; }
+.section-editor .edit-link[data-state="connected"]::before { background: #2da44e; }
+.section-editor .edit-link[data-state="closed"]::before { background: var(--muted, #656d76); }
+.section-editor .edit-link button {
+  font: inherit;
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+  color: var(--fg, #1f2328);
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+}
+.section-editor .edit-link button:hover {
+  border-color: var(--accent, #0969da);
+  color: var(--accent, #0969da);
+}
+.section-editor .edit-link-settings { position: relative; }
+.section-editor .edit-link-settings summary { cursor: pointer; }
+.section-editor .edit-link-settings[open] > label { display: block; margin-top: 0.3rem; }
+.section-editor .edit-link-settings input { width: 6em; }
+.section-editor[data-editor-link-hidden] .section-editor-source { display: none; }
+.section-editor[data-editor-link-hidden] .section-editor-preview {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
 
 
 /* ---- hidden 属性を必ず効かせる ----
@@ -621,7 +751,7 @@ html[data-menu1-mode="fix"].bp-narrower body:has(.layout:not(:has(.mainbar))) {
 /* 型セレクタ（input, button）ではなく、テーマが用意する決まったクラス名を
    直接使う。".search input" のような型セレクタだと詳細度がクラス単体より
    高くなり、テーマ側の同名クラスでの上書きが（後読みでも）効かなくなる
-   （/Tech/ChangeLog/themes 参照）。 */
+   （/ChangeLog/Theme 参照）。 */
 .search-word, .search-scope, .search-submit {
   font: inherit;
   font-size: 0.85rem;
@@ -633,7 +763,7 @@ html[data-menu1-mode="fix"].bp-narrower body:has(.layout:not(:has(.mainbar))) {
 /* 幅が足りないときに縮むのは入力欄だけにする。範囲・検索ボタンは
    flex-shrink:0 で固定幅・右寄せのまま崩さない（狭い画面で折り返しが
    起きるテーマでも、ボタン側だけが2行目に落ちて元の行の右端に空白が
-   残る、という不具合を避けるため。/Tech/ChangeLog/themes/2026-08-17 参照）。 */
+   残る、という不具合を避けるため。/ChangeLog/Theme/2026-08-17 参照）。 */
 .search-word {
   width: 50%;
   max-width: 40vw;
@@ -1115,3 +1245,13 @@ button.link-button:hover {
 }
 .new-page-ok:hover:not(:disabled) { filter: brightness(1.08); }
 .new-page-ok:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---- メニューの開け閉め（_sys/wikilib/menufold.py） ----
+   下の階層を持つ項目は <li class="menu-fold"><details><summary>…。
+   箇条書きの点と三角が重ならないよう、点を消して三角を点の位置（外側）に出す */
+li.menu-fold { list-style: none; }
+li.menu-fold > details > summary {
+  display: list-item;
+  list-style-position: outside;
+  cursor: pointer;
+}

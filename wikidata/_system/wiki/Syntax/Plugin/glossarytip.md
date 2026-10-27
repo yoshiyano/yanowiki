@@ -1,6 +1,6 @@
 # glossarytip — ページ内の用語をtooltipで参照できるようにする
 
-| 使える記法 | |
+| 使える書きかた | |
 |---|---|
 | ブロック `#glossarytip()` | ○ |
 | インライン `&glossarytip();` | — |

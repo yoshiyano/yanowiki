@@ -1,6 +1,6 @@
 # 実例: PukiWiki記法のテキストがHTMLになるまで
 
-リクエスト1回分の流れです。記法で分岐するのはトークン列を作るところだけで、その先は共通です。
+リクエスト1回分の流れです。書きかたで分岐するのはトークン列を作るところだけで、その先は共通です。
 
 ## 1. ページ取得（`views.render_page`）
 
@@ -22,7 +22,7 @@ content, title, toc = render.render_source(
 ```
 
 `render_source`の中身は`parse_source` → `split_title` → `build_toc` →
-`engine.renderer.render`の4段です。**`parse_source`だけが記法で分岐**します。
+`engine.renderer.render`の4段です。**`parse_source`だけが書きかたで分岐**します。
 
 ```python
 # render.parse_source(engine, text, ext, env)
@@ -149,7 +149,7 @@ return themes.render_theme(engine, wiki_dir, config, farm, pagepath, title, cont
 <details class="ascii-details">
 <summary>    ... 4件の呼び出しを見る ...</summary>
 <pre>      <span class="d-green">&gt;&gt;</span> render.parse_source(engine, text, ext, env) → tokens
-         拡張子で記法ごとのparserに振り分ける</pre>
+         拡張子で書きかたごとのparserに振り分ける</pre>
 <details class="ascii-details">
 <summary>      ... 2件の呼び出しを見る ...</summary>
 <pre>        <span class="d-red">&gt;&gt;</span> [.txt] pukiwiki.parse(text, extra_rules, ...) → tokens

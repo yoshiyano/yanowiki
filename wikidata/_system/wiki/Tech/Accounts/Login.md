@@ -24,11 +24,32 @@ IDとパスワードが送り直されるためです。打った値は転送先
 | `wikiuser_<Wiki名>` | そのアカウントの `uid`。`#login` のID欄を埋めるのにも使う |
 | `wikiauth_<Wiki名>` | そのログイン状態が本物であることの**合言葉**（下記） |
 
-どちらも `Path` はそのWikiのURL（`/=<Wiki名>`。既定のWikiは `/`）・`HttpOnly`・
-`SameSite=Lax`・期限2日です。既定のWikiのcookieは `Path=/` でどのWikiにも送られるので、
+どちらも `Path` はそのWikiのURL（`/=<Wiki名>`。起点Wikiは `/`）・`HttpOnly`・
+`SameSite=Lax`・期限2日で、HTTPS で開いたときは `Secure` も付けます（Apache などの後ろでは
+`X-Forwarded-Proto` で判断します）。HTTP で開いたときに付けないのは、付けるとブラウザが cookie を
+送らず、ログインできなくなるためです。置きかたの決まりは `wikilib.web.set_wiki_cookie` に
+まとめてあり、テーマのcookieも同じ関数で置きます。起点Wikiのcookieは `Path=/` でどのWikiにも送られるので、
 名前にWiki名を付けて区別しています（`paths.wiki_cookie_name`）。サービス全体の操作をWiki名の無いURLに
-限っているのもこのためです（[既定Wikiの役割](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割)）。以下では `_<Wiki名>` を
+限っているのもこのためです（[起点Wikiの役割](/Tech/DesignPolicy/Farm#起点wikiの役割)）。以下では `_<Wiki名>` を
 略して `wikiuser`・`wikiauth` と書きます。
+
+## 別のサイトから送られた POST を断る
+
+cookie の `SameSite=Lax` に加えて、書き換えの POST はすべて、`Origin`（無ければ `Referer`）の
+ホストとポート番号が、要求の宛先（`Host`、プロキシ越しなら `X-Forwarded-Host` も）と同じときだけ
+受けます（設計者の決定、2026-10-23。フォームごとのトークンは使いません）。照合は入口（`wiki.py` の
+`dispatch`）の1か所で、本体の画面もプラグインの `_action` も同じように守られます。
+`SameSite` では同じサイトとして扱われる、隣のサブドメインからの送信も断れます。
+
+| 送られてきたもの | 扱い |
+|---|---|
+| `Origin` が同じホスト | 受ける（スキームは比べない。TLS を終えるプロキシの後ろでは食い違うため） |
+| `Origin` が別のホスト・`null` | 403「受け付けません」。標準エラー出力に `[csrf]` で残す |
+| `Origin` が無く `Referer` がある | `Referer` で同じように比べる |
+| どちらも無い | 受ける（ブラウザ以外の curl・スクリプトから。CSRF はブラウザに送らせる攻撃なので） |
+
+表の細部（スキームを比べない・どちらも無ければ受ける・断ったことの残しかた）はクロコの実装例
+（設計者は未確認）。仕組みは `wikilib.web.cross_site_reason`、テストは `tests/test_crosssite.py`。
 
 ## 合言葉（`wikiauth`）の作りかた
 
@@ -66,7 +87,7 @@ IDとパスワードが送り直されるためです。打った値は転送先
 - `cnt` はパスワードのハッシュ（`pw`）には混ぜません（生のパスワードを持たないので、
   混ぜると誰もパスワードで入れなくなる）
 - 列はあとから足したもので、古いDBでは自動で足され、既存のアカウントは0です。
-  この版に上げた直後は、全員のcookieが1度だけ通らなくなります
+  このバージョンに上げた直後は、全員のcookieが1度だけ通らなくなります
 
 ## 1日ごとに変わりますが、毎日開いていれば入れ直しは要りません
 

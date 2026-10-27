@@ -1,4 +1,4 @@
-#!/home/yoshi/ClaudeWS/wikiSystem/_venv/bin/python
+#!/usr/bin/env python3
 """全テーマ共通メニュー（wikilib.themes.common_menu_html）の出し分けと escape。
 
 編集・新規は editable（閲覧者のそのページの編集の権限）で出し分け、編集には

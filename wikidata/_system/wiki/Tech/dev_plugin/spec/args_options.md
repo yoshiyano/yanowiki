@@ -86,8 +86,19 @@
 「ここから参照されています」にも出ます。外部URLやInterWikiかどうかは自動で判定します。
 
 ```python
-#ls(folder=Tech/ChangeLog)   # folder に link:True があれば、リンク元として記録される
+#ls(folder=ChangeLog/System)   # folder に link:True があれば、リンク元として記録される
 #img(src=https://example.com/a.png)  # 外部URLは自動的に対象外
+```
+
+**添付ファイル（か外部URL）しか取らない引数には `"link": "attach"`** を宣言します（ref・img の `src`）。
+値は拡張子によらず添付ファイルとして記録され（記録の文字列は `::` を付けた形）、
+リネームで書き換えるときも、書き手が付けていない `::` は足しません。
+プラグインの中で値を解決するときは、`paths.as_attach_link(src)` を通してから `resolve_link` に渡すと、
+記録と同じ読みかたになります。
+
+```python
+{"name": "src", "num_order": 1, "link": "attach"}
+#ref(model.blend)      # 拡張子が添付の一覧に無くても、添付ファイルとして記録される
 ```
 
 ブロック・インラインのどちらでも働きます。プラグインを実行せず宣言だけで値を取り出すので、副作用のある

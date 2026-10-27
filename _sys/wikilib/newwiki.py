@@ -4,7 +4,7 @@
 それに最初のページを用意する。手で8つのフォルダを作るのと同じことを、
 決まった形で漏れなく行うためのもの。
 
-作ったWikiは `/=<Wiki名>/` で開ける。画面の「既定のWikiにする」に
+作ったWikiは `/=<Wiki名>/` で開ける。画面の「起点Wikiにする」に
 チェックが入っていれば、作成に続けて `config/server.yaml` の
 `farm.default` も書き換える（`set_default_farm`）。チェックの初期状態は、
 既存のWikiが `_system` だけ（＝まだ自分のWikiが無い）なら入り、
@@ -14,7 +14,12 @@
 **作るときに「利用形態」を選ぶ**（Wiki設計者の指示、2026-09-21）。選んだ形態に
 応じて、そのWikiの**権限の既定値**（`config/privileges` の既定の行 `*`）と、
 **ユーザ登録の受け入れかた**（`account.policy`）を最初から与える（`USAGES`）。
+
+**作るときに既定の書きかたも選ぶ**（`edit.defaultwiki`）。最初のページとメニューは
+その書きかたで書き、そのWikiの設定にも残す（`create_wiki` の `markup`）。
+**トップページの見出しは、サイト名（`theme.site_title`）にも使う。**
 """
+import json
 import os
 import re
 from html import escape
@@ -25,6 +30,7 @@ from bottle import HTTPResponse, request
 from wikilib.paths import (
     CONFIG_PATH, DEFAULT_FARM_FALLBACK, FARM_PREFIX, INDEX_NAME,
     NEWWIKI_DIR, NEWWIKI_URLPATH, SYSTEM_PREFIX, WIKIDATA_DIR, default_markup_ext, safe_join,
+    selectable_markups,
 )
 from wikilib import stafflog
 from wikilib.web import serve_asset
@@ -213,18 +219,19 @@ def validate_name(name):
     return None
 
 
-def initial_page(name, title):
+def initial_page(name, title, markup="pukiwiki"):
     """最初のページ（wiki/index）の中身。
 
     トップ画面だと分かれば十分なので、短くしておく。
     中身は作った人が書き換える前提。
 
-    書式は既定の記法（`edit.defaultwiki`）で書く。作った直後のページを開いて
+    書式は作るときに選んだ書きかた（`markup`）で書く。作った直後のページを開いて
     「編集」を押したときのツールバーと、置いてあるページの書きかたを揃えるため。
 
     説明ページ（/Syntax など）へのリンクは置かない。ページはWikiごとに別なので、
     新しいWikiの中には無く、リンク切れになるため。"""
-    return f"""* {title}
+    heading = "#" if markup == "markdown" else "*"
+    return f"""{heading} {title}
 
 {name} のトップページです。
 
@@ -232,14 +239,23 @@ def initial_page(name, title):
 """
 
 
-def initial_menu(name):
-    """最初のメニュー（wiki/mainmenu）の中身。
+def initial_menu(name, markup="pukiwiki"):
+    """最初のメニュー（wiki/mainmenu）の中身。`markup` は `initial_page` と同じ。
 
     サイドバーに出るメニューもふつうのページなので、
     ここに置いておけば最初から使える状態になる。
 
     見出しは h2 から始める（`*` ではなく `**`）。サイドバーの中の見出しなので、
     本文と同じ h1 で始めると、テーマが本文の大見出し向けに用意した大きさで出る。"""
+    if markup == "markdown":
+        return f"""## メニュー
+
+- [トップ](/)
+
+### このWikiについて
+
+- 名前: {name}
+"""
     return f"""** メニュー
 
 - [[トップ>/]]
@@ -275,31 +291,62 @@ def copy_common_config(root):
         return False
 
 
-def write_policy(new_wiki_dir, policy, copied):
-    """そのWikiの `account.policy` を書く。`copied` は default.yaml が雛形の写しか。
+def yaml_scalar(value):
+    """1行のYAMLの値として書ける形にする。英数字だけならそのまま、
+    それ以外（空白・`#`・`:`・日本語など）はJSONの文字列にする
+    （JSONの文字列はYAMLの二重引用符の文字列としてそのまま読める）。"""
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", value):
+        return value
+    return json.dumps(value, ensure_ascii=False)
 
-    写しなら、**コメントを残したまま**その1行だけを置き換える（設定画面から
+
+def write_settings(new_wiki_dir, settings, copied):
+    """そのWikiの設定（default.yaml）に `settings` を書く。
+
+    settings … {(節, 項目): 値}。例: {("account", "policy"): "approval"}
+    copied   … default.yaml が雛形の写しか。
+
+    写しなら、**コメントを残したまま**該当する行だけを置き換える（設定画面から
     書くとコメントが消え、写しが「人の手が入ったもの」として控えられてしまう）。
     写しでなければ、設定画面と同じ書き出し（`save_farm_config`）で
-    `account.policy` だけを持つ default.yaml を作る。"""
+    `settings` の項目だけを持つ default.yaml を作る。"""
+    if not settings:
+        return True, ""
     path = farm_config_path(new_wiki_dir)
     if not copied:
-        ok, _saved, message = save_farm_config(new_wiki_dir, {"account": {"policy": policy}})
+        data = {}
+        for (section, key), value in settings.items():
+            data.setdefault(section, {})[key] = value
+        ok, _saved, message = save_farm_config(new_wiki_dir, data)
         return ok, message
     with open(path, encoding="utf-8") as f:
         text = f.read()
-    pattern = re.compile(r"(^account:\n(?:[ \t].*\n|\n)*?[ \t]+policy:[ \t]*)\S+", re.MULTILINE)
-    new_text, count = pattern.subn(lambda m: m.group(1) + policy, text, count=1)
-    if not count:
-        new_text = text.rstrip("\n") + f"\n\naccount:\n  policy: {policy}\n"
+    for (section, key), value in settings.items():
+        value = yaml_scalar(value)
+        pattern = re.compile(r"(^{}:\n(?:[ \t].*\n|\n)*?[ \t]+{}:[ \t]*)\S+".format(
+            re.escape(section), re.escape(key)), re.MULTILINE)
+        text, count = pattern.subn(lambda m: m.group(1) + value, text, count=1)
+        if not count:
+            text = text.rstrip("\n") + f"\n\n{section}:\n  {key}: {value}\n"
     with open(path, "w", encoding="utf-8") as f:
-        f.write(new_text)
+        f.write(text)
     return True, ""
 
 
 def create_wiki(name, title, independent_config=False, admin_password="",
-                usage=USAGE_DEFAULT):
+                usage=USAGE_DEFAULT, markup=None):
     """Wikiの入れものを作る。(成否, 知らせる文言) を返す。
+
+    title … トップページの見出し。空でなければ、そのWikiのサイト名
+        （`theme.site_title`）にも書く。空ならWiki名を見出しにし、サイト名は
+        共通の既定値のまま。
+
+    markup … そのWikiの既定の書きかた（`edit.defaultwiki`。`selectable_markups` の
+        名前）。最初のページとメニューをこの書きかたで書く。省略すると共通の
+        既定値（config/default.example.yaml）のまま。知らない値なら**何も作らずに断る**。
+        設定に書くのは、共通の既定値と違うとき（設定を独立させない場合）。
+        同じなら書かずにおき、共通の既定値に追従させる（Wiki設計者が承認、2026-10-03）。
+        設定を独立させた場合は写しの行を選んだ値に置き換える。
 
     usage … 利用形態（`USAGES` のキー）。そのWikiの権限の既定値とユーザ登録の
         受け入れかたを、最初から与える。省略すると `free`（何も置かない。
@@ -325,6 +372,11 @@ def create_wiki(name, title, independent_config=False, admin_password="",
         return False, problem
     if usage not in USAGES:
         return False, "利用形態が正しくありません。"
+    common_markup = default_markup(load_config())
+    if markup is None:
+        markup = common_markup
+    if markup not in dict(selectable_markups()):
+        return False, "書きかたが正しくありません。"
 
     # wikidata/ の外に出る指定になっていないか確かめる（validate_nameの
     # WIKI_NAME_REで既に弾いているはずだが、念のため二重に）
@@ -340,14 +392,13 @@ def create_wiki(name, title, independent_config=False, admin_password="",
             if readme:
                 with open(os.path.join(path, "README.txt"), "w", encoding="utf-8") as f:
                     f.write(readme)
-        # 最初のページは既定の記法で置く（拡張子もその記法のもの）。
-        # 記法は既定値（config/default.example.yaml の edit.defaultwiki）に
-        # 従う。independent_configの有無に関わらず、load_config()自体が
-        # この既定値を直接読むので、作った直後の中身と設定は食い違わない。
-        ext = default_markup_ext(default_markup(load_config()))
+        # 最初のページは選んだ書きかたで置く（拡張子もその書きかたのもの）。
+        # 共通の既定値と違えば、下で edit.defaultwiki にも書くので、
+        # 作った直後の中身と設定は食い違わない。
+        ext = default_markup_ext(markup)
         pages = {
-            INDEX_NAME + ext: initial_page(name, title or name),
-            "mainmenu" + ext: initial_menu(name),
+            INDEX_NAME + ext: initial_page(name, title or name, markup),
+            "mainmenu" + ext: initial_menu(name, markup),
         }
         for filename, text in pages.items():
             with open(os.path.join(root, "wiki", filename), "w", encoding="utf-8") as f:
@@ -381,13 +432,21 @@ def create_wiki(name, title, independent_config=False, admin_password="",
         ok, message, _ = privilege_records.put(new_wiki_dir, page, kind, who)
         if not ok:
             return False, f"権限の既定値を置けませんでした（{message}）。"
+    settings = {}
     if chosen["policy"] is not None:
-        try:
-            ok, message = write_policy(new_wiki_dir, chosen["policy"], independent_config)
-        except OSError as e:
-            ok, message = False, str(e)
-        if not ok:
-            return False, f"ユーザ登録の受け入れかたを書けませんでした（{message}）。"
+        settings[("account", "policy")] = chosen["policy"]
+    if markup != common_markup or independent_config:
+        settings[("edit", "defaultwiki")] = markup
+    # 見出しを入れたときだけ、サイト名（ヘッダに出る名前）にも使う。空欄なら
+    # 共通の既定値のまま（見出しはWiki名になるが、サイト名までは変えない。Wiki設計者が承認、2026-10-03）
+    if title:
+        settings[("theme", "site_title")] = title
+    try:
+        ok, message = write_settings(new_wiki_dir, settings, independent_config)
+    except OSError as e:
+        ok, message = False, str(e)
+    if not ok:
+        return False, f"設定（ユーザ登録の受け入れかた・書きかた・サイト名）を書けませんでした（{message}）。"
 
     return True, f"Wiki「{name}」を作りました。"
 
@@ -405,7 +464,7 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
     from wikilib.themes import make_plugin_context
 
     denied = sysui.require_on_default_farm(config, farm, wiki_dir, explicit_farm,
-                                           NEWWIKI_URLPATH)
+                                           NEWWIKI_URLPATH, "site.newwiki")
     if denied is not None:
         return denied
 
@@ -420,6 +479,7 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
         set_default = request.forms.get("set_default") is not None
         independent_config = request.forms.get("independent_config") is not None
         usage = request.forms.get("usage") or USAGE_DEFAULT
+        markup = request.forms.get("markup") or None
         # 管理者のパスワードは**必ず入れてもらう**（Wiki設計者の指示、2026-09-08）。
         # 既定値のまま作ると、そのWikiは「誰でも知っている値で管理者に
         # 入れる」状態から始まってしまう
@@ -430,12 +490,13 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
         elif admin_pw != admin_pw2:
             ok, message = False, "管理者のパスワードの2つの欄が一致しません。"
         else:
-            ok, message = create_wiki(name, title, independent_config, admin_pw, usage)
+            ok, message = create_wiki(name, title, independent_config, admin_pw, usage,
+                                      markup)
         if ok:
             staff = stafflog.actor(wiki_dir, farm)
             if staff is not None:
                 stafflog.record(wiki_dir, staff, "wiki.create", name, "作った",
-                                before=None, after={"name": name, "title": title})
+                                before=None, after={"name": name, "title": title, "markup": markup})
             if set_default:
                 set_default_farm(name)
             # 作れたら、その新しいWikiのトップへ送る
@@ -457,6 +518,10 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
         # 避けて外していた。追従させたいWikiは、作るときにチェックを外せばよい。
         independent_config = True
         usage = USAGE_DEFAULT
+        markup = None
+    # 選ばれていない（はじめて開いた）ときは、共通の既定値に印を付けておく
+    if markup is None:
+        markup = default_markup(load_config())
 
     usage_rows = "".join(f"""
       <label class="newwiki-usage" for="nw-usage-{key}">
@@ -471,6 +536,15 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
           </span>
         </span>
       </label>""" for key, item in USAGES.items())
+
+    markup_rows = "".join(f"""
+      <label class="newwiki-usage" for="nw-markup-{key}">
+        <input id="nw-markup-{key}" type="radio" name="markup" value="{key}"{" checked" if key == markup else ""}>
+        <span class="newwiki-usage-body">
+          <strong class="newwiki-usage-title">{escape(fmt["label"])}</strong>
+          <span class="newwiki-usage-label">ページを <code>{escape(fmt["ext"])}</code> で保存します</span>
+        </span>
+      </label>""" for key, fmt in selectable_markups())
 
     notice = ""
     if message:
@@ -492,10 +566,11 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
       <p class="newwiki-hint">半角英数字と <code>-</code> <code>_</code>（先頭は英数字）。
         <code>/=名前/</code> で開けます。</p>
       <div class="newwiki-row">
-        <label for="nw-title">トップページの見出し</label>
+        <label for="nw-title">トップページの見出し（サイト名）</label>
         <input id="nw-title" type="text" name="title" value="{escape(title)}"
                placeholder="省略すると名前" autocomplete="off">
       </div>
+      <p class="newwiki-hint">入れた見出しは、ヘッダに出るサイト名（<code>theme.site_title</code>）にもなります。</p>
     </fieldset>
 
     <fieldset class="newwiki-set">
@@ -523,6 +598,14 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
     </fieldset>
 
     <fieldset class="newwiki-set">
+      <legend>書きかた</legend>
+      <p class="newwiki-hint">新しいページを書き始める書きかたです。トップページとメニューもこれで用意します。
+        あとから設定画面の「編集」タブで変えられ、ページごとに編集画面でも選び直せます。</p>
+      <div class="newwiki-usages newwiki-markups">{markup_rows}
+      </div>
+    </fieldset>
+
+    <fieldset class="newwiki-set">
       <legend>設定</legend>
       <label class="newwiki-check" for="nw-independent">
         <input id="nw-independent" type="checkbox" name="independent_config"{" checked" if independent_config else ""}>
@@ -532,7 +615,7 @@ def render_newwiki(wiki_dir, config, farm, explicit_farm):
       </label>
       <label class="newwiki-check" for="nw-default">
         <input id="nw-default" type="checkbox" name="set_default"{" checked" if set_default else ""}>
-        <span>既定のWikiにする
+        <span>起点Wikiにする
           <span class="newwiki-hint"><code>/</code> を開いたときに出るWikiにします。</span></span>
       </label>
     </fieldset>

@@ -1,6 +1,8 @@
 """承認待ちのアカウントを承認する・断る画面（`/.admin/approvals`）。
 
-    /.admin/approvals    画面（GET）と、承認・断る操作（POST）。**管理者と助手**
+    /.admin/approvals    画面（GET）と、承認・断る操作（POST）。**管理者と、権限を与えられた助手**
+                         （承認する＝`approvals.approve`、断る＝`approvals.reject`。
+                         `wikilib.staffperms`。既定はどちらも助手に与えてある）
 
 `account.policy` が `approval` のWikiでは、ログイン画面の「アカウント作成」で
 申請されたアカウントは**承認待ちで始まり、入れない**（`wikilib.auth.do_signup`。
@@ -25,7 +27,7 @@ from html import escape
 
 from bottle import HTTPResponse, request
 
-from wikilib import auth, groups, stafflog, sysui, userdb
+from wikilib import auth, groups, staffperms, stafflog, sysui, userdb
 from wikilib.paths import ACCOUNTS_URLPATH, APPROVALS_URLPATH
 from wikilib.themes import make_plugin_context
 from wikilib.wikiconfig import account_policy, load_wiki_config
@@ -57,12 +59,14 @@ def _act(wiki_dir, op, uidnum):
 
 
 def render_approvals(wiki_dir, config, farm, explicit_farm):
-    """画面。**管理者と助手だけ**が開ける。確かめるのは**中身を組み立てる前・
-    POSTを処理する前**（`sysui.require`）。"""
-    denied = sysui.require(wiki_dir, config, farm, explicit_farm,
-                           APPROVALS_URLPATH, auth.STAFF)
+    """画面。**管理者と、承認か断るかの権限を与えられた助手だけ**が開ける。確かめるのは
+    **中身を組み立てる前・POSTを処理する前**（`sysui.require_perm`）。操作ごとの権限は、
+    POSTで操作の名前が分かったところで確かめる。"""
+    denied = sysui.require_perm(wiki_dir, config, farm, explicit_farm,
+                                APPROVALS_URLPATH, "approvals.approve", "approvals.reject")
     if denied is not None:
         return denied
+    held = staffperms.granted_set(wiki_dir, auth.current_user(wiki_dir, farm))
     base_url = make_plugin_context(config, farm, wiki_dir, APPROVALS_URLPATH,
                                    explicit_farm).base_url
     here = f"{base_url}/{APPROVALS_URLPATH}"
@@ -73,7 +77,7 @@ def render_approvals(wiki_dir, config, farm, explicit_farm):
             uidnum = int(request.forms.get("uidnum") or "")
         except ValueError:
             uidnum = 0
-        if op in ("approve", "reject") and uidnum:
+        if op in ("approve", "reject") and uidnum and f"approvals.{op}" in held:
             done, uid = _act(wiki_dir, op, uidnum)
         else:
             done, uid = "ng", ""
@@ -86,7 +90,8 @@ def render_approvals(wiki_dir, config, farm, explicit_farm):
     message, ok = _notice_for(done, uid)
     pending = userdb.pending_users(wiki_dir)
     body = _html(pending, here, message, ok,
-                 account_policy(load_wiki_config(wiki_dir)))
+                 account_policy(load_wiki_config(wiki_dir)), held,
+                 closed=not userdb.signup_open(wiki_dir))
     return sysui.page(wiki_dir, config, farm, explicit_farm, APPROVALS_URLPATH,
                       "アカウントの承認", body, css_url=f"{ACCOUNTS_URLPATH}.css")
 
@@ -102,8 +107,17 @@ def _notice_for(done, uid):
     }.get(done, ("", True))
 
 
-def _row_html(user, here):
+def _row_html(user, here, held):
+    """1行。**持っている権限のボタンだけ**出す（持たない操作は、押させて断るより
+    先に見せない）。"""
     uid = escape(user["uid"])
+    buttons = ""
+    if "approvals.approve" in held:
+        buttons += '<button type="submit" name="op" value="approve" class="acct-go">承認する</button>\n'
+    if "approvals.reject" in held:
+        buttons += (
+            '<button type="submit" name="op" value="reject" class="acct-go acct-del"\n'
+            f"""        onclick="return confirm('{uid} の申請を断って、アカウントを消します。よろしいですか？');">断る</button>""")
     return f"""      <tr>
         <td class="acct-num">{user["uidnum"]}</td>
         <td>{uid}</td>
@@ -111,26 +125,29 @@ def _row_html(user, here):
         <td>
           <form class="acct-inline" method="post" action="{escape(here)}">
             <input type="hidden" name="uidnum" value="{user["uidnum"]}">
-            <button type="submit" name="op" value="approve" class="acct-go">承認する</button>
-            <button type="submit" name="op" value="reject" class="acct-go acct-del"
-                    onclick="return confirm('{uid} の申請を断って、アカウントを消します。よろしいですか？');">断る</button>
+            {buttons}
           </form>
         </td>
       </tr>"""
 
 
-def _html(pending, here, message, ok, policy):
-    rows = "\n".join(_row_html(u, here) for u in pending) or (
+def _html(pending, here, message, ok, policy, held, closed=False):
+    rows = "\n".join(_row_html(u, here, held) for u in pending) or (
         '<tr><td colspan="4">承認待ちのアカウントはありません。</td></tr>')
     note = ""
     if policy != "approval":
         note = ('<p class="acct-hint">このWikiは承認制ではありません'
                 '（設定 <code>account.policy</code> が <code>open</code>）。'
                 '承認待ちがあるのは、承認制だったころの申請が残っている場合だけです。</p>')
+    elif closed:
+        note = ('<p class="acct-hint"><strong>いまは申請の受付を止めています</strong>'
+                f'（承認待ちの申請が{userdb.PENDING_MAX}件あるため）。'
+                '承認するか断ると、受付を再開します。</p>')
     return f"""{sysui.notice(message, bad=not ok)}
 <div class="acct">
   <p class="acct-lead">「アカウント作成」で申請されたアカウントです。
-    <strong>承認するまで、ログインできません</strong>（権限の上では未ログインと同じ扱いです）。</p>
+    <strong>承認するまで、ログインできません</strong>（権限の上では未ログインと同じ扱いです）。
+    申請から{userdb.PENDING_DAYS}日たっても承認しなければ、断ったときと同じく消えます。</p>
 {note}
   <table class="acct-table">
     <thead><tr><th>番号</th><th>ID</th><th>名前</th><th></th></tr></thead>
@@ -139,6 +156,6 @@ def _html(pending, here, message, ok, policy):
     </tbody>
   </table>
   <p class="acct-hint">承認済みのアカウントの一覧と削除は
-    <a href="{escape(here.rsplit("/", 1)[0])}/accounts">アカウント</a>（管理者だけ）にあります。</p>
+    <a href="{escape(here.rsplit("/", 1)[0])}/accounts">アカウント</a>（管理者と、管理者が許した助手だけ）にあります。</p>
 </div>
 """

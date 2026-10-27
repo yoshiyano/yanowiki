@@ -20,10 +20,11 @@ Python + [bottle](https://bottlepy.org/) 製の軽量Wikiシステム。PukiWiki
 ### wikiSystem独自の特徴
 
 - **PukiWiki記法とMarkdown記法**（GitHub Flavored Markdown）をページごとに
-  選んで書ける。記法はページの拡張子（`.txt` / `.md`）で決まる
+  選んで書ける。書きかたはページの拡張子（`.txt` / `.md`）で決まる
 - 1つのサーバーで**複数のWiki**を動かせる（Wiki Farm）
 - 見た目（テーマ）は[Jinja2](https://jinja.palletsprojects.com/)テンプレート
-  で自由にデザインできる
+  で自由にデザインできる。HTML に差し込む場所を書くだけで作れる**スロット型のテーマ**もあり、
+  管理の画面（「テーマのファイル」）からテーマのファイルを扱える
 - **プラグイン**で機能を拡張できる（`note`・`contents`・`recent`・`ls`・
   `ref`・`img`・`color`・`size`・`include`・`pre`・`glossarytip` など多数を
   同梱。独自プラグインも追加できる）
@@ -35,15 +36,20 @@ Python + [bottle](https://bottlepy.org/) 製の軽量Wikiシステム。PukiWiki
   3文書マージで統合する画面が開く
 - **見出し単位で編集できる**（セクション編集）。長いページの一部を直すのに、
   全文を開かなくてよい
+- **手元のエディタで書ける**（外部エディタ連動）。編集画面とセクション編集の本文を、
+  VS Code・Emacs・Neovim と同期して書き、ブラウザでプレビューを見る。エディタのプラグインと
+  ブラウザ拡張機能は、Wiki のページから配る
 - **ファイル一覧**で、ページとフォルダをエクスプローラーのように見て、名前の
-  変更・移動・削除・新規作成ができる。名前や置き場所を変えても、指している側の
-  リンクを自動で書き換える
+  変更・移動・コピー・削除・新規作成・フォルダ化ができる。名前や置き場所を変えても、
+  指している側のリンクを自動で書き換える
 - **アカウントとアクセス制限**。アカウント・グループ・承認制の登録、ページごとの
-  閲覧・編集の制限、管理の画面（`/.admin`）
+  閲覧・編集の制限、管理の画面（`/.admin`）。管理を手伝う助手に、操作ごとに権限を与えられる
 - コードブロックの**シンタックスハイライト**（Prism.js）
 - 閲覧者が**テーマを選べる**（設定で有効にした場合）
 - ブラウザから**新しいWikiを作れる・消せる**（Wiki Farmの追加・削除）
 - PukiWikiのデータを移す道具（`./wiki.py convwiki`）
+- **公開版からの更新**。新しいバージョンが出ると管理者に知らせ、管理の画面から
+  更新して再起動できる（1.2.0 から）
 - Linux・Windowsどちらでも動く。インストールは数コマンドで完了する
 
 導入や活用の詳しい説明、設計方針、開発方法は起動後にwikiページとして
@@ -144,6 +150,37 @@ _venv\Scripts\python.exe wiki.py
 
 より詳しい手順（Ubuntu / Windowsそれぞれ）は、起動後に `/InstallGuide` として
 も読める。
+
+## 更新（1.1・1.1.1 などから）
+
+新しいバージョンへは、入手したフォルダで次を実行し、そのあとサービスを再起動する
+（動かしたまま実行してよい。反映は再起動のあと）。
+
+Linux/macOS:
+
+```bash
+cd ~/wikiSystem
+git fetch --depth 1 origin main
+git reset --hard origin/main
+UV_PROJECT_ENVIRONMENT=_venv uv sync --inexact
+```
+
+Windows（PowerShell）:
+
+```powershell
+cd ~\wikiSystem
+git fetch --depth 1 origin main
+git reset --hard origin/main
+$env:UV_PROJECT_ENVIRONMENT = "_venv"
+uv sync --inexact
+```
+
+- 更新で変わらないもの: `config/server.yaml`、`_venv/`、`wikidata/` の下の各Wiki（`_system` を除く）
+- **同梱の `_system` を書き換えていると、配布元の内容に戻る。** 自分のページは別のWikiに書く
+- `--inexact` は、あとから入れた部品（gunicorn・uWSGI など）を消さないための指定
+- **1.2.0 からは、管理者が画面から更新できる。** 新しいバージョンが出ると、既定のWikiの管理者に
+  タイトル右端の info で知らせ、管理の画面（`/.admin/update`）から更新して再起動できる。
+  1.1・1.1.1 にはこの画面が無いので、1.2.0 へは上の手順で更新する
 
 ## 動作確認
 

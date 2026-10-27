@@ -7,7 +7,7 @@
 ## なぜ描画側の書き換え（render.rewrite_content_links）では足りないか
 
 あちらはHTMLになった後の `href="…"` を直すもので、表示のたびに働く。
-こちらが相手にするのは**保存されている本文そのもの**なので、記法ごとの
+こちらが相手にするのは**保存されている本文そのもの**なので、書きかたごとの
 書きかた（`[表示](先)` と `[[表示>先]]`）を、その位置のまま直す必要がある。
 
 ## 何を書き換え、何を触らないか
@@ -55,8 +55,8 @@ import posixpath
 import re
 from urllib.parse import quote as urlquote, unquote
 
-from wikilib import pukiwiki
-from wikilib.paths import ATTACH_URLPATH, pagepath_of_subpath, resolve_link
+from wikilib import bulkscope, pukiwiki
+from wikilib.paths import ATTACH_LINK_MARK, ATTACH_URLPATH, pagepath_of_subpath, resolve_link
 
 # Markdown: `[表示](先)` `![説明](先)` の "](" のあとに続くリンク先。
 # 空白の前まで（`](先 "題")` の題は含めない）と、`<…>` で囲った書きかたの両方を受ける。
@@ -97,9 +97,21 @@ def _puki_target_span(inner, offset):
 _fallback_engine = None
 
 
+def plain_tokens(text, ext, engine=None):
+    """地の文の範囲（excluded_ranges）を見るためだけの解析。PukiWiki記法は設定なしで、
+    Markdown は engine（無ければ default_engine）で解析する。
+
+    まとめて書き換える範囲（`bulkscope.scope`）の中では、同じ本文の結果を使い回す
+    （リンクの書き換えとプラグインの引数の書き換えで、同じ本文を続けて解析するため）。"""
+    if ext == ".txt":
+        return bulkscope.parse("plain.txt", None, text, lambda: pukiwiki.parse(text))
+    eng = engine or default_engine()
+    return bulkscope.parse("md", eng, text, lambda: eng.parse(text))  # render.parse_source と共通
+
+
 def default_engine():
     """engine を渡されなかった呼び出し向けの、使い回すだけの軽いMarkdownIt。
-    プラグイン等の記法は要らない（地の文かどうかの判定にしか使わないため）。"""
+    プラグイン等の書きかたは要らない（地の文かどうかの判定にしか使わないため）。"""
     global _fallback_engine
     if _fallback_engine is None:
         from markdown_it import MarkdownIt
@@ -112,7 +124,7 @@ def excluded_ranges(text, tokens):
     コード・HTMLブロック）を、パーサのトークン列から集める。
 
     Markdown・PukiWikiのどちらも同じ形のToken列を返す（pukiwiki.parse も
-    markdown_it.Token をそのまま使っている）ため、この関数は記法を問わず
+    markdown_it.Token をそのまま使っている）ため、この関数は書きかたを問わず
     共通で使える。fence/code_block/html_block はブロック単位で `token.map`
     （行範囲）を持つので、行の開始オフセットを前計算して文字位置に直す。
     インラインの code_inline だけは1行の中の話なので、その行の範囲内で
@@ -156,7 +168,7 @@ def link_spans(text, ext, engine=None, interwiki=None):
     ため。`{[./X]}`と`{[X]}`は常に等価）。
 
     コードブロック・インラインコード・HTMLコメントに書かれた、リンクに
-    似た記法（説明・記法のサンプル・コメントアウトしたリンクなど）を
+    似た書きかた（説明・書きかたのサンプル・コメントアウトしたリンクなど）を
     誤って拾わないよう、実際のパーサが「地の文」として扱った範囲
     （`excluded_ranges`）に含まれる候補は取り除く。
 
@@ -198,14 +210,14 @@ def link_spans(text, ext, engine=None, interwiki=None):
                 group = "angle" if m.groupdict().get("angle") is not None else "bare"
                 if m.group(group) is None:
                     continue
-                # Markdownには{[…]}に相当する記法が無いので常にFalse
+                # Markdownには{[…]}に相当する書きかたが無いので常にFalse
                 spans.append((m.start(group), m.end(group), m.group(group), False))
         spans.sort()
 
     if not spans:
         return spans
 
-    tokens = pukiwiki.parse(text) if ext == ".txt" else (engine or default_engine()).parse(text)
+    tokens = plain_tokens(text, ext, engine)
     ranges = excluded_ranges(text, tokens)
     if not ranges:
         return spans
@@ -315,17 +327,29 @@ def rewritten_href(href, subpath, new_owner, filename=None,
     辿らないと行き先の見当がつかない書きかたを残さないため。同じか近くなる
     ぶんには相対のほうが読みやすいので、そのまま相対で書き直す。
 
-    **添付ファイルは、遠くなっても絶対にしない。** 添付ファイルには
+    **添付ファイルは、遠くなっても絶対にしない**（`::` 付きを除く。下記）。添付ファイルには
     farmをまたいでも安全な絶対の書きかたが無い（`absolute_form` 参照。
     唯一の絶対の書きかた `/.attach/…` は system の生URLとして素通りする
     ためfarmの接頭辞が付かず、既定のfarmが変わると別のfarmを指してしまう）。
     そのため読みやすさより安全（確実に元のfarmへ解ける）を優先し、
-    遠くなっても相対のまま書き直す。"""
+    遠くなっても相対のまま書き直す。**`::` 付きで書かれていた添付ファイルは、
+    ページと同じ決まりで扱う。** `::/持ち主/ファイル名` がfarmの中の絶対として
+    解ける（`/.attach/…` の問題が無い）ため。
+
+    **書き分けの印（先頭の `::`・ページの末尾の `/`）は、書き直したあとも
+    付け直す**（paths.resolve_link「ページか添付ファイルか」）。落とすと、
+    `ver1.2/` は改名のあとで添付ファイルと、一覧に無い拡張子の `::x.blend` は
+    ページと読まれてしまう。"""
     bare, sep, anchor = href.partition("#")
+    mark = ATTACH_LINK_MARK if bare.startswith(ATTACH_LINK_MARK) else ""
+    bare = bare[len(mark):]
+    trail = "/" if not filename and bare.endswith("/") else ""
     encoded = unquote(bare) != bare  # 元が符号化されていたか
 
     def dress(path):
-        return (urlquote(path) if encoded else path) + sep + anchor
+        if trail and not path.endswith("/"):
+            path += trail
+        return mark + (urlquote(path) if encoded else path) + sep + anchor
 
     def with_filename(owner_path):
         return owner_path + "/" + filename if filename else owner_path
@@ -340,7 +364,13 @@ def rewritten_href(href, subpath, new_owner, filename=None,
     # （`logo.png` は「いま開いているページ」の添付、`bbb/img.jpg` は
     # `/bbb` の添付。resolve_link 参照）うえ、そもそも絶対へ寄せる先が
     # 無い（absolute_form 参照）ので、これまでどおり相対で書き直す。
-    written_absolute = not filename and not bare.startswith(("./", "../"))
+    #
+    # ただし `::` 付きの添付（`::/持ち主/ファイル名`）は、farmの中の絶対として
+    # 安全に解けるので、ページと同じ決まりで扱う（`/` 始まりだけが絶対）。
+    if filename:
+        written_absolute = bool(mark) and bare.startswith("/")
+    else:
+        written_absolute = not bare.startswith(("./", "../"))
     # 裸で書かれていたら裸のまま戻す。裸も `/` 付きも意味は同じなので、
     # 書き手の書きかたを勝手に変えない（1枚の改名で、指している全ページの
     # 見た目が変わってしまわないようにするため）
@@ -355,6 +385,8 @@ def rewritten_href(href, subpath, new_owner, filename=None,
         # 明示するURLで開いている場合や、既定のfarmが変わった場合に別の
         # farmを指してしまう。そのため本体の書き換えでは使わない
         # （`usable` が偽になる、辿れない場合の最後の手段としてのみ使う）。
+        if filename and mark:
+            return "/" + new_owner + "/" + filename if new_owner else "/" + filename
         if filename:
             return "/" + ATTACH_URLPATH + "/" + new_owner + "/" + filename
         # new_owner が空になるのはWikiのトップだけ。裸で書くと空文字列に
@@ -367,7 +399,8 @@ def rewritten_href(href, subpath, new_owner, filename=None,
     rel_owner = relative_href(base, new_owner)
     rel = with_filename(rel_owner) if rel_owner else ""
     # 組み直した相対が本当に狙った先へ解けるか（`..` でWikiの外に出ないか）
-    usable = bool(rel_owner) and canonical_target(subpath, rel) == ("/" + new_owner, filename)
+    usable = (bool(rel_owner)
+              and canonical_target(subpath, mark + rel + trail) == ("/" + new_owner, filename))
     before_rel_owner = relative_href(old_base, (old_owner or "")[1:])
 
     if written_absolute:
@@ -379,7 +412,7 @@ def rewritten_href(href, subpath, new_owner, filename=None,
 
     if not usable:
         return dress(absolute_form())  # 相対では書けない（最後の手段）
-    if filename:
+    if filename and not mark:
         # 添付ファイルは、farmをまたいでも安全な絶対の書きかたが無いので
         # （absolute_form 参照）、遠くなっても相対のまま書き直す
         return dress(rel)
@@ -461,6 +494,8 @@ def rewrite_links(text, subpath, ext, renames, old_subpath=None, cache=None,
             # （Wiki設計者の指示、2026-09-04。"/a/./b"を"/a/b"に整えるのと同じ、
             # パスの意味を考える必要が無い機械的な変換）。
             new_href = new_href[2:]
+        elif relative and new_href.startswith(ATTACH_LINK_MARK + "./"):
+            new_href = ATTACH_LINK_MARK + new_href[len(ATTACH_LINK_MARK) + 2:]  # `::./x` も同じ
         out.append(text[last:start])
         out.append(new_href)
         last = end

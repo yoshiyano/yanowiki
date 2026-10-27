@@ -13,6 +13,9 @@ BASE_DIR = os.path.dirname(SYS_DIR)
 WIKIDATA_DIR = os.path.join(BASE_DIR, "wikidata")
 PLUGIN_DIR = os.path.join(BASE_DIR, "plugin")
 THEME_DIR = os.path.join(BASE_DIR, "theme")
+# スロットHTML のテーマ（Jinja2 を通さないテーマ）の共通の置き場所。Jinja2 のローダは読まない
+# （wikilib.slottheme。個別Wikiは farm_slottheme_dir）
+SLOTTHEME_DIR = os.path.join(BASE_DIR, "slottheme")
 PID_DIR = os.path.join(BASE_DIR, ".pid")  # 前回起動のPIDを覚えておく場所（Git管理対象外）
 # 設定ファイルは役割で2つに分ける。
 #   server.yaml  … サービスの起動に関わるもの（server / farm / debug）。
@@ -37,6 +40,8 @@ DEFAULT_FARM_FALLBACK = "_system"
 FARM_PREFIX = "="  # URLでfarmを明示的に指定するためのプレフィックス（例: /=system/）
 SYSTEM_PREFIX = "."  # システム資材のURLプレフィックス（例: /.theme/base.css）
 THEME_URLPATH = SYSTEM_PREFIX + "theme"  # テーマ資材（CSS/JS等）のURL名前空間
+# スロットHTML のテーマの資材（/.slottheme/<テーマ名>/<ファイル名>。CSS・画像・フォントだけ）
+SLOTTHEME_URLPATH = SYSTEM_PREFIX + "slottheme"
 SEARCH_URLPATH = SYSTEM_PREFIX + "search"  # 検索のURL（例: /.search?q=...）
 # 旧URL（例: /.editwikipage/UsageGuide）。編集画面はいまこのパスを持たず、
 # そのページ自身の通常URLへPOST + cmd=edit を送ることで開く
@@ -98,11 +103,28 @@ PASSWD_URLPATH = SYSTEM_PREFIX + "passwd"     # 自分のパスワードを変�
 # `#readauth`・`#writeauth` の記録のうち、もう機能していない行を消す。**誰でも**実行できる
 # （1時間に10回まで。管理者と助手は除く）。wikilib.updatepageauth
 UPDATEPAGEAUTH_URLPATH = SYSTEM_PREFIX + "updatePageAuth"
-# 助手の操作の記録を確かめ、元に戻す画面。**管理者だけ**。wikilib.stafflogui
+# 助手の操作の記録を確かめ、元に戻す画面。**既定は管理者だけ**（管理者が許せば助手も。
+# wikilib.staffperms）。wikilib.stafflogui
 STAFFLOG_URLPATH = ADMIN_URLPATH + "/stafflog"
+# 助手に与える権限を決める画面。**管理者だけ**（助手が自分に権限を足せてしまうため、
+# 設定できない）。資材は /.admin/staffperms.css・.js。wikilib.staffpermsui
+STAFFPERMS_URLPATH = ADMIN_URLPATH + "/staffperms"
+# 公開版（GitHub の yanowiki）からの更新。既定のWikiの管理者と、再起動を許された助手（`/.restart` と同じ）。
+# wikilib.sysupdate
+UPDATE_URLPATH = ADMIN_URLPATH + "/update"
+# 中断した名前の変更・移動の一覧と、その続き。**管理者と助手**。wikilib.operationsui
+OPERATIONS_URLPATH = ADMIN_URLPATH + "/operations"
+# テーマのファイル（全Wiki共通は読み取り専用、そのWiki固有は読み書き）。**管理者だけ**。
+# webFileDir を組み込んだ画面で、下に資材・APIが続く（/.admin/themes/…）。wikilib.themefilesui
+THEMEFILES_URLPATH = ADMIN_URLPATH + "/themes"
 # 削除したページ（持ち主のページが無い）の添付を、ページ trashbox へ集める。
 # **管理者と助手**。GETで確認、POSTで実行。wikilib.garbagecollect
 GARBAGECOLLECT_URLPATH = SYSTEM_PREFIX + "garbagecollect"
+# 同じ名前の `.txt` と `.md` が両方あるページを整理する画面（`/.solveDupPage/<ページ名>`）。
+# 同じ名前のファイルとフォルダ（`X.md` と `X/`）もここで整理する。
+# どちらかを採用し、もう一方を `_bak` を付けた名前のページとして残す。**ページの編集の権限（W）が
+# 要る**。GETでプレビューを見せ、POSTで実行。wikilib.solvedup
+SOLVEDUP_URLPATH = SYSTEM_PREFIX + "solveDupPage"
 # Wikiの設定（wikidata/<Wiki名>/config/default.yaml）を書き換える画面。
 # **管理者と助手**（Wiki設計者の指示、2026-09-06）。資材は /.admin/configwiki.css
 CONFIGWIKI_URLPATH = ADMIN_URLPATH + "/configwiki"
@@ -231,6 +253,7 @@ NEWWIKI_DIR = os.path.join(BASE_DIR, "_sys", "newwiki")  # Wikiを作る画面�
 ACCOUNTS_DIR = os.path.join(BASE_DIR, "_sys", "accounts")
 CONFIGUI_DIR = os.path.join(BASE_DIR, "_sys", "configui")  # 設定画面のCSS
 GROUPS_DIR = os.path.join(BASE_DIR, "_sys", "groups")  # グループ管理画面のCSS/JS
+STAFFPERMS_DIR = os.path.join(BASE_DIR, "_sys", "staffperms")  # 助手の権限の画面のCSS/JS
 PRIVILEGES_DIR = os.path.join(BASE_DIR, "_sys", "privilegesui")  # アクセス制限の画面のCSS/JS
 # マーカーシステム（複数の用語を色分けして追跡する仕組み）。
 # 本体（markers.js/css）は全ページに自動で差し込む（wikilib.themes.render_theme）ため
@@ -270,8 +293,8 @@ BACKUP_STAMP = "%y%m%d_%H%M%S"  # 差分ファイル名に使う日時の書式
 
 # ---- マークアップ書式の定義 -------------------------------------------------
 # 編集画面のツールバーは、この定義だけを見て組み立てられる（JavaScript側に個々の
-# 記法を書かない）。記法を足すときは、ここに同じ形の定義を足せば、同じツールバーが
-# そのまま新しい記法用として働く。
+# 書きかたの中身は持たない）。書きかたを足すときは、ここに同じ形の定義を足せば、同じツールバーが
+# そのまま新しい書きかた用として働く。
 #
 # 各アクションの指定方法（いずれか1つ）:
 #   wrap      … 選択範囲の前後を囲む [開始, 終了]
@@ -354,7 +377,7 @@ MARKUP_FORMATS = {
             {"name": "hr", "label": "区切り線", "icon": "―", "template": "\n---\n"},
         ],
     },
-    # 記法を持たない素のテキスト。拡張子を持たないので、どのページの書式にもならない
+    # 書きかたを持たない素のテキスト。拡張子を持たないので、どのページの書式にもならない
     # （未知の拡張子だったときの受け皿として使う）。
     "plain": {
         "label": "プレーンテキスト",
@@ -368,7 +391,7 @@ DEFAULT_MARKUP = "pukiwiki"  # 新規ページを作るときの書式（編集�
 # Wikiごとに設定で変えられる（`edit.defaultwiki`。wikiconfig.default_markup）。
 # 設定を読むのは wikiconfig の役目で、こちら（paths）はconfigを知らない
 # ——wikiconfig が paths を読み込んでいるので、逆向きには参照できないため。
-# そのため「どの記法か」は**呼び出し側が決めて渡す**形にしてある。
+# そのため「どの書きかたか」は**呼び出し側が決めて渡す**形にしてある。
 # ページとして扱う拡張子。閲覧時はこの順に探す（.txt が優先）
 PAGE_EXTS = (".txt", ".md")
 # フォルダの入口になるページの名前。`/Tech` が実体 `Tech/index` を指す約束。
@@ -387,11 +410,26 @@ INDEX_NAME = "index"
 # その名前でページを作ると権限で読めなくなる・実在のページが入口の役を奪う、という
 # 問題があったので、システムのURLへ移した。`Login` は、いまはふつうのページ名。
 LOGIN_URLPATH = SYSTEM_PREFIX + "login"
-# 拡張子に見える末尾（"." のあとに英数字1〜6文字）。**ページ名には付けられない**
-# 決まりにしてあり、これが付いていればリンク先は添付ファイルとみなす
-# （resolve_link）。ページか添付かを名前の形だけで見分けるための線引きで、
-# ファイルがあるかどうかは見ない。
-PAGE_NAME_EXT_RE = re.compile(r"\.[A-Za-z0-9]{1,6}$")
+# 添付ファイルを指すことを、名前の形によらず明示する印（`::foo.zip`・`::/p/x.bin`）。
+# 付いていれば、拡張子が何でも（無くても）添付ファイルとして読む（resolve_link）。
+# InterWiki の `登録名:ページ名` とぶつからないよう、登録名が空になる形にしてある。
+ATTACH_LINK_MARK = "::"
+# 名前の末尾の拡張子に見える部分（"." のあとに英数字1〜6文字）を切り出す形。
+# **これだけでは添付ファイルと決めない。** 切り出した拡張子が添付の拡張子の一覧
+# （設定の attach.link_exts。attach_link_exts）にあるときだけ添付とみなす。
+# `ver1.2` のような版番号や `Node.js` を一覧から外せば、ページ名として使える。
+NAME_EXT_RE = re.compile(r"\.([A-Za-z0-9]{1,6})$")
+# attach.link_exts が書かれていないときの一覧（クロコの実装例。2026-10-02時点で
+# 各Wikiに置かれている添付の拡張子は、すべてここに入っている）。
+DEFAULT_ATTACH_LINK_EXTS = frozenset("""
+    png jpg jpeg gif webp svg avif bmp ico tif tiff heic
+    pdf txt csv tsv json xml yaml yml html htm log md rtf
+    doc docx xls xlsx ppt pptx odt ods odp
+    zip 7z tar gz tgz bz2 xz lzh rar
+    mp3 wav ogg m4a flac mp4 mov avi webm mkv
+    c h cpp hpp py js css java sh ino
+    dat bin hex fnt ttf otf woff woff2 stl 3mf
+""".split())
 # 画像として扱う拡張子（小文字で比較する）。添付一覧のサムネイル判定
 # （wikilib.attach.ATTACH_IMAGE_EXTS）と、PukiWiki記法のリンクが画像を
 # 指しているときの自動プレビュー（wikilib.pukiwiki.link_tokens）の両方が
@@ -432,7 +470,11 @@ def markup_ext_or(name, default_ext):
     return default_ext
 DEFAULT_THEMEFILE = "base"  # 既定のテーマ名（theme/base.html を参照する）
 THEME_COMMON_PREFIX = "common"  # 個別Wiki固有テーマから全Wiki共通テーマを継承するための名前空間
-SEARCH_TEMPLATE = "search.html"  # 検索結果ページのテンプレート
+# 検索結果ページのテンプレート。**テーマではないので theme/ には置かない**（_sys/search/search.html）。
+# Jinja2 には `search/` の名前空間で読ませる（themes.get_jinja_env）。テーマの探索の外なので、
+# テーマの一覧にも出ず、テーマ側からも上書きされない
+SEARCH_TEMPLATE_PREFIX = "search"
+SEARCH_TEMPLATE = SEARCH_TEMPLATE_PREFIX + "/search.html"
 SEARCH_SNIPPET_LEN = 140  # 検索結果に表示する抜粋の長さ
 
 # ---- 境界の外に出さないパス結合 ---------------------------------------------
@@ -482,6 +524,11 @@ def farm_plugin_dir(wiki_dir):
     return os.path.join(os.path.dirname(wiki_dir), "plugin")
 
 
+def farm_slottheme_dir(wiki_dir):
+    """個別WikiのスロットHTML のテーマの置き場所（wikidata/<Wiki名>/slottheme/）。"""
+    return os.path.join(os.path.dirname(wiki_dir), "slottheme")
+
+
 def farm_config_path(wiki_dir):
     """個別Wikiの設定ファイル（wikidata/<Wiki名>/config/default.yaml）の場所。"""
     return os.path.join(os.path.dirname(wiki_dir), "config", "default.yaml")
@@ -523,7 +570,7 @@ def farm_pageinfo_dir(wiki_dir, *names):
     「ページそのものではないが、ページ1枚ごとに紐づく記録」で、置き場所も
     Git管理の扱い（実ファイルは対象外）も同じなので、1つの親にまとめている。
     Wikiの直下に並ぶフォルダは、利用者が中身を書き換えるもの（wiki/ attach/
-    plugin/ theme/ config/）だけになる。"""
+    plugin/ theme/ slottheme/ config/）だけになる。"""
     return os.path.join(os.path.dirname(wiki_dir), PAGEINFO_DIR, *names)
 
 
@@ -567,6 +614,18 @@ def resolve_page(target):
                 return candidate, ext, f.read()
     return None
 
+
+def page_files(target):
+    """target（拡張子なしのページパス・絶対パス）に実在するページのファイルを、
+    PAGE_EXTS の順（閲覧で読まれる順）に返す。
+
+    2つ以上あるのは、同じページ名に `.txt` と `.md` が両方ある状態。運用では
+    同時に存在させない約束だが、手でファイルを置くと起きる。閲覧は先頭の1つしか
+    読まないので、残りは読めないまま気づかれにくい（`wikilib.pagenotice` が
+    知らせる）。"""
+    return [target + ext for ext in PAGE_EXTS if os.path.isfile(target + ext)]
+
+
 class PageRef:
     """URLのページパスが指す「対象ページ」。
 
@@ -609,7 +668,7 @@ class PageRef:
 
 
 def default_markup_ext(markup=None):
-    """新しく作るページの拡張子。`markup` は記法の名前（`MARKUP_FORMATS`のキー）。
+    """新しく作るページの拡張子。`markup` は書きかたの名前（`MARKUP_FORMATS`のキー）。
 
     渡さない・知らない名前のときはシステムの既定（`DEFAULT_MARKUP`）にする。
     Wikiごとの設定（`edit.defaultwiki`）を読むのは `wikiconfig.default_markup`
@@ -623,7 +682,7 @@ def resolve_page_ref(wiki_dir, pagepath, default_markup=None):
     実在しないページでもNoneではなくPageRefを返す（exists=False）。新規作成や
     プレビューでも同じ判断（どのファイルを指すか）を使い回せるようにするため。
 
-    `default_markup` は**まだ無いページ**に付ける拡張子を決める記法
+    `default_markup` は**まだ無いページ**に付ける拡張子を決める書きかた
     （`wikiconfig.default_markup(config)`の戻り値）。実在するページの拡張子は
     ファイル側で決まっているので、この指定は関係しない。渡さなければ
     システムの既定になる（既存ページしか扱わない呼び出しは渡さなくてよい）。"""
@@ -699,12 +758,62 @@ def _attach_owner_subpath(wiki_dir, owner_pagepath, base_pagepath, page_subpath)
     return ref.subpath if ref is not None else owner_pagepath
 
 
+def parse_link_exts(value):
+    """設定 attach.link_exts の値を、小文字・`.` 抜きの拡張子の集まりにする。
+
+    空白（か `,`）で区切った文字列でも、YAMLのリストでも受ける。書かれて
+    いない（None）なら既定の一覧。
+
+    **画像の拡張子（IMAGE_EXTS）は、書かれていなくても常に含める。**
+    PukiWiki記法は行き先の拡張子で画像を埋め込む（pukiwiki.link_tokens）ので、
+    一覧から外すと、画像として表示されるのにリンクの記録ではページになる、
+    という食い違いが起きるため。"""
+    if value is None:
+        return DEFAULT_ATTACH_LINK_EXTS
+    if isinstance(value, str):
+        value = value.replace(",", " ").split()
+    exts = {str(v).strip().lstrip(".").lower() for v in value if str(v).strip()}
+    return frozenset(exts | {e.lstrip(".") for e in IMAGE_EXTS})
+
+
+def attach_link_exts(wiki_dir=None):
+    """そのWikiで添付ファイルとみなす拡張子の集まり（設定 attach.link_exts）。
+
+    wiki_dir が無ければ共通の設定（config/default.example.yaml）の値。
+    設定の読み出しは wikiconfig にあるが、このモジュールは標準ライブラリだけで
+    読めるようにしておくため、使うときに読み込む（読めなければ既定の一覧）。"""
+    try:
+        from wikilib.wikiconfig import attach_link_exts as load
+    except ImportError:
+        return DEFAULT_ATTACH_LINK_EXTS
+    return load(wiki_dir)
+
+
+def is_attach_name(name, exts):
+    """名前の末尾が、exts（attach_link_exts）にある拡張子か。大文字小文字は区別しない。"""
+    m = NAME_EXT_RE.search(name)
+    return bool(m) and m.group(1).lower() in exts
+
+
+def as_attach_link(src):
+    """src を、添付ファイルを指す書きかた（`::` 付き）にする。
+
+    ref・img プラグインの引数や画像の埋め込み先のように、**添付ファイルか外のURLしか
+    来ない場所**で使う。拡張子の一覧に無いファイルもページと読まれないようにするため。
+    すでに `::` が付いているもの、URL・アンカー・mailto:/tel:、別Wiki・システムのURL
+    （`/=名前/…`・`/.attach/…`）は、書かれたまま返す。"""
+    if (not src or src.startswith((ATTACH_LINK_MARK, "#", "mailto:", "tel:"))
+            or "://" in src or src.startswith(("/" + FARM_PREFIX, "/" + SYSTEM_PREFIX))):
+        return src
+    return ATTACH_LINK_MARK + src
+
+
 def resolve_link(page_subpath, href, wiki_dir=None):
     """本文に書かれたリンク先を解釈する。(種類, 値) を返す。
 
-    **記法によらず、リンクの意味を決めるのはここだけ。** Markdownでも
+    **書きかたによらず、リンクの意味を決めるのはここだけ。** Markdownでも
     [PukiWiki記法](/Syntax/PukiWiki)でも、リンクは同じ形のトークンになったあと
-    この関数を通る。書き手から見た決まりが記法で変わらないようにするためで、
+    この関数を通る。書き手から見た決まりが書きかたで変わらないようにするためで、
     表示（render.rewrite_content_links）と記録（links.py）も同じ判断を使う。
 
     ## ページの指しかた（full_pagepath）
@@ -728,12 +837,18 @@ def resolve_link(page_subpath, href, wiki_dir=None):
         /bbb/img.jpg     → /bbb        の添付
         /img.jpg         → トップページの添付
 
-    ページか添付ファイルかは**名前の形だけ**で決める。末尾が拡張子に見える形
-    （PAGE_NAME_EXT_RE、`.` のあとに英数字1〜6文字）なら添付ファイル、
-    そうでなければページとする。
+    ## ページか添付ファイルか
 
-        logo.png  bar.jpg  memo.txt   → 添付ファイル
-        UsageGuide  Tech/Reference    → ページ
+    上から順に見て、最初に当てはまったもので決める。
+
+        ::名前        添付ファイル（ATTACH_LINK_MARK。拡張子が何でも、無くても）
+        名前/         ページ（末尾の `/`。`ver1.2/` は ページ ver1.2）
+        名前.拡張子   拡張子が添付の一覧（attach_link_exts）にあれば添付ファイル
+        それ以外      ページ
+
+    `::` のあとは、上の添付ファイルの指しかたをそのまま書ける
+    （`::../d/x.bin`・`::/p/x.bin`）。`::` だけ・`::名前/` はファイル名が無いので
+    触らないもの（"keep"）になる。
 
     実在するかは見ない。**まだ無いページへのリンクもページとして扱う**ため。
     リンクをたどって「このページはまだありません → このページを作る」へ
@@ -741,8 +856,8 @@ def resolve_link(page_subpath, href, wiki_dir=None):
     無くても構わないようにしている。
 
     wiki_dir は、添付の持ち主がフォルダを兼ねるページ（実体が `…/index`）
-    だった場合にそれを見分けるために使う。渡さなくても、いま開いている
-    ページの添付（いちばん多い書きかた）は正しく解ける。
+    だった場合にそれを見分けるためと、そのWikiの拡張子の一覧を読むために使う。
+    渡さなければ、拡張子は共通の設定の一覧で見る。
 
     返す種類は3つ。
         ("page",   ページパス)      このWikiのページ
@@ -754,18 +869,27 @@ def resolve_link(page_subpath, href, wiki_dir=None):
         return "keep", None
 
     bare, sep, anchor = href.partition("#")
-    if href.startswith("/"):
+    if bare.startswith(ATTACH_LINK_MARK):
+        bare = bare[len(ATTACH_LINK_MARK):]
+        if not bare or bare.endswith("/"):
+            return "keep", None  # ファイル名が無い
+        is_attach = True
+    else:
+        is_attach = (not bare.endswith("/")
+                     and is_attach_name(bare, attach_link_exts(wiki_dir)))
+
+    if bare.startswith("/"):
         rest = bare[1:]
         if rest.startswith((FARM_PREFIX, SYSTEM_PREFIX)):
             return "keep", None  # 別Wiki（/=名前/…）とシステムのURL（/.attach/…）
-        if not PAGE_NAME_EXT_RE.search(bare):
+        if not is_attach:
             return "page", rest.rstrip("/") + sep + anchor
         # 添付ファイル。下の分岐で、ディレクトリの部分（/ページ/）をページと同じく
         # ルートからの絶対として読む（`/図.png` はトップページの添付）
 
     base = pagepath_of_subpath(page_subpath)
 
-    if PAGE_NAME_EXT_RE.search(bare):
+    if is_attach:
         head, slash, filename = bare.rpartition("/")
         if not slash:
             owner_subpath = page_subpath  # 書いていない＝いま開いているページ
@@ -781,7 +905,7 @@ def page_ext_of_subpath(wiki_dir, subpath, default_markup=None):
     """実体のパス（拡張子抜き）から、そのページの拡張子を決める。
     まだ無いページは既定の書式のものを返す（`default_markup`。resolve_page_ref参照）。
 
-    ページの実体（subpath）だけを持ち回っている処理が、その記法を取り違えずに
+    ページの実体（subpath）だけを持ち回っている処理が、その書きかたを取り違えずに
     書き戻せるようにするためのもの（.txt のページを .md として書き出してしまうと、
     同じ名前のページが2つできてしまう）。"""
     found = resolve_page(os.path.join(wiki_dir, subpath))
@@ -796,6 +920,23 @@ def is_folder_entry(subpath):
     木に並ぶ1段ぶんの名前が `index` かどうか（pagetree.sort_key など）とは
     別の話で、ここが見るのは**実体パス全体**である。"""
     return subpath == INDEX_NAME or subpath.endswith("/" + INDEX_NAME)
+
+
+def shadowed_twin(wiki_dir, subpath):
+    """フォルダの入口（`X/index`）に対して、同じ名前のファイル `X.拡張子` が残っていれば、
+    その実体パス（`X`）。無ければ None。
+
+    `X.拡張子` とフォルダ `X/` が並ぶと、`resolve_page_ref` はフォルダの中の `index` を読むので、
+    `X.拡張子` は読まれない（INDEX_NAME の注記）。`X/index` が無くても `X.拡張子` は読まれない。
+    同じ名前の `.txt` と `.md` と同じく、整理の画面（`wikilib.solvedup`）で片付ける。
+    Wikiのトップ（`index`）には、同じ名前のファイルが無いので対象外。"""
+    if not is_folder_entry(subpath) or subpath == INDEX_NAME:
+        return None
+    twin = subpath[: -len("/" + INDEX_NAME)]
+    target = os.path.join(wiki_dir, twin)
+    if not os.path.isdir(target) or not page_files(target):
+        return None
+    return twin
 
 
 def pagepath_of_subpath(subpath):

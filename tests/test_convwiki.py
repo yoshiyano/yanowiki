@@ -21,8 +21,8 @@
 「実データで実際に起きたことをそのまま固定する」考えかたで見ている。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_convwiki.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_convwiki.py     （このファイルだけ）
 """
 import binascii
 import os
@@ -99,7 +99,7 @@ class TestSemicolons(unittest.TestCase):
         self.assertEqual(count, 0)
 
     def test_インラインのセミコロンは対象にしない(self):
-        # &name(args); はもともと正しい記法（消すのはブロックだけ）
+        # &name(args); はもともと正しい書きかた（消すのはブロックだけ）
         text = "文中に &ref(a.png); を書く\n"
         result, count = strip_block_semicolons(text)
         self.assertEqual(result, text)
@@ -345,7 +345,7 @@ class TestCollect(unittest.TestCase):
         self.assertEqual(sorted(pages), [":config/plugin", "ページ"])
 
     def test_include_stockで付属のページも写す(self):
-        # どのWikiにも同じものが入っている15枚（記法の説明・練習場・自動の一覧）と、
+        # どのWikiにも同じものが入っている15枚（書きかたの説明・練習場・自動の一覧）と、
         # 説明書 PukiWiki 本体・配下
         pages, _ = collect_pages(self.src, include_stock=True)
         self.assertEqual(sorted(pages),

@@ -13,8 +13,8 @@
 プラグインは本物（`plugin/*.py`）をファイルから読み込んで呼ぶ。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pluginprivilege.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pluginprivilege.py     （このファイルだけ）
 """
 import importlib.util
 import io
@@ -175,6 +175,8 @@ class TestWriteActions(PluginPrivilegeTestBase):
     def post(self, **fields):
         data = urlencode(fields).encode("utf-8")
         bottle.request.bind({
+            # comment・vote は JS（fetch）からの投稿だけを受け付ける（2026-10-23）
+            "HTTP_X_REQUESTED_WITH": "fetch",
             "REQUEST_METHOD": "POST",
             "CONTENT_TYPE": "application/x-www-form-urlencoded",
             "CONTENT_LENGTH": str(len(data)),
@@ -196,8 +198,8 @@ class TestWriteActions(PluginPrivilegeTestBase):
         return result, resolve.called, save.called
 
     FORMS = {
-        "comment": {"msg": "こんにちは", "comment_no": "0"},
-        "vote": {"vote_no": "0", "index": "0"},
+        "comment": {"msg": "こんにちは", "comment_id": "cmt0abcd"},
+        "vote": {"vote_id": "vot0abcd", "index": "0"},
         "tasklist": {"line": "0", "checked": "1"},
     }
 
@@ -271,7 +273,7 @@ class TestAuthPluginsToPrivilege(PluginPrivilegeTestBase):
 
     def setUp(self):
         super().setUp()
-        # `_authcommon.run` は「実在するページ」を平文ファイルの有無で見る
+        # `readauth_.run` は「実在するページ」を平文ファイルの有無で見る
         # （`resolve_page_ref`。`pagedb.record_page` はDBだけで、平文ファイルは
         # 別に要る）。setUp で作った "Open" の平文ファイルを、ここで足す
         ref = paths.resolve_page_ref(self.wiki_dir, "Open")

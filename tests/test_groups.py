@@ -10,8 +10,8 @@ Wiki設計者の指示、2026-09-12）。見ているのは、グループその
 判断の置き場所は2026-09-13に整理した——記録は`groups`、権限は`auth`。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_groups.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_groups.py     （このファイルだけ）
 """
 import os
 import shutil

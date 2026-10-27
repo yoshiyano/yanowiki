@@ -1,5 +1,7 @@
 # ページごとの権限
 
+使いかたは [アカウント](/AccessGuide)・[ページのアクセス制限](/AccessGuide/Privileges) にあります。このページは仕組みの説明です。
+
 閲覧権限・編集権限の仕組みと、それを決めるまでの調査・判断の記録です。
 前半が現在の仕様、後半（「調査の時点の検討」以降）が2026-09-13の調査の記録で、
 その後に決まったことは各項目に「→」で書き添えてあります。
@@ -67,25 +69,19 @@
 
 未知のユーザ・グループを指定するとエラーにします。存在しないグループ名を書いておくと、
 後からその名前で作った相手に権限が渡るためです。`/.admin/privileges` からの登録と
-`#readauth`・`#writeauth` からの書き出し（`plugin/_authcommon.py` の `_parse_users`）の両方で断ります。
+`#readauth`・`#writeauth` からの書き出し（`plugin/readauth_.py` の `_parse_users`）の両方で断ります。
 
-### `/.restart`・`/.newwiki`・`/.allwiki` は既定Wikiの `admin` と `g:staff` だけ
+### `/.restart`・`/.newwiki`・`/.allwiki` は起点Wikiの `admin` と `g:staff` だけ
 
 ページの権限とは別の話です（[再起動の仕組み](/Tech/Restart)・[新しいWikiを作る仕組み](/Tech/NewWiki)）。
 `/.delwiki`（[Wikiを消す仕組み](/Tech/DelWiki)）も同じ判定を通ります。`/.allwiki` は読むだけの
 画面ですが、並ぶWiki名がそのままURLなので同じ扱いにしています（[Wikiの一覧](/Tech/Reference/Views#wikiの一覧)）。
-既定Wikiが持つ役割のまとめは [設計方針](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割) にあります。
+起点Wikiが持つ役割のまとめは [設計方針](/Tech/DesignPolicy/Farm#起点wikiの役割) にあります。
 
-**Wiki名を含むURLは、既定Wikiのものでも403で断ります**（設計者の指示、2026-09-13。
-「default wiki が dwiki のとき、`/=dwiki/.restart` なども禁止扱い」）。はじめは既定Wikiの
+**Wiki名を含むURLは、起点Wikiのものでも403で断ります**（設計者の指示、2026-09-13。
+「default wiki が dwiki のとき、`/=dwiki/.restart` なども禁止扱い」）。はじめは起点Wikiの
 URLへ送り直していましたが、断る形に改めました。ログインのcookieはWikiごとの `Path` に
-あるので、素のURLだけに絞れば、読まれるcookieが既定Wikiのものひとつに決まります。
-
-### 新規設置のときは、新しく作ったWikiが既定になる
-
-`_system` のような `_` で始まるWikiは、`config/server.yaml` を直接編集しない限り既定Wikiに
-できないようにする予定です（**未実装**）。既定Wikiを移すと、`/.restart` などの権限の
-持ち主も移るためです（[新しいWikiを作る仕組み](/Tech/NewWiki) にも注意書きがあります）。
+あるので、素のURLだけに絞れば、読まれるcookieが起点Wikiのものひとつに決まります。
 
 ## 下位のページ
 

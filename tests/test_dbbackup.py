@@ -6,7 +6,7 @@
 できて初めて「過去へ参照できる」状態になる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 -m unittest discover -s tests
 """
 import datetime
 import os

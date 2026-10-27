@@ -1,6 +1,6 @@
 """プラグインの引数に書いたページ名を、リネーム時に書き換える。
 
-`wikilib.pagelinks` が本文の記法上のリンク（`[表示](先)`・`[[表示>先]]`）を
+`wikilib.pagelinks` が本文の書きかた上のリンク（`[表示](先)`・`[[表示>先]]`）を
 書き換えるのと同じことを、`PLUGIN_INFO["args"]` で `"link": True` と宣言
 された引数の値に対しても行う。
 
@@ -12,9 +12,9 @@ backlinksからも見つかっていたが、リネーム時に**値そのもの
 
 ## 位置の見つけかた
 
-プラグインの呼び出しは記法ごとに書きかたが違う（Markdown: `#name(args)`
+プラグインの呼び出しは、PukiWiki と Markdown で書きかたが違う（Markdown: `#name(args)`
 `&name(args);`、PukiWiki: 見た目は同じだが別の正規表現）。ここでは新しく
-パーサを書き起こさず、それぞれの記法が本文をパースするのに使っている
+パーサを書き起こさず、それぞれの書きかたが本文をパースするのに使っている
 既存の正規表現（`wikilib.plugins`・`wikilib.pukiwiki`）をそのまま再利用し、
 argsグループがマッチした文字位置をそのまま使う。
 
@@ -34,11 +34,11 @@ argsグループがマッチした文字位置をそのまま使う。
 クオートで囲まれていた場合、クオートそのものは範囲に含まれないのでそのまま残る。
 """
 from wikilib import pukiwiki
-from wikilib.pagelinks import default_engine, excluded_ranges, is_excluded, resolve_href, rewritten_href
-from wikilib.paths import pagepath_of_subpath
+from wikilib.pagelinks import excluded_ranges, is_excluded, plain_tokens, resolve_href, rewritten_href
+from wikilib.paths import ATTACH_LINK_MARK, pagepath_of_subpath
 from wikilib.plugins import (
     PLUGIN_BLOCK_HEAD_RE, bind_plugin_args_spans,
-    match_plugin_block, match_plugin_inline, parse_plugin_args_spans,
+    match_plugin_block, match_plugin_inline, parse_plugin_args_spans, link_arg_href,
 )
 
 
@@ -117,7 +117,7 @@ def plugin_call_spans(text, ext, engine=None):
     calls = _puki_calls(text) if ext == ".txt" else _md_calls(text)
     if not calls:
         return calls
-    tokens = pukiwiki.parse(text) if ext == ".txt" else (engine or default_engine()).parse(text)
+    tokens = plain_tokens(text, ext, engine)
     ranges = excluded_ranges(text, tokens)
     if not ranges:
         return calls
@@ -159,20 +159,24 @@ def rewrite_plugin_arg_links(text, ext, subpath, renames, registry, old_subpath=
         if entry is None or entry.get("error"):
             continue
         schema = (entry.get("info") or {}).get("args") or ()
-        link_names = [item["name"] for item in schema if item.get("link")]
-        if not link_names:
+        link_items = [item for item in schema if item.get("link")]
+        if not link_items:
             continue
         args, kwargs = parse_plugin_args_spans(argstr)
         resolved, err, spans = bind_plugin_args_spans(args, kwargs, schema)
         if err is not None:
             continue
-        for lname in link_names:
-            span = spans.get(lname)
+        for item in link_items:
+            span = spans.get(item["name"])
             if span is None:
                 continue  # defaultを使った・rest_paramsで連結された等、安全に書き換えられる位置が無い
-            href = resolved.get(lname)
-            if not isinstance(href, str) or not href.strip():
+            written = resolved.get(item["name"])
+            if not isinstance(written, str) or not written.strip():
                 continue
+            # `"link": "attach"` は `::` 付きで解決し、書き戻すときは、書き手が
+            # 付けていなかった印を外す（引数はどのみち添付として読まれるため）
+            href = link_arg_href(item, written)
+            added_mark = href != written
             resolved_link = resolve_href(resolve_base, href, wiki_dir, interwiki)
             if resolved_link is None:
                 continue
@@ -187,6 +191,8 @@ def rewrite_plugin_arg_links(text, ext, subpath, renames, registry, old_subpath=
                                       old_subpath=old_subpath if moved else None)
             if new_href == href:
                 continue
+            if added_mark and new_href.startswith(ATTACH_LINK_MARK):
+                new_href = new_href[len(ATTACH_LINK_MARK):]
             rel_start, rel_end = span
             edits.append((call_start + rel_start, call_start + rel_end, new_href))
 

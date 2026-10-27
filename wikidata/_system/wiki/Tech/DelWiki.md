@@ -1,5 +1,7 @@
 # Wikiを消す仕組み
 
+使いかたは [Wikiの削除](/AdminGuide/DelWiki) にあります。このページは仕組みの説明です。
+
 `/.delwiki` から、いまあるWiki（個別Wiki）を1つ消せます。[新しいWikiを作る
 仕組み](/Tech/NewWiki) の裏返しですが、取り返しが付かないので確かめる段を4つに
 分けてあります。
@@ -14,15 +16,15 @@ cd wikidata && 7z x sandbox.260918_143012.7z
 
 ## 誰が消せるか
 
-既定Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけです。
+起点Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけです。
 判定は [再起動](/Tech/Restart)・[新しいWikiを作る](/Tech/NewWiki)・
 [Wikiの一覧](/Tech/Reference/Views#wikiの一覧) と同じ `wikilib.sysui.require_on_default_farm`
-で、Wiki名を含むURL（`/=<Wiki名>/.delwiki`）は既定Wikiのものでも403です。
+で、Wiki名を含むURL（`/=<Wiki名>/.delwiki`）は起点Wikiのものでも403です。
 
 そのうえで、**消される側のWikiの管理者のパスワード**も確かめます（2段目）。
-既定Wikiの管理者・助手であることは「この画面を開いてよい」ことの証しで、
-「隣のWikiを消してよい」ことの証しではないためです。既定Wikiが持つ役割のまとめは
-[設計方針](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割) にあります。
+起点Wikiの管理者・助手であることは「この画面を開いてよい」ことの証しで、
+「隣のWikiを消してよい」ことの証しではないためです。起点Wikiが持つ役割のまとめは
+[設計方針](/Tech/DesignPolicy/Farm#起点wikiの役割) にあります。
 
 ## 4つの段
 
@@ -33,8 +35,8 @@ cd wikidata && 7z x sandbox.260918_143012.7z
 | 3 | ディスク使用量とトップページの最終更新日 | いまそのWikiを実際に見ていること |
 | 4 | 最後の確認 | ここで初めて消える |
 
-どんなWikiがあるかは `/.allwiki` で見られます。既定のWikiは消せません
-（別のWikiを既定にしてから消します）。
+どんなWikiがあるかは `/.allwiki` で見られます。起点Wikiは消せません
+（別のWikiを起点Wikiにしてから消します）。
 
 ### 3段目は「見ていること」を確かめる段
 

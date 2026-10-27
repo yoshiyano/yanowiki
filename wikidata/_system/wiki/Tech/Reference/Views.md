@@ -28,27 +28,30 @@
 
 ### 見た目は検索自身が持つ
 
-結果の一覧とページ送りのHTMLは `search.py` が組み立て、CSS/JSも `_sys/search/` が持つ
-（`/.search.css`, `/.search.js`）。テーマ（`theme/search.html`）が受け持つのは検索フォームの
-体裁だけ。色はテーマのカスタムプロパティ（`--accent`・`--border`・`--muted`）を使う。
+結果の一覧とページ送りのHTMLは `search.py` が組み立て、検索フォームのテンプレート・CSS・JSも
+`_sys/search/` が持つ（`search.html`、`/.search.css`, `/.search.js`。マーカーの `_sys/markers/` と同じ形）。
+テンプレートはテーマではないので theme/ には置かず、Jinja2 には `search/search.html` の名前で読ませる。
+テーマの一覧には出ず、テーマから上書きもされない。テーマとの接点は、`{% extends themefile + ".html" %}` で
+設定中のテーマの枠（`breadcrumb`・`content` のブロック）を借りることだけ。
+色はテーマのカスタムプロパティ（`--accent`・`--border`・`--muted`）を使う。
 
 ## Wikiの一覧
 
 このサーバーの全Wikiを1枚で見渡す画面（`allwiki.py`）。名前・トップページの見出し・
-ページ数を並べ、既定のWikiといま見ているWikiに印を付ける。見出しとページ数は各WikiのDBから
+ページ数を並べ、起点Wikiといま見ているWikiに印を付ける。見出しとページ数は各WikiのDBから
 引く。DBがまだ無いWikiも、名前とリンクだけで一覧に出す。
 
 ### 誰が見られるか（2026-09-16）
 
-**既定Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけ**です
+**起点Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけ**です
 （Wiki設計者の指示、2026-09-16）。並ぶ名前はそのままURLなので、非公開のWikiの在り処を
 明かすことになるためです。判定は [再起動](/Tech/Restart)・[新しいWikiを作る](/Tech/NewWiki) と
 同じ `wikilib.sysui.require_on_default_farm` です。
 
-- 判定は、いま開いているWikiではなく既定Wikiのアカウントで行う
-- Wiki名を含むURL（`/=<Wiki名>/.allwiki`）は、既定Wikiのものでも403。通るのは `/.allwiki` だけ
+- 判定は、いま開いているWikiではなく起点Wikiのアカウントで行う
+- Wiki名を含むURL（`/=<Wiki名>/.allwiki`）は、起点Wikiのものでも403。通るのは `/.allwiki` だけ
 - 一覧を組み立てる前に断る
-- 既定Wikiが持つ役割のまとめは [設計方針](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割)
+- 起点Wikiが持つ役割のまとめは [設計方針](/Tech/DesignPolicy/Farm#起点wikiの役割)
 
 URL名は `server.yaml` の `farm.allwiki` で決まる（既定 `allwiki` ＝ `/.allwiki`）。
 
@@ -74,6 +77,8 @@ URL名は `server.yaml` の `farm.allwiki` で決まる（既定 `allwiki` ＝ `
 | `onSelect` | 行が選ばれたときに呼ばれる |
 | `decorate` | その行に独自の目印を足す（編集画面のページ一覧の「書きかけ」） |
 | `selectable` | 選べない行を作る（履歴の無い行など）。キーボードで動かしたときも飛ばす |
+| `listname` | すべての行の名前を `"fname"`（ファイル名）か `"title"`（タイトル）にそろえる。無指定なら行ごとの `listname`（書きかたから決めたもの）に従う。`titleOnly` のときだけ効く |
+| `sortByLabel` | 同じ親の子を、いま出している名前の順に並べ直す（編集画面のページ一覧）。無指定ならサーバーの並びのまま |
 
 木のJSONが `has_file` を持たない場合は、実体の有無を見ない（全部が「まだありません」の
 見た目にならないように）。

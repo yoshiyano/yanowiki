@@ -33,17 +33,6 @@
 }
 .pagediv-title a { color: inherit; text-decoration: none; }
 .pagediv-title a:hover { text-decoration: underline; }
-.pagediv-title form { display: contents; }
-.pagediv-title button {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-.pagediv-title button:hover { text-decoration: underline; }
 
 .pagediv-body {
   padding: 5px 0 5px 4px;

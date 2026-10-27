@@ -68,7 +68,9 @@
   breadcrumb / content の2ブロックは必須。
 #}
 <!doctype html>
-<html lang="ja">
+{# data-default-zoom / data-default-wide: 標準の拡大率と幅（theme.zoom・theme.content_wide）。
+   common.js が読む。このテーマには拡大縮小ボタンが無いので、拡大率は標準だけが効く。 #}
+<html lang="ja"{% if default_zoom %} data-default-zoom="{{ default_zoom }}"{% endif %}{% if default_content_wide %} data-default-wide="1"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -103,7 +105,7 @@
   <div class="header-rows">
     <div class="header-row header-row-title">
       <div class="site-title"><a href="{{ base_url }}/">{{ site_title }}</a></div>
-      <h1 class="title"><a href="{{ base_url }}/{{ page }}">{{ page_title }}</a>{{ title_note }}</h1>
+      <h1 class="title"><span class="page-title-tools"><span class="page-info-slot">{{ page_info|default("", true) }}</span><button type="button" class="content-width-toggle"></button></span><a href="{{ base_url }}/{{ page }}">{{ page_title }}</a>{{ title_note }}</h1>
       {#
         検索。常時表示（隠す対象に含めない）。「検索語 → 範囲 → 検索ボタン」の並び。
         範囲ボタン(.search-scope)はクリックでトグル、押したまま動かす（ドラッグ）と

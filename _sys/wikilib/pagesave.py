@@ -36,7 +36,23 @@
 ページがあれば入口（`A/index`）へ移してから書く。**呼ぶ側が自分で
 `open` する必要も、この決まりを覚える必要もない**ようにするため
 （Wiki設計者の指示、2026-09-05）。
+
+## 描画の中で書き換えたページを覚える（`watch_writes`）
+
+ページを開いたときの表示は、描画の中で本文が書き換わったら、新しい本文で描き直す
+（`views.render_page`。2026-09-13 の `pagesync.review_page` と同じ意図を、表示の経路へ
+広げたもの。wikiPlugin セッションからの依頼、2026-10-23、設計者の了承済み）。書き換わった
+ことは、ここで見分ける。`watch_writes()` の中で、中身が変わった保存のページを覚える。
+以下はクロコの実装例（設計者は未確認）:
+
+- プラグインの書き換えはどれも `save_page` を通るので、表示しているページ・メニュー・
+  `#include` で差し込んだページのどれでも同じように拾える
+- 覚えるのは `watch_writes()` を開いたスレッドの保存だけ（`contextvars`）。同じときに
+  別の要求が保存したもの、描画のあとに裏のスレッドが書いたものは拾わない
+- 「変わった」は、新しい内容がDBの内容（`known`）と違うこと
 """
+import contextlib
+import contextvars
 import os
 
 from wikilib import pagedb, stafflog
@@ -48,12 +64,27 @@ from wikilib.paths import farm_plugin_dir
 from wikilib.plugins import build_markdown_renderer
 
 
+# watch_writes() の中で保存したページの実体パス（watch_writes の外では None）
+_written = contextvars.ContextVar("pagesave_written", default=None)
+
+
+@contextlib.contextmanager
+def watch_writes():
+    """この中で中身が変わった保存のページ（実体パスの set）を集める。モジュール冒頭参照。"""
+    written = set()
+    token = _written.set(written)
+    try:
+        yield written
+    finally:
+        _written.reset(token)
+
+
 def save_page(wiki_dir, config, subpath, ext, text, engine=None, path=None,
               known=None, merge=True, write=True, created=None):
     """ページ1枚分を保存したことにする。記録できたらTrue。
 
     subpath  ページの実体パス（拡張子抜き）
-    ext      拡張子。記法がこれで決まるので、書き出す先とDBの両方に効く
+    ext      拡張子。書きかたがこれで決まるので、書き出す先とDBの両方に効く
     text     新しい内容
     engine   レンダラ。省略するとその場で作る（何枚も続けて保存するときは
              作ったものを渡し回すと速い）
@@ -94,6 +125,9 @@ def save_page(wiki_dir, config, subpath, ext, text, engine=None, path=None,
     # フッタに出る使用量を次の表示で数え直させる（Wiki設計者の指示、2026-08-31。
     # システムを通した変更はすぐ反映し、直接置かれたファイルは10分で追従する）
     invalidate(wiki_dir)
+    written = _written.get()
+    if written is not None and text != known:
+        written.add(subpath)
     if staff is not None and old_text != text:
         stafflog.record(wiki_dir, staff, "page.save", subpath,
                         "新しく作った" if old_text is None else "書き換えた",

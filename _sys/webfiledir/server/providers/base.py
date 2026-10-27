@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from ..attributes import DEFAULT_ATTRIBUTES, Attribute
 from ..errors import ApiError
+from ..exts import default_ext
 from ..icons import Icon
 
 
@@ -31,6 +32,9 @@ class Entry:
     attrs: dict = field(default_factory=dict)
     # アイコンの名前（プロバイダの icons か、画面に元からあるもの）。None なら画面が決める（フォルダ・拡張子）
     icon: str | None = None
+    # 拡張子（"." を含まない。無ければ ""）。None なら既定の規則（server/exts.py）で名前から決める。
+    # 画面は拡張子を切り出さず、これで「種類」・アイコン・名前の入力欄の選択範囲を決める
+    ext: str | None = None
     # この項目への権限。4 ビット（8 = 動かす・4 = 読む・2 = 書く・1 = 実行）で、既定の 15 はすべて許す
     # （Wiki「API 設計 > 権限」）。画面での使いかた:
     #   動かす … この項目の名前の変更・移動（切り取り・ドラッグで動かす）・削除（ごみ箱へ入れるのは移動に準ずる）。
@@ -50,6 +54,7 @@ class Entry:
             "hasChildren": self.has_children,
             "extra": self.extra,
             "icon": self.icon,
+            "ext": self.ext if self.ext is not None else default_ext(self.name, self.kind),
             "moveauth": (self.auth >> 3) & 1,
             "readauth": (self.auth >> 2) & 1,
             "writeauth": (self.auth >> 1) & 1,
@@ -57,48 +62,6 @@ class Entry:
             # 属性の値（キーはプロバイダの attributes）。size・mtime もここに入れる
             "attrs": {"size": self.size, "mtime": self.mtime, **self.attrs},
         }
-
-
-@dataclass(frozen=True)
-class OpenMethod:
-    """項目を開く経路（「ブラウザで表示」「ダウンロード」「新しいタブで開く」「別のコマンドで開く」など）。
-
-    ファイルの経路は Provider.open_methods に並べる。先頭が既定（ダブルクリック・Enter）。
-    フォルダの経路は Provider.dir_open_methods に並べる。既定（ダブルクリック・Enter）は画面が持つ
-    「中に入る」で、並べた経路はそのあとに続く（先頭にも modifier を付けてよい）。
-    modifier を付けた経路は、そのキーを押しながらのダブルクリック・Enter で使う。右クリックメニューにはすべてを並べる。"""
-
-    id: str                     # open(path, method) に渡る名前。英小文字で始まる英小文字・数字・- の 32 文字まで
-    label: str                  # 右クリックメニューに出す名前
-    modifier: str | None = None  # "shift"（押しながら開くとこの経路）か None
-
-    def to_json(self) -> dict:
-        return {"id": self.id, "label": self.label, "modifier": self.modifier}
-
-
-@dataclass
-class OpenResult:
-    """項目を開いたときに画面がすること（Provider.open が返す。Wiki「API 設計 > 開く」）。"""
-
-    action: str                # "navigate"（ページへ移る）/ "modal"（モーダルで表示する。画面は今後）/
-                               # "browse"（webFileDir の画面でフォルダを表示する）
-    url: str | None = None     # navigate の行き先。http・https か、webFileDir の画面からの相対
-    # navigate: "_blank"（新しいタブ）/ "_self"（この画面から移る）
-    # browse: "_self"（この画面で）/ "_blank"（新しいタブの webFileDir で）/ "other"（二画面のもう片方で）
-    target: str = "_blank"
-    data: dict = field(default_factory=dict)  # modal に渡す情報（JSON にできるもの）
-    mount: str | None = None   # browse で表示するフォルダのマウント（開いた項目と別のマウントでもよい）
-    path: str | None = None    # browse で表示するフォルダのパス（"/a/b"）
-    # navigate の送りかた: "GET"（url を開く）/ "POST"（画面がフォームを作って url へ送る）。ブラウザでページを開く
-    # 形で送れるのはこの 2 つだけ（PUT・DELETE などはページを開く操作としては送れない）
-    method: str = "GET"
-    # navigate で送る値 {名前: 文字列}。GET なら url のクエリに足し、POST ならフォームの本文
-    # （application/x-www-form-urlencoded）にする
-    params: dict = field(default_factory=dict)
-
-    def to_json(self) -> dict:
-        return {"action": self.action, "url": self.url, "target": self.target, "data": self.data,
-                "mount": self.mount, "path": self.path, "method": self.method, "params": self.params}
 
 
 @dataclass
@@ -122,7 +85,7 @@ def _unsupported(*_args, **_kwargs):
 
 
 class Provider(ABC):
-    # {"mkdir", "touch", "rename", "delete", "copy", "move", "stream", "trash"} の部分集合。
+    # {"mkdir", "touch", "rename", "delete", "copy", "move", "stream", "trash", "update_mtime"} の部分集合。
     # 読み取り（stat / listdir）はどのプロバイダも持つので含めない
     capabilities: frozenset[str] = frozenset()
     # 詳細表示の列に並べる属性（並べる順）。名前は含めない。使わない属性は外し、固有の属性は足す
@@ -180,16 +143,42 @@ class Provider(ABC):
         """src を dest_dir の中へ移す。同じマウントの中だけ（マウントをまたぐときは API 層が open_read / write_file で行う）。"""
         _unsupported()
 
+    def update_mtime(self, path: tuple[str, ...]) -> Entry:                 # "update_mtime"
+        """path の更新日時を今の時刻にする（既定のコマンド touch）。中身は変えない。"""
+        _unsupported()
+
+    # --- 削除の前の問い返し（capabilities に "before_delete" があるときだけ） ---
+
+    def before_delete(self, paths: list[tuple[str, ...]], answers: dict) -> "list[dict] | bool | None":
+        """既定の削除（delete・purge）を行う前に、中身を見て問い返す。paths は削除する項目（名前の組）、
+        answers はこれまでの答え（{名前: "yes" | "no"}。最初は空）。返り値:
+        - 効果のリスト（server.commands.Modal(type="yesno", answer=…) など）… 削除せず、画面に見せる。
+          はい・いいえの答えは answers.<answer> に付いて、同じ要求が届く（このメソッドをもう一度呼ぶ）
+        - True … 確かめ済み。削除する（サーバの既定の確認も出さない）
+        - False か空のリスト … 削除しない
+        - None … 問い返さない。ごみ箱の無いマウントでは、サーバが既定の確認（はい・いいえ）を出して削除する
+        capabilities に "before_delete" があると、削除・完全に削除の宣言から confirm を外す（二重に出さないため）。"""
+        return None
+
     # --- 中身の読み書き（capabilities に "stream" があるときだけ） ---
     # マウントをまたぐコピー・移動（server/ops.py の transfer_across）が使う。中身はメモリに載せきらず流す
 
     def open_read(self, path: tuple[str, ...]):
-        """ファイルの中身を読む口（read(n) を持ち、with で閉じられるもの）。フォルダなら ApiError("bad_path")。"""
+        """ファイルの中身を読むファイルオブジェクト（read(n) を持ち、with で閉じられるもの）を返す。フォルダなら ApiError("bad_path")。"""
         _unsupported()
 
-    def write_file(self, parent: tuple[str, ...], name: str, stream) -> Entry:
+    def write_file(self, parent: tuple[str, ...], name: str, stream, mtime: float | None = None) -> Entry:
         """stream（read(n) を持つもの）の中身で、新しいファイルを作る。同じ名前があれば ApiError("exists")。
-        途中で失敗したら、書きかけのファイルを残さない。"""
+        途中で失敗したら（stream の read が例外を投げたときも）、書きかけのファイルを残さない。
+        mtime（UNIX 時刻の秒）があれば、書き終えたファイルの更新日時をそれにする（アップロードで元の日時を継ぐ）。
+        更新日時を持たない構造は無視してよい。"""
+        _unsupported()
+
+    # --- 中身の置き換え（capabilities に "replace" があるときだけ。テキストの編集） ---
+
+    def replace_file(self, path: tuple[str, ...], stream) -> Entry:
+        """今あるファイルの中身を、stream（read(n) を持つもの）の中身で置き換える。フォルダなら ApiError("bad_path")。
+        途中で失敗したら、元の中身を残す（書きかけで置き換えない）。"""
         _unsupported()
 
     # --- ごみ箱（capabilities に "trash" があるときだけ） ---
@@ -222,21 +211,22 @@ class Provider(ABC):
         """ごみ箱の中身の変化を見張るための OS のパス。"""
         return None
 
-    # --- 開く ---
-    # 開く経路。空なら自動で決める: open を上書きしていれば「開く」1 つ、中身を読める（"stream"）なら
-    # 「ブラウザで表示」「ダウンロード（Shift）」、どちらでもなければ開けない（server/app.py の open_methods_of）
-    open_methods: tuple[OpenMethod, ...] = ()
-    # フォルダの開く経路（画面の既定の「中に入る」のあとに続くもの）。None なら自動で「新しいタブで開く（Shift）」
-    # 「隣の画面で開く」（API 層だけで扱い、open は呼ばない）、() なら「中に入る」だけ
-    # （server/app.py の dir_open_methods_of）
-    dir_open_methods: tuple[OpenMethod, ...] | None = None
+    # --- コマンド（Wiki「サーバ側 > プロバイダ」） ---
+    # 独自のコマンドの宣言（server.commands.Command の組）。request は常に "server"（POST commands/<id> を通り、
+    # run_command が呼ばれる）。既定のコマンドと同じ id は使えない。使える部品は prompt・confirm まで（C7）
+    commands: tuple = ()
+    # 既定のコマンドのうち、このプロバイダでは出さないものの id
+    disable_commands: frozenset = frozenset()
+    # 既定のコマンドの見せかたを変える {id: {label・icon・places・group・order・key・texts のどれか}}
+    # （2026-09-29 設計者の指示「C8 は変えられるに変更」。ファイル以外の構造でも言葉を合わせられるように）
+    command_overrides: dict = {}
 
-    def open(self, path: tuple[str, ...], method: str) -> "OpenResult | None":
-        """項目を経路 method で開いたときに画面がすること。ファイルなら open_methods の、フォルダなら
-        dir_open_methods の経路の id が来る（dir_open_methods が None のフォルダでは呼ばれない）。
-        None なら既定の扱い（ファイル: "stream" の「view」「download」は API 層が GET /api/v1/raw へ移す。
-        フォルダ: 「tab」「pane」は API 層がそのフォルダを新しいタブ・隣の画面で表示させる。それ以外は開けない）。"""
-        return None
+    def run_command(self, command_id: str, ctx) -> list[dict]:
+        """独自のコマンドを行い、画面がすること（結果の語彙。server.commands の Navigate・Browse・Modal・
+        Message・Reload で作る）のリストを返す。ctx は server.commands.CommandContext（パスは名前の組）。
+        ctx.readonly なら、このマウントは今の要求にとって読み取り専用。変更するコマンドはそのとき拒むこと。
+        誤りは ApiError で。知らない id は unsupported。"""
+        raise ApiError("unsupported", "このマウントではできない操作です")
 
     def notify_changed(self) -> None:
         """このプロバイダの中身が API の外で変わったことを知らせる（どのスレッドから呼んでもよい）。

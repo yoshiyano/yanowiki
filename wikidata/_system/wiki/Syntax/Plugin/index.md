@@ -36,6 +36,7 @@
 | [`#login`](/Syntax/Plugin/login) | ログイン・ログアウト・アカウント作成のフォームを置く |
 | [`#ls`](/Syntax/Plugin/ls) | ページの一覧（リンク付き）を差し込む |
 | [`#navi`](/Syntax/Plugin/navi) | 目次ページと子ページを行き来する送りを出す |
+| [`#mekuri`](/Syntax/Plugin/mekuri) | 中身を色で隠し、クリックでめくって見せる |
 | [`#newpage`](/Syntax/Plugin/newpage) | ページ名を入れて新しいページを作る入力欄を置く |
 | [`#note`](/Syntax/Plugin/note) | 中身を囲んで目立たせる |
 | [`#pagediv`](/Syntax/Plugin/pagediv) | いくつかのページの本文を、枠に入れて縦横に並べて差し込む |
@@ -45,6 +46,7 @@
 | [`#readauth`](/Syntax/Plugin/readauth) | そのページを閲覧できるユーザを限る |
 | [`#recent`](/Syntax/Plugin/recent) | 最近更新されたページの一覧を差し込む |
 | [`#ref`](/Syntax/Plugin/ref) | 添付ファイルを参照する |
+| [`#table`](/Syntax/Plugin/table) | セルの中を複数行で書ける表・タブ区切りの表を作る |
 | [`#viewable_period`](/Syntax/Plugin/viewable_period) | 指定した期間の外では、ページの本文を表示しない |
 | [`#vote`](/Syntax/Plugin/vote) | 簡易投票（アンケート）フォームを置く |
 | [`#writeauth`](/Syntax/Plugin/writeauth) | そのページを編集できるユーザを限る |
@@ -64,19 +66,20 @@
 | [`&img`](/Syntax/Plugin/img) | 画像を差し込む |
 | [`&katex`](/Syntax/Plugin/katex) | LaTeX数式をKaTeXで表示する |
 | [`&login`](/Syntax/Plugin/login) | いま入っている人の表示名・IDを差し込む |
+| [`&mekuri`](/Syntax/Plugin/mekuri) | 中身を色で隠し、クリックでめくって見せる |
 | [`&new`](/Syntax/Plugin/new) | 日付やページの更新が新しければ「New!」の印を付ける |
 | [`&note`](/Syntax/Plugin/note) | 中身を囲んで目立たせる |
 | [`&ref`](/Syntax/Plugin/ref) | 添付ファイルを参照する |
 | [`&ruby`](/Syntax/Plugin/ruby) | 文字にふりがな（ルビ）を振る |
 | [`&size`](/Syntax/Plugin/size) | 文字の大きさを指定する |
 
-### 記法として働くもの
+### 書きかたとして働くもの
 
 呼び出すのではなく、そのページで書きかたそのものを有効にします。
 
 | プラグイン | できること |
 |---|---|
-| [`tasklist`](/Syntax/Plugin/tasklist) | チェックリストの記法を有効にする |
+| [`tasklist`](/Syntax/Plugin/tasklist) | チェックリストの書きかたを有効にする |
 
 ### ページには書かないもの
 

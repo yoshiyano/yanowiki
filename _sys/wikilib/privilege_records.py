@@ -108,7 +108,7 @@ def path_of(wiki_dir):
     return farm_privileges_path(wiki_dir)
 
 
-# `#readauth`・`#writeauth` が描画のときに書き出す記録（`plugin/_authcommon.py`）。
+# `#readauth`・`#writeauth` が描画のときに書き出す記録（`plugin/readauth_.py`）。
 # パスの決めかたはここに置く——ファイルの形式（1行1件、parse_line/format_line）を
 # 共有しているため。書き込み・ロックの作法はプラグイン側の役目のまま
 PLUGIN_SUFFIX = ".plugin"
@@ -568,7 +568,7 @@ def matches(page_rule, pagepath):
 # プラグインの記録は描画のたびに作り直されるものなので、移し先の配下に残って
 # いる行は、前にそこにあったページの残り物として消す。
 #
-# プラグインの記録ファイルは、プラグイン（plugin/_authcommon.py）と同じく
+# プラグインの記録ファイルは、プラグイン（plugin/readauth_.py）と同じく
 # `<記録>.lock` の flock で囲んで書き換える（描画と同時に走りうるため）。
 
 

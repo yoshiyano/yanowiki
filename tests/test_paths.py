@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ページの置き場所の決まり（wikilib.paths）のテスト。
 
-**書かれたリンク先が、どのページ・どの添付ファイルを指すか**は、記法
+**書かれたリンク先が、どのページ・どの添付ファイルを指すか**は、書きかた
 （Markdown / PukiWiki）に関わらず `full_pagepath` と `resolve_link` の
 2つだけで決まる。表示（`render.rewrite_content_links`）・記録
 （`links.page_links`）・リネーム時の書き換え（`pagelinks`）が同じ答えを
@@ -12,8 +12,8 @@
 結合に使う箇所が通す関門。境界の外へ出る結合はNoneを返す（chroot相当）。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_paths.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_paths.py     （このファイルだけ）
 """
 import os
 import sys
@@ -24,8 +24,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "_sys"))
 
 from wikilib.paths import (  # noqa: E402
-    entry_subpath_of, full_pagepath, is_folder_entry, is_valid_pagepath,
-    pagepath_of_subpath, resolve_link, safe_join,
+    DEFAULT_ATTACH_LINK_EXTS, as_attach_link, entry_subpath_of, full_pagepath,
+    is_attach_name, is_folder_entry, is_valid_pagepath, pagepath_of_subpath,
+    parse_link_exts, resolve_link, safe_join,
 )
 
 
@@ -163,6 +164,114 @@ class TestResolveLink(unittest.TestCase):
         # 実在を見ないのが決まり（リンクをたどって作りにいける）
         self.assertEqual(resolve_link(self.SUBPATH, "NoSuchPage"),
                          ("page", "NoSuchPage"))
+
+
+class TestAttachLinkRule(unittest.TestCase):
+    """ページか添付ファイルかの決まり（2026-10-02）。上から順に見る。
+
+        ::名前        添付ファイル（拡張子が何でも、無くても）
+        名前/         ページ
+        名前.拡張子   拡張子が添付の一覧（attach.link_exts）にあれば添付ファイル
+        それ以外      ページ
+    """
+
+    SUBPATH = "p1/p2/page"
+
+    def test_一覧に無い拡張子の形はページ(self):
+        # 不具合のもとになった版番号。`.2` は拡張子の一覧に無い
+        self.assertEqual(resolve_link(self.SUBPATH, "ver1.2"), ("page", "ver1.2"))
+        self.assertEqual(resolve_link(self.SUBPATH, "./v2.0.1"),
+                         ("page", "p1/p2/page/v2.0.1"))
+        self.assertEqual(resolve_link(self.SUBPATH, "/ver1.2"), ("page", "ver1.2"))
+
+    def test_拡張子は大文字小文字を区別しない(self):
+        self.assertEqual(resolve_link(self.SUBPATH, "LOGO.PNG"),
+                         ("attach", "p1/p2/page/LOGO.PNG"))
+
+    def test_印を付ければどんな名前も添付ファイル(self):
+        self.assertEqual(resolve_link(self.SUBPATH, "::model.blend"),
+                         ("attach", "p1/p2/page/model.blend"))
+        self.assertEqual(resolve_link(self.SUBPATH, "::README"),
+                         ("attach", "p1/p2/page/README"))
+        self.assertEqual(resolve_link(self.SUBPATH, "::ver1.2#x"),
+                         ("attach", "p1/p2/page/ver1.2#x"))
+
+    def test_印のあとは添付の指しかたをそのまま書ける(self):
+        self.assertEqual(resolve_link(self.SUBPATH, "::../x.bin"),
+                         ("attach", "p1/p2/x.bin"))
+        self.assertEqual(resolve_link(self.SUBPATH, "::bbb/x.bin"),
+                         ("attach", "bbb/x.bin"))
+        self.assertEqual(resolve_link(self.SUBPATH, "::/bbb/x.bin"),
+                         ("attach", "bbb/x.bin"))
+        self.assertEqual(resolve_link(self.SUBPATH, "::/x.bin"),
+                         ("attach", "index/x.bin"))
+
+    def test_ファイル名の無い印は触らない(self):
+        for href in ("::", "::foo/", "::#x", "::/.attach/p/x.png", "::/=other/x.png"):
+            self.assertEqual(resolve_link(self.SUBPATH, href), ("keep", None), href)
+
+    def test_末尾のスラッシュはページ(self):
+        self.assertEqual(resolve_link(self.SUBPATH, "memo.txt/"), ("page", "memo.txt"))
+        self.assertEqual(resolve_link(self.SUBPATH, "./Node.js/"),
+                         ("page", "p1/p2/page/Node.js"))
+        self.assertEqual(resolve_link(self.SUBPATH, "/memo.txt/"), ("page", "memo.txt"))
+
+    def test_Wikiの設定の一覧で決まる(self):
+        with tempfile.TemporaryDirectory() as root:
+            wiki_dir = os.path.join(root, "w", "wiki")
+            os.makedirs(wiki_dir)
+            os.makedirs(os.path.join(root, "w", "config"))
+            with open(os.path.join(root, "w", "config", "default.yaml"), "w",
+                      encoding="utf-8") as f:
+                f.write("attach:\n  link_exts: zip blend\n")
+            self.assertEqual(resolve_link("page", "m.blend", wiki_dir),
+                             ("attach", "page/m.blend"))
+            self.assertEqual(resolve_link("page", "memo.txt", wiki_dir),
+                             ("page", "memo.txt"))
+            # 画像の拡張子は書かなくても添付（PukiWiki記法が画像として埋め込むため）
+            self.assertEqual(resolve_link("page", "a.png", wiki_dir),
+                             ("attach", "page/a.png"))
+
+
+class TestAttachLinkExts(unittest.TestCase):
+
+    def test_空白区切りでもリストでも読む(self):
+        self.assertIn("zip", parse_link_exts("zip  .PDF,txt"))
+        self.assertIn("pdf", parse_link_exts(["zip", ".PDF"]))
+
+    def test_書かれていなければ既定の一覧(self):
+        self.assertEqual(parse_link_exts(None), DEFAULT_ATTACH_LINK_EXTS)
+
+    def test_画像の拡張子は常に含む(self):
+        self.assertTrue({"png", "jpg", "svg"} <= parse_link_exts(""))
+
+    def test_既定の一覧は設定の雛形と同じ(self):
+        # 雛形（config/default.example.yaml）は設定画面に既定値として出る。
+        # paths の既定値（設定が読めない場面で使う）とずれないようにする
+        from wikilib.wikiconfig import load_config
+        self.assertEqual(parse_link_exts(load_config()["attach"]["link_exts"]),
+                         DEFAULT_ATTACH_LINK_EXTS)
+
+    def test_既定の一覧に画像の拡張子が入っている(self):
+        self.assertEqual(parse_link_exts(sorted(DEFAULT_ATTACH_LINK_EXTS)),
+                         DEFAULT_ATTACH_LINK_EXTS)
+
+    def test_名前の判定(self):
+        self.assertTrue(is_attach_name("memo.TXT", DEFAULT_ATTACH_LINK_EXTS))
+        self.assertFalse(is_attach_name("ver1.2", DEFAULT_ATTACH_LINK_EXTS))
+        self.assertFalse(is_attach_name("README", DEFAULT_ATTACH_LINK_EXTS))
+
+
+class TestAsAttachLink(unittest.TestCase):
+
+    def test_添付の書きかたにする(self):
+        self.assertEqual(as_attach_link("x.blend"), "::x.blend")
+        self.assertEqual(as_attach_link("../p/x.png"), "::../p/x.png")
+
+    def test_すでに印があるものやURLはそのまま(self):
+        for src in ("::x.zip", "https://example.com/a.png", "#x", "mailto:a@b",
+                    "/.attach/p/x.png", "/=other/x.png", ""):
+            self.assertEqual(as_attach_link(src), src, src)
 
 
 class TestFolderEntry(unittest.TestCase):

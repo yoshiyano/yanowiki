@@ -20,7 +20,7 @@
  5. all   … 中身を書かず、「全て開く／全て閉じる」ボタンを置く
  6. end   … 中身を書かず、`all` のボタンが効く範囲をここで終える
 
-書く順は自由です（`#ac(alt,h)` も `#ac(h,alt)` も同じ）。中身にはふつうの記法や
+書く順は自由です（`#ac(alt,h)` も `#ac(h,alt)` も同じ）。中身にはふつうの書きかたや
 ほかのプラグインを書けます。インライン（`&ac`）で使えるのは title・open・alt だけです。
 
 `all` のボタンは、それより後にある同じ階層の折りたたみ（次の `#ac(all)` か
@@ -90,7 +90,7 @@ PukiWiki公式のプラグインではない。書きかた（見出し・`h`・
 ## 見出しの文字
 
 本家は `convert_html()` で描いて `<p>` を外していた。ここでは見出しをインラインの
-記法として展開する（`expand_body` に `expand_inline`・`expand_plugin` を渡す。
+書きかたとして展開する（`expand_body` に `expand_inline`・`expand_plugin` を渡す。
 `&color` などが使える）。中身は `expand_block`・`expand_inline`・`expand_plugin` で
 展開済みのHTMLが届く。
 
@@ -128,7 +128,7 @@ def _new_id():
 
 
 def _title_html(title, context):
-    """見出しの文字をインラインの記法として描く。"""
+    """見出しの文字をインラインの書きかたとして描く。"""
     html = expand_body(title, _TITLE_EXPAND, context, 0, is_inline=True) or ""
     return html.strip()
 

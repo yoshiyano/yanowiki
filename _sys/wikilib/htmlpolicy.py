@@ -115,9 +115,9 @@ _TAG_NAME_RE = re.compile(r"^<(\/)?([A-Za-z][A-Za-z0-9\-]*)")
 
 
 def html_policy(config, ext):
-    """その記法での方針（none / safe / all）を返す。
+    """その書きかたでの方針（none / safe / all）を返す。
 
-    記法ごとに別の設定を見る。`.txt` は `pukiwiki.allow_html`、それ以外は
+    書きかたごとに別の設定を見る。`.txt` は `pukiwiki.allow_html`、それ以外は
     `markdown.allow_html`。**書かれていなければ none**（安全側）。
 
     YAMLの `false` は真偽値、`all` は文字列で入ってくる。`true` は
@@ -230,11 +230,11 @@ def install(engine, policy=None):
 
     生HTMLは `html_block`（かたまり）と `html_inline`（タグ1つ）の2種類の
     トークンになる。**PukiWiki側のパーサーも同じトークン型を出す**ので、
-    この2つを差し替えれば両方の記法に効く。
+    この2つを差し替えれば両方の書きかたに効く。
 
     `policy` を渡すと**そのエンジンでは常にその方針**になる（プラグインが
     自分の渡すテキストの水準を決めた場合。plugins.build_expand_renderer）。
-    渡さなければ、描画のたびにそのページの記法から決める——レンダラーは
+    渡さなければ、描画のたびにそのページの書きかたから決める——レンダラーは
     Markdown・PukiWikiの両方で使い回されるので（render.render_source）、
     取り付けるときに1つへ固定できないため。"""
 

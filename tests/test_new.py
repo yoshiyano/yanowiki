@@ -6,8 +6,8 @@
 ページを無いページと同じに扱うことを見る。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_new.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_new.py     （このファイルだけ）
 """
 import datetime
 import importlib.util

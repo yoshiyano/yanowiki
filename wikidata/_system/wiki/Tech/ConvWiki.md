@@ -1,6 +1,8 @@
 # PukiWikiのデータを移す仕組み
 
-手元のPukiWikiのページと添付ファイルから、このシステムの新しいWikiを作る道具です
+使いかたは [PukiWikiから移す](/AdminGuide/ConvWiki) にあります。このページは仕組みの説明です。
+
+手元のPukiWikiのページと添付ファイルから、このシステムの新しいWikiを作るツールです
 （`./wiki.py convwiki`、実装は `_sys/wikilib/convwiki.py`）。
 
 ```
@@ -30,7 +32,7 @@
 
 ## 本文はそのまま写す
 
-PukiWiki記法はこのシステムがそのまま読める（[記法](/Syntax/PukiWiki)）ので、文面は書き換えません。
+PukiWiki記法はこのシステムがそのまま読める（[書きかた](/Syntax/PukiWiki)）ので、文面は書き換えません。
 落とすのは、PukiWikiが本文の先頭に書き足す2行だけです（先頭にある分だけで、本文の途中は触りません）。
 
 | 落とすもの | なぜ |
@@ -39,7 +41,7 @@ PukiWiki記法はこのシステムがそのまま読める（[記法](/Syntax/P
 | `#freeze` | 凍結の印。このシステムに凍結は無い（権限で行う） |
 
 PukiWikiの設定ページ（`:config/…`。`--include-system` で写せる）、履歴（`backup/` `diff/` `counter/`
-`cache/`）、添付の旧版（`…_ファイル名.1`）、syncthingの競合ファイル（`*.sync-conflict-*`）も写しません。
+`cache/`）、添付の古いバージョン（`…_ファイル名.1`）、syncthingの競合ファイル（`*.sync-conflict-*`）も写しません。
 履歴は形式が違うので移せません。元のPukiWikiを残しておけば、そちらで読めます。
 
 ### PukiWiki付属のページは写しません
@@ -124,7 +126,7 @@ PukiWikiのページ名は、ほぼそのままページパスになります。
 | `[[TopPage]]` | `[[TopPage>/]]`（見える文字はそのまま、指し先だけトップへ） |
 | `[[トップ>TopPage]]` | `[[トップ>/]]`（[リネーム](/Tech/RenamePage)と同じ書き換え） |
 
-後者は取り込みのあとに `pagerename.fix_links`（ページの名前の変更と同じ道具）で直すので、整形済みやコードの中の
+後者は取り込みのあとに `pagerename.fix_links`（ページの名前の変更と同じツール）で直すので、整形済みやコードの中の
 `[[…]]` は触りません。プラグインの引数に書かれたページ名（`&pageaction("TopPage",…);` など）は直りません。
 
 ## PukiWikiの設定を引き継ぐ

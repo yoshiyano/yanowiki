@@ -13,6 +13,7 @@
 6. [新しいテーマを追加する](/Tech/ThemeGuide/NewTheme)
 7. [同梱しているサンプルテーマ](/Tech/ThemeGuide/SampleThemes) — fresh・bloomの書きかたの違い
 8. [自動エスケープについて](/Tech/ThemeGuide/Escaping)
+9. [スロットHTML のテーマ](/Tech/ThemeGuide/SlotTheme) — Jinja2 を通さないテーマ（試作の段階）
 
 ## ページ一覧
 

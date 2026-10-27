@@ -1,7 +1,7 @@
 # Windowsで動かす
 
-**入れたばかりの Windows 11**（PowerShell）で動かすまでの手順です。管理者権限は基本的に不要で、
-Pythonを先に入れる必要もありません。
+**インストールしたばかりの Windows 11**（PowerShell）で動かすまでの手順です。管理者権限は基本的に不要で、
+Pythonを先にインストールする必要もありません。
 
 #note(type=warn){{
 **Windowsでは常時稼働の公開（gunicorn・uWSGI・mod_wsgi）はできません**（Unix系専用）。
@@ -9,9 +9,11 @@ Pythonを先に入れる必要もありません。
 [きちんと公開したいときは](#きちんと公開したいときは) をご覧ください。
 }}
 
-## 1. git を入れる
+## 1. git をインストールする
 
-PowerShellで次を実行します（`winget` はWindows 10/11に標準で入っています）。
+Gitは、ファイルと変更履歴を管理するツールです。この手順では、システム一式の取得と更新に使います。
+
+PowerShellで次を実行します（`winget` はWindows 10/11に標準でインストールされています）。
 
 ```powershell
 winget install --id Git.Git -e --source winget
@@ -20,9 +22,9 @@ winget install --id Git.Git -e --source winget
 失敗する場合は [Git for Windows](https://git-scm.com/download/win) のインストーラーを使います
 （選択肢はすべて既定のままで構いません）。
 
-## 2. uv を入れる
+## 2. uv をインストールする
 
-Pythonと部品をまとめて用意する道具です（Python本体も uv が用意します）。
+Pythonと部品をまとめて用意するツールです（Python本体も uv が用意します）。
 
 ```powershell
 irm https://astral.sh/uv/install.ps1 | iex
@@ -40,6 +42,8 @@ uv --version
 
 ## 3. Wikiシステム一式を取得する
 
+`git clone` は、公開リポジトリ（Gitで管理されたファイル置き場）をパソコンに複製する操作です。
+
 ```powershell
 cd ~
 git clone --depth 1 https://github.com/yoshiyano/yanowiki.git wikiSystem
@@ -49,7 +53,7 @@ cd wikiSystem
 公開しているリポジトリの名前は `yanowiki` ですが、取り出すフォルダの名前は `wikiSystem` に
 しています（このあとの手順は、このフォルダ名で書いています）。
 `--depth 1` は履歴を取らない指定です（開発に参加するなら外します）。`main` が最新の公開版で、
-特定の版は `--branch v1.1` のように指定します。
+特定のバージョンは `--branch v1.1` のように指定します。
 
 ## 4. サーバの実行に必要なモジュールをそろえる
 
@@ -76,7 +80,7 @@ _venv\Scripts\python.exe wiki.py
 
 ブラウザで **`http://127.0.0.1:8619/`** を開きます（既定では自分のパソコンからだけ開けます）。
 
-- 止めるときは `Ctrl` + `C`。**PowerShellの窓を閉じても止まります**
+- 止めるときは `Ctrl` + `C`。**PowerShell のウィンドウを閉じても止まります**
 - 前に動かしたサーバが残っていれば、止めてから動き始めます
 - Ubuntu向け手順の `./wiki.py` は使えません。`_venv\Scripts\python.exe wiki.py` を使います
 
@@ -91,7 +95,7 @@ _venv\Scripts\python.exe wiki.py --host 0.0.0.0 --port 8700   # 例: 他のパ�
 ## 7. 管理者のパスワードを決める
 
 **はじめての起動で、管理者（`admin`）のパスワードを聞かれます。** 2回入れて決めます。
-Wikiを増やす画面（`/.newwiki`）を使えるのは、**既定のWiki（はじめは `_system`）の管理者と助手だけ**です。
+Wikiを増やす画面（`/.newwiki`）を使えるのは、**起点Wiki（はじめは `_system`）の管理者と助手だけ**です。
 
 あとにしたときは、サーバを止めて次を実行すると同じことができます。
 
@@ -105,8 +109,8 @@ _venv\Scripts\python.exe wiki.py initusers
 
 同梱の `_system` はこのシステムの使いかたを書いたWikiです。**編集しないでください**
 （更新すると配布元の内容に戻ります）。「ログイン」から `admin` でログインし、
-管理の窓口（`/.admin`）の **「新しいWikiを作る」** から自分のWikiをつくります
-（[新しいWikiを作る](/NewWikiGuide#新しいwikiを作る-1)）。
+ログインの画面の「管理者メニュー」のタブにある **「新しいWikiを作る」** から自分のWikiをつくります
+（[Wikiの新規作成](/AdminGuide/NewWiki#作る)）。
 
 ## 更新する
 

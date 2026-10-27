@@ -9,8 +9,8 @@
 「左から2つ・右から1つ」になっている。そこがいちばん壊れやすい。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_privilege_records.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_privilege_records.py     （このファイルだけ）
 """
 import os
 import shutil

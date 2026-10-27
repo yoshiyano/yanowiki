@@ -17,6 +17,7 @@
   --fg: #40342c;
   --muted: #9a897c;
   --border: #f0e2d6;
+  --table-border: #f0e2d6;
   --accent: #d9803f;
   --accent-soft: #fbeee2;
   --card-bg: #ffffff;
@@ -40,6 +41,7 @@
     --fg: #ece1d8;
     --muted: #a8968a;
     --border: #33291f;
+    --table-border: #33291f;
     --accent: #e79a63;
     --accent-soft: #2a2018;
     --card-bg: #211a15;
@@ -121,7 +123,10 @@ button.command.search-modal-open {
    アイコン領域（.page-header-icon）は高さ80px固定で、画像自体が
    小さくてもこの高さぶんの領域を確保し、縦中央に置く。右側の
    縦積み（.page-header-text）も同じ80pxに揃え、h1を上・TopicPathを
-   下（justify-content: space-between）に配置する。 */
+   下（justify-content: space-between）に配置する。
+   アイコン画像は高さだけを 64px に決め、横幅は画像の縦横比に応じて自由にする
+   （pukiwiki_default などロゴを出すテーマと同じ仕様。Wiki設計者の指示、
+   2026-10-13）。同梱の headicon.svg は 160×64 なので、見た目は従来と同じ。 */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -139,7 +144,7 @@ button.command.search-modal-open {
 }
 .page-header-icon img {
   display: block;
-  max-height: 100%;
+  height: 64px;
   width: auto;
 }
 .page-header-text {
@@ -148,6 +153,10 @@ button.command.search-modal-open {
   justify-content: space-between;
   height: 80px;
   min-width: 0;
+  /* 行の余りの幅を取る。取らないと、タイトルの文字の幅に縮み、タイトル右端の
+     道具置き場（info・幅の上限のボタン。common.css）が文字の直後に詰まる。
+     広げると、道具置き場は base と同じく見出しの右端（ページの顔の右端）に来る。 */
+  flex: 1 1 auto;
 }
 .page-path {
   font-size: 0.8rem;
@@ -189,6 +198,16 @@ button.command.search-modal-open {
 .subbar { grid-column: 1; grid-row: 1; }
 .content { grid-column: 2; grid-row: 1; min-width: 0; }
 
+/* 本文の幅の上限を外す（タイトル右端のボタン。common.js が <html> に
+   content-wide を付け外しする）。--content-max の値は書き換えず、これを
+   使っている3か所（ページの顔・本文・フッタの中身）の max-width を外す。
+   ページの顔を外すのは、残すとタイトルまわりだけが本文より狭いままになるため。 */
+html.content-wide .page-header,
+html.content-wide .layout,
+html.content-wide .site-footer-inner {
+  max-width: none;
+}
+
 /* .subbarの折りたたみ（帯→ドロワー）はhtml.bp-narrowerで判定するcommon.css
    側の共通処理に任せる（position: fixedになるとグリッド上の位置指定は
    意味を持たなくなる）。ここでは本文側の1カラム化だけ同じクラスで行う。 */
@@ -212,7 +231,7 @@ html.bp-narrower .content { grid-column: 1; grid-row: 1; }
   margin-bottom: 1.4rem;
   font-size: 0.9rem;
 }
-.card h1, .card h2, .card h3, .card-title {
+.card h1, .card h2, .card-title {
   font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -220,6 +239,24 @@ html.bp-narrower .content { grid-column: 1; grid-row: 1; }
   margin: 0 0 0.7rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px dashed var(--border);
+}
+/* menu1 / menu2 の見出しを段ごとに見分けられるようにする（2026-10-03）。
+   h2: アクセント色＋点線の下線 / h3: 本文色＋左の淡い線 /
+   h4: 薄い文字色の小さな太字。h3 の線をアクセント色にすると h2 より
+   目立つため、淡い枠線の色にする */
+.card h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--fg);
+  margin: 0.9rem 0 0.4rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--border);
+}
+.card h4, .card h5, .card h6 {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0.7rem 0 0.3rem;
 }
 .card ul { margin: 0; padding-left: 1.1rem; }
 .card li { padding: 0.18rem 0; }
@@ -286,10 +323,10 @@ html.bp-narrower .content { grid-column: 1; grid-row: 1; }
   border-spacing: 0;
   display: block;
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--table-border, var(--border));
   border-radius: var(--radius);
 }
-.content th, .content td { border-bottom: 1px solid var(--border); padding: 0.6rem 1rem; }
+.content th, .content td { border-bottom: 1px solid var(--table-border, var(--border)); padding: 0.6rem 1rem; }
 .content tr:last-child td { border-bottom: none; }
 .content th { background: var(--panel-bg); font-weight: 600; text-align: left; }
 .content .contains-task-list { list-style: none; padding-left: 0.4rem; }
@@ -331,7 +368,7 @@ html.bp-narrower .content { grid-column: 1; grid-row: 1; }
 .search:focus-within { border-color: var(--accent); box-shadow: var(--shadow); }
 /* 型セレクタ（input, button）は使わない。詳細度が上がり、下の
    .search-scope/.search-submit（border-left等）に負けなくなるよう
-   クラス名で直接指定する（/Tech/ChangeLog/themes/2026-08-17 参照）。 */
+   クラス名で直接指定する（/ChangeLog/Theme/2026-08-17 参照）。 */
 .search-word, .search-scope, .search-submit {
   font: inherit;
   font-size: 0.85rem;

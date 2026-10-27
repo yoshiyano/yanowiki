@@ -14,8 +14,8 @@
 判定そのものは `tests/test_pageprivilege.py` が見る。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_attachview.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_attachview.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -166,6 +166,52 @@ class TestOwnerPage(AttachViewTestBase):
         self.rule("Tech/Secret", "R", "alice")
         res, _body, _ = self.fetch("Tech/Open/logo.png", "bob")
         self.assertEqual(res.status_code, 200)
+
+
+class TestGuardHeaders(AttachViewTestBase):
+    """添付の中身を Wiki のオリジンで動かさない見出し（`attach.guard_attach_response`）。"""
+
+    def put_named(self, rel, data=b"<script>alert(1)</script>"):
+        path = os.path.join(self.work, "wikidata", FARM, "attach", rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+
+    def headers(self, rel):
+        self.put_named(rel)
+        res, _body, _ = self.fetch(rel, None)
+        self.assertEqual(res.status_code, 200, rel)
+        return res.headers
+
+    def test_種類の分からないものはoctet_stream(self):
+        h = self.headers("Tech/Open/init.el")
+        self.assertEqual(h.get("Content-Type"), "application/octet-stream")
+        self.assertEqual(h.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(h.get("Content-Security-Policy"), "sandbox")
+
+    def test_HTMLとSVGはsandboxで配る(self):
+        for rel in ("Tech/Open/page.html", "Tech/Open/pic.svg"):
+            h = self.headers(rel)
+            self.assertEqual(h.get("Content-Security-Policy"), "sandbox", rel)
+            self.assertEqual(h.get("X-Content-Type-Options"), "nosniff", rel)
+            self.assertNotIn("Content-Disposition", h, rel)
+
+    def test_画像は種類をそのままにnosniffとsandbox(self):
+        res, _body, _ = self.fetch("Tech/Open/logo.png", None)
+        self.assertEqual(res.headers.get("Content-Type"), "image/png")
+        self.assertEqual(res.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(res.headers.get("Content-Security-Policy"), "sandbox")
+
+    def test_PDFにはsandboxを付けない(self):
+        h = self.headers("Tech/Open/doc.pdf")
+        self.assertEqual(h.get("Content-Type"), "application/pdf")
+        self.assertEqual(h.get("X-Content-Type-Options"), "nosniff")
+        self.assertNotIn("Content-Security-Policy", h)
+
+    def test_404には付けない(self):
+        res, _body, _ = self.fetch("Tech/Open/none.html", None)
+        self.assertEqual(res.status_code, 404)
+        self.assertNotIn("Content-Security-Policy", res.headers)
 
 
 if __name__ == "__main__":

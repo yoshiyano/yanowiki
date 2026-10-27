@@ -25,8 +25,8 @@
 合言葉の側を確かめずに名前を信じる作りへ戻ったら、ここで落ちる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_accounts.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_accounts.py     （このファイルだけ）
 """
 import os
 import re
@@ -63,9 +63,13 @@ class AccountsTestBase(unittest.TestCase):
         # 設置ごとの合言葉は、動かしている本物ではなく作業用の場所から取る
         self.kept_secret_path = auth.SECRET_PATH
         auth.SECRET_PATH = os.path.join(self.work, "config", "secret.txt")
+        # 同じIPからの申請の数も、本物の記録ではなく作業用の場所で数える
+        self.kept_signup_log = auth.SIGNUP_LOG
+        auth.SIGNUP_LOG = os.path.join(self.work, "signup.json")
 
     def tearDown(self):
         auth.SECRET_PATH = self.kept_secret_path
+        auth.SIGNUP_LOG = self.kept_signup_log
         shutil.rmtree(self.work, ignore_errors=True)
 
     def cookies(self, uid="admin", farm="testwiki", explicit_farm=False):
@@ -125,6 +129,27 @@ class TestRememberLogin(AccountsTestBase):
     def test_別のサイトからの要求には送らない(self):
         for line in self.cookies().values():
             self.assertIn("SameSite=lax", line)
+
+    def test_HTTPSで届いたときだけSecureを付ける(self):
+        """HTTP で開いたとき（LAN の IP で `./wiki.py` を開くなど）に付けると、
+        ブラウザが cookie を送らなくなりログインできない。HTTPS のときだけ付ける。
+        Apache・nginx の後ろでは `X-Forwarded-Proto` で判定する。"""
+        import bottle
+        cases = [
+            ({"wsgi.url_scheme": "http"}, False),
+            ({"wsgi.url_scheme": "https"}, True),
+            ({"wsgi.url_scheme": "http", "HTTP_X_FORWARDED_PROTO": "https"}, True),
+            ({"wsgi.url_scheme": "http", "HTTP_X_FORWARDED_PROTO": "https, http"}, True),
+            ({"wsgi.url_scheme": "http", "HTTP_X_FORWARDED_PROTO": "http"}, False),
+        ]
+        try:
+            for environ, want in cases:
+                with self.subTest(environ=environ):
+                    bottle.request.bind(dict(environ, HTTP_HOST="example.org"))
+                    for line in self.cookies().values():
+                        self.assertEqual("Secure" in line, want, line)
+        finally:
+            bottle.request.bind({})
 
     def test_控える長さは合言葉が通る長さと同じ(self):
         for line in self.cookies().values():

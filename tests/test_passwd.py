@@ -7,8 +7,8 @@
 POSTの経路を通しておく。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_passwd.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_passwd.py     （このファイルだけ）
 """
 import io
 import os

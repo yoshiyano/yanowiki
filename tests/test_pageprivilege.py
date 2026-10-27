@@ -29,8 +29,8 @@
 素朴な参照実装と突き合わせて確かめる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pageprivilege.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pageprivilege.py     （このファイルだけ）
 """
 import os
 import random

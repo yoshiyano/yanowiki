@@ -19,8 +19,8 @@
 `wikilib.wikimark` の受け持ちで、試すのは `tests/test_wikimark.py`。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_delwiki.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_delwiki.py     （このファイルだけ）
 """
 import io as _io
 import os
@@ -165,7 +165,7 @@ class TestTarget(DelwikiBase):
         # 名前を付けずに開いたときに出るWikiを消すと、入口そのものが無くなる
         problem = delwiki.target_problem(HOME, self.config)
         self.assertIsNotNone(problem)
-        self.assertIn("既定", problem)
+        self.assertIn("起点Wiki", problem)
 
     def test_ほかのWikiは消せる(self):
         self.assertIsNone(delwiki.target_problem(TARGET, self.config))
@@ -217,7 +217,7 @@ class TestFlow(DelwikiBase):
 
     def test_既定Wikiの名前では先へ進めない(self):
         body = self.body_of(self.post(step=delwiki.STEP_NAME, name=HOME))
-        self.assertIn("既定", body)
+        self.assertIn("起点Wiki", body)
         self.assertNotIn('name="admin_pw"', body)
 
     def test_パスワードが違えば書庫も作らない(self):

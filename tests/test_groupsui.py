@@ -6,8 +6,8 @@
 3点（Wiki設計者の指示、2026-09-12）。関門は`sysui.require`、権限判断は`auth`。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_groupsui.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_groupsui.py     （このファイルだけ）
 """
 import io
 import json

@@ -1,20 +1,20 @@
 # 新しいWikiを作る仕組み
 
 `/.newwiki` から、新しいWiki（個別Wiki）を作れます。使いかたは
-[新しいWikiを作る](/NewWikiGuide) にあります。このページは実装の仕組みです。
+[Wikiの新規作成](/AdminGuide/NewWiki) にあります。このページは実装の仕組みです。
 
 ## 誰が作れるか
 
-既定Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけです。Wikiを
+起点Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけです。Wikiを
 増やすのはサービス全体に効く操作なので、[再起動](/Tech/Restart) と同じ判定
 （`wikilib.sysui.require_on_default_farm`）を、画面を組み立てる前・POSTを処理する前に
 通します。
 
-- 見るのは、いま開いているWikiではなく既定Wikiのアカウントです
-- Wiki名を含むURL（`/=<Wiki名>/.newwiki`）は、既定Wikiのものでも403です
+- 見るのは、いま開いているWikiではなく起点Wikiのアカウントです
+- Wiki名を含むURL（`/=<Wiki名>/.newwiki`）は、起点Wikiのものでも403です
 
-権限の全体像は [ページごとの権限](/Tech/PagePermissions)、既定Wikiが持つ役割のまとめは
-[設計方針](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割) にあります。
+権限の全体像は [ページごとの権限](/Tech/PagePermissions)、起点Wikiが持つ役割のまとめは
+[設計方針](/Tech/DesignPolicy/Farm#起点wikiの役割) にあります。
 
 ## 何をするか
 
@@ -23,14 +23,14 @@
 
 ```
 wikidata/<名前>/
-  wiki/       index（トップ）と mainmenu（メニュー）※既定の記法で作る
+  wiki/       index（トップ）と mainmenu（メニュー）※選んだ書きかたで作る
   attach/     README.txt
   plugin/     README.txt
   theme/      README.txt
   config/     README.txt・users.db（アカウントの記録）
               ・privileges（利用形態が free 以外のとき）
               ・default.yaml（「Wiki設定を独立させる」を選んだとき、または
-                利用形態が account.policy を書くとき）
+                利用形態・書きかた・見出しのどれかが設定を書くとき）
   log/        README.txt
   pageinfo/   README.txt
     draft/    README.txt
@@ -43,7 +43,7 @@ wikidata/<名前>/
 
 - 最初のページはトップ画面だと分かる程度の短いものです。メニューも作るので、
   作った直後からサイドバーが使えます
-- 書式は既定の記法（`DEFAULT_MARKUP`、いまは [PukiWiki記法](/Syntax/PukiWiki)）です
+- 書式は作成画面で選んだ書きかたです（下の「書きかたとサイト名」）
 - 説明ページ（`/Syntax` など）へのリンクは置きません（新しいWikiの中には無いため）
 
 作ったWikiは `/=<名前>/` で開け、作成後はそのトップページへ移ります。
@@ -96,6 +96,23 @@ wikidata/<名前>/
 - 形態1と2の違いは「ログインの入口を出すか」だけで、そこはまだ分けていません
 - `convwiki`（PukiWikiからの取り込み）と、`create_wiki` を引数なしで呼ぶ場合は `free` です
 
+## 書きかたとサイト名
+
+作成画面では、そのWikiの既定の書きかた（`edit.defaultwiki`）も選びます。初期値は共通の
+既定値（`config/default.example.yaml`）です。トップページとメニューは、選んだ書きかたの
+拡張子（`.txt`／`.md`）と書きかたで置きます（`initial_page`・`initial_menu`）。
+
+トップページの見出しを入れると、それをサイト名（`theme.site_title`）にも書きます。
+
+設定ファイルへの書きかたは `account.policy` と同じ（`write_settings`）で、雛形を写したときは
+写しの該当行だけを置き換えます。`create_wiki` を `markup` なしで呼ぶと、共通の既定値の
+書きかたで作ります。知らない書きかたなら何も作らずに断ります。
+
+次の2つは、クロコの案を設計者が承認したものです（2026-10-03）。
+
+- 独立させないWikiでは、書きかたが共通の既定値と同じなら書かずにおき、共通の既定値に追従させます
+- 見出しが空のときは、サイト名を書きません（見出しはWiki名になりますが、サイト名は共通の既定値のまま）
+
 ## 名前の決まり
 
 使えるのは半角英数字と `-` `_` で、先頭は英数字です（64文字まで）。URLの一部になり、
@@ -110,7 +127,7 @@ wikidata/<名前>/
 
 名前を組み立てたあとも、実パスが `wikidata/` の直下になるかを確かめてから作ります。
 
-## 既定のWikiにする（チェックボックス）
+## 起点Wikiにする（チェックボックス）
 
 チェックを入れて作ると、`config/server.yaml` の `farm.default` もそのWiki名へ
 書き換えます（`set_default_farm`）。`/` を開いたときに出るWikiが変わります。
@@ -121,7 +138,7 @@ wikidata/<名前>/
 - 他に1つでもWikiがある: チェックなし（使い分けている人の設定を勝手に変えないように）
 
 #note(type=warn){{
-**既定Wikiを移すと、`/.restart`・`/.newwiki`・`/.allwiki`・`/.delwiki` を使える相手も
+**起点Wikiを移すと、`/.restart`・`/.newwiki`・`/.allwiki`・`/.delwiki` を使える相手も
 移ります。** 元のWikiの管理者は、そのままでは再起動・Wikiの作成と削除・Wikiの一覧の
 どれもできなくなります。
 }}
@@ -135,11 +152,6 @@ farm:
 
 `farm.default` の書き換えは、`default:` の行だけをその場で置き換えます（YAMLとして
 読み直して書き出すと、手で付けたコメントが消えるため）。
-
-**`_` で始まるWiki（`_system` など）は、`config/server.yaml` を直接編集しない限り
-既定Wikiにできないようにする予定です**（Wiki設計者の指示、2026-09-13。未実装）。
-あわせて、新しく設置したときは起動時に用意させた新規Wikiを既定にします。`_` 付きは
-システムの見本・説明用なので、そこへ権限が乗らないようにするためです。
 
 ## Gitとの関係
 

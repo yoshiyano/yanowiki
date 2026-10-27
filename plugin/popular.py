@@ -5,7 +5,7 @@
     #popular(7, 5)       直近7日・上位5件
     #popular(7d, 5)      同上（"d"を付けて日数だと分かりやすく書ける）
     #popular(day=7, num=5)  同上（名前付きでも書ける）
-    #popular(10d, 10, Tech/ChangeLog)  Tech/ChangeLog を除いて上位10件
+    #popular(10d, 10, ChangeLog)  ChangeLog を除いて上位10件
 
  1. day … 集計する日数 (default: 30)。数字だけでも、末尾に`d`を付けても
        同じ意味（`7`でも`7d`でも「7日」）

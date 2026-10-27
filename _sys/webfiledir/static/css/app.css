@@ -262,6 +262,42 @@
 .fd-dialog-title { margin: 0 0 10px; font-size: 16px; }
 .fd-dialog-message { margin: 0 0 6px; word-break: break-all; }
 .fd-dialog-detail { margin: 0 0 6px; color: var(--fd-muted); }
+.fd-dialog-error { margin: 6px 0 0; color: var(--fd-error); }
+/* 進み具合のダイアログとステータスバーのプログレスバー（ジョブ） */
+.fd-progress { display: block; width: 100%; height: 10px; margin: 6px 0; accent-color: var(--fd-accent); }
+.fd-progress-item { min-height: 1.4em; word-break: break-all; }
+.fd-status-progress { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+.fd-status-progress progress { width: 120px; height: 8px; }
+/* テキストの編集（部品 textEdit） */
+.fd-dialog.fd-text-dialog { width: min(960px, calc(100vw - 32px)); }
+.fd-text-edit {
+  display: block; box-sizing: border-box; width: 100%; height: 60vh; margin: 8px 0; padding: 6px 8px; resize: vertical;
+  font: 13px/1.5 ui-monospace, "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK JP", monospace; tab-size: 4;
+  color: var(--fd-fg); background: var(--fd-bg); border: 1px solid var(--fd-line); border-radius: 3px; white-space: pre;
+}
+/* カーソルの位置（ボタンの左に寄せる） */
+.fd-text-pos { margin-right: auto; align-self: center; color: var(--fd-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* アップロードのダイアログ（部品 uploadDialog） */
+.fd-dialog.fd-upload-dialog { width: min(560px, calc(100vw - 32px)); }
+.fd-upload-zone {
+  margin: 10px 0; padding: 16px; border: 2px dashed var(--fd-line); border-radius: 8px; text-align: center;
+  color: var(--fd-muted);
+}
+.fd-upload-zone p { margin: 0 0 10px; }
+.fd-upload-pick { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.fd-upload-list { list-style: none; margin: 0; padding: 0; max-height: 40vh; overflow: auto; }
+.fd-upload-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--fd-line); }
+.fd-upload-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-upload-size { color: var(--fd-muted); white-space: nowrap; }
+/* 状態表示のダイアログの表（項目と値） */
+.fd-dialog-table { border-collapse: collapse; margin: 8px 0 0; width: 100%; }
+.fd-dialog-table th { text-align: left; font-weight: normal; color: var(--fd-muted); padding: 3px 12px 3px 0; white-space: nowrap; vertical-align: top; }
+.fd-dialog-table td { padding: 3px 0; word-break: break-all; }
+/* 部品 prompt（独自のコマンドが文字を入力させる）の入力欄。ダイアログの幅いっぱいに */
+.fd-prompt-input {
+  display: block; box-sizing: border-box; width: 100%; min-width: 280px; margin-top: 6px; padding: 4px 6px;
+  font: inherit; color: var(--fd-fg); background: var(--fd-bg); border: 1px solid var(--fd-line); border-radius: 3px;
+}
 .fd-dialog-choices { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
 .fd-dialog-choices .fd-button { text-align: left; }
 .fd-dialog-all { display: block; margin: 8px 0; color: var(--fd-muted); }

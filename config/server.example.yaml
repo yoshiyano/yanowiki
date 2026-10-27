@@ -9,7 +9,8 @@
 # Wikiごとに変えようがないため、この1つだけを見ます。
 # 個別Wikiの config/default.yaml に書いても効きません。
 #
-# 個別Wikiの設定（page / markdown / theme）は default.yaml のほうです。
+# 個別Wikiの設定（edit / account / attach / plugin / markdown / pukiwiki / theme）は
+# default.yaml のほうです。
 
 # trueにすると、プラグインのエラーに詳細（トレースバック）を折りたたみで表示する。
 # 起動時に --debug を付けた場合も同じ扱いになる。
@@ -24,10 +25,17 @@ server:
   prefix: ""
 
 farm:
-  # localhost/ に直接アクセスした際に表示するデフォルトのWiki名（個別Wikiの1つ）
+  # 起点Wiki。localhost/ に直接アクセスした際に表示するWiki名（個別Wikiの1つ）。
+  # Wikiの作成・削除・一覧・再起動は、このWikiの管理者と助手が行う。
   default: _system
   # 全Wikiの一覧を出すページのURL名。既定は allwiki（/.allwiki で開ける）。
   # 一覧はサーバーにどんなWikiがあるかを明かすので、見せたくない運用では
   # 空にして止められる。既定の名前で当てられたくない場合は付け替える。
   # 使えるのは英数字と - _ で、先頭は英数字（それ以外を書くと既定に戻る）。
   allwiki: allwiki
+
+update:
+  # 公開版からの更新（/.admin/update）で見に行く、GitHub の yanowiki のブランチ。
+  # 既定は main。更新の試験のときだけ、試験ブランチ（update-test など）に替える。
+  # 使えるのはブランチ名に使える文字だけで、それ以外を書くと main に戻る。
+  branch: main

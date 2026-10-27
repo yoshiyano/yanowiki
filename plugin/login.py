@@ -64,8 +64,9 @@ wikiSystem側が用意した受け口（`/Tech/LoginPlugin`、Wiki設計者の�
 
 ## 結果の読み取り
 
-戻ってきたページのURLには`?login=done|made|applied|pending|out|revoked|ng|lock`が付く
-（`applied`は承認制のWikiで申請できたとき、`pending`は承認待ちのアカウントでログインしようとしたとき）
+戻ってきたページのURLには`?login=done|made|applied|pending|closed|busy|out|revoked|ng|lock`が付く
+（`applied`は承認制のWikiで申請できたとき、`pending`は承認待ちのアカウントでログインしようとしたとき、
+`closed`・`busy`は申請を受け付けなかったとき。本体の `wikilib.auth.do_signup`）
 （`ng`には`&left=n`が付くことがある）。専用のヘルパーは無いため、
 `_convert`の中で`bottle.request.query`から直接読む（wikiSystem側に確認済み、
 2026-09-08）。ロック接近の文言は自分で組み立てず
@@ -165,8 +166,9 @@ from bottle import request
 
 from wikilib.auth import (back_page_url, current_user, do_login, do_logout,
                          do_revoke_others, do_signup, lock_warning)
-from wikilib.paths import (LOGIN_COOKIE, LOGIN_URLPATH, PASSWD_URLPATH, PLUGIN_URLPATH,
-                          wiki_cookie_name)
+from wikilib.paths import LOGIN_COOKIE, LOGIN_URLPATH, PASSWD_URLPATH, PLUGIN_URLPATH
+from wikilib.userdb import NAME_MAX
+from wikilib.web import get_wiki_cookie
 
 PLUGIN_INFO = {
     "help": "#login() / &login(id);",
@@ -205,6 +207,10 @@ def _result_notice():
         return _notice("アカウントを申請しました。管理者か助手が承認するまで、ログインできません。")
     if result == "pending":
         return _notice("このアカウントは承認待ちです。承認されるまで、ログインできません。", bad=True)
+    if result == "closed":
+        return _notice("いまは申請の受付を止めています（承認待ちの申請が多いため）。時間をおいて申請してください。", bad=True)
+    if result == "busy":
+        return _notice("申請が続いたため、受け付けませんでした。1時間ほどおいて申請してください。", bad=True)
     if result == "out":
         return _notice("ログアウトしました。")
     if result == "revoked":
@@ -269,7 +275,7 @@ def _signup_form_html(context, back, i):
   </div>
   <div class="login-row">
     <label for="login-signup-name-{i}">表示名</label>
-    <input id="login-signup-name-{i}" type="text" name="name">
+    <input id="login-signup-name-{i}" type="text" name="name" maxlength="{NAME_MAX}">
   </div>
   <div class="login-row">
     <label for="login-signup-pw-{i}">パスワード</label>
@@ -320,8 +326,8 @@ def _tabs_html(i, *pairs):
 
 def _logged_out_html(context, back, i):
     # 前に入っていたIDを初期値に出す。cookieの名前はWikiごとに分かれている
-    # （`wikilib.paths.wiki_cookie_name`）ので、そのWikiのぶんを名指しで読む。
-    uid = request.get_cookie(wiki_cookie_name(LOGIN_COOKIE, context.farm)) or ""
+    # ので、そのWikiのぶんを読む（`wikilib.web.get_wiki_cookie`）。
+    uid = get_wiki_cookie(LOGIN_COOKIE, context.farm)
     login_form = _login_form_html(context, back, uid, i)
     signup_form = _signup_form_html(context, back, i)
     return _tabs_html(i, ("ログイン", login_form), ("アカウント作成", signup_form))
@@ -378,15 +384,18 @@ _AUTH_PERIOD_NOTE = (
 
 
 def _pending_html(context, user):
-    """「承認待ち x人」の赤字。**承認できる人（管理者と助手）だけ**に、承認待ちがあるときだけ出す。
+    """「承認待ち x人」の赤字。**承認できる人**（管理者と、承認か断るかの権限
+    `approvals.approve`・`approvals.reject` を持つ助手）**だけ**に、承認待ちがあるときだけ出す。
+    権限を外した助手には出さない（押しても承認の画面は断るため）。
 
-    判定は本体の `wikilib.auth.is_staff`、人数は `wikilib.userdb.pending_users` に任せる
+    判定は本体の `wikilib.staffperms.granted_set`、人数は `wikilib.userdb.pending_users` に任せる
     （プラグイン側で「承認できるのは誰か」「承認待ちとは何か」を決め直さない）。"""
-    from wikilib.auth import is_staff
     from wikilib.paths import APPROVALS_URLPATH
+    from wikilib.staffperms import granted_set
     from wikilib.userdb import pending_users
 
-    if not is_staff(context.wiki_dir, user):
+    held = granted_set(context.wiki_dir, user)
+    if "approvals.approve" not in held and "approvals.reject" not in held:
         return ""
     waiting = len(pending_users(context.wiki_dir))
     if not waiting:
@@ -424,18 +433,21 @@ def _admin_panel_html(context, user):
     食い違う**ので、道具を足すときは `adminui.TOOLS` に1行書けば、
     `/.admin` とこのタブの両方に出る。
 
-    見た目は `accounts.css`（`acct-` のクラス）が持っている。ふつうの
-    ページに差し込むこのタブではそれが届かないので、**`/.admin` への
-    入口も添えて**、体裁が崩れていてもそちらへ行けるようにしてある。"""
-    from wikilib.adminui import ADMIN_URLPATH, admin_tools_html
+    **見た目もここでは持たない**（Wiki設計者の指示、2026-10-12）。本体の
+    一覧が、自分のCSS（`accounts.css`）を `<link>` ごと連れてくる。「開ける」
+    「権限がありません」の出し分けも、`/.admin` と同じ**本人に与えられた
+    権限**で行うため `wiki_dir` を渡す（渡さないと既定の権限になり、管理者が
+    既定と変えた助手には、実際と違う印になる）。
+
+    `/.admin`（一覧だけの画面）へのリンクは、ここには添えない（Wiki設計者の
+    指示、2026-10-12。見た目が同じになり、行き先で得られるものが無いため）。
+    `div.login-admin` は、フォームの幅を外す判定（`login.css`）の目印として残す。"""
+    from wikilib.adminui import admin_tools_html
     from wikilib.userdb import is_admin
 
-    tools = admin_tools_html(context.base_url, user, is_admin(user))
-    admin_url = escape(f"{context.base_url}/{ADMIN_URLPATH}")
-    return (f'<div class="login-admin">{tools}'
-            f'<p class="login-admin-more">'
-            f'<a href="{admin_url}">管理の窓口（/{escape(ADMIN_URLPATH)}）を開く</a>'
-            f"</p></div>")
+    tools = admin_tools_html(context.base_url, user, is_admin(user),
+                             context.wiki_dir)
+    return f'<div class="login-admin">{tools}</div>'
 
 
 def _logged_in_html(context, user, back, i):

@@ -1,7 +1,9 @@
 # サービスの再起動の仕組み
 
+使いかたは [保守と運用](/AdminGuide/Maintenance#サービスを再起動する) にあります。このページは仕組みの説明です。
+
 `/.restart` を開くと、このWikiサービスを再起動できます。ファイルを更新してから
-再起動すれば、更新を反映した状態で再開します。実行できるのは既定Wikiの管理者と
+再起動すれば、更新を反映した状態で再開します。実行できるのは起点Wikiの管理者と
 助手だけです（[下記](#誰が実行できるか)）。
 
 ## 使いかた
@@ -9,25 +11,28 @@
 | URL | 動き |
 |---|---|
 | `/.restart` | 確認の画面が出る。ボタンを押すと再起動する |
-| `/.restart?now=1` | 画面を出さず、その場で再起動する（スクリプトなどから呼ぶ用） |
+| `POST /.restart?now=1` | 画面を出さず、その場で再起動する（スクリプトなどから呼ぶ用）。GET で開くと確認の画面が出るだけ |
 
 確認の画面を挟むのは、ブラウザの先読みやリンクの巡回など、意図しないGETで
-サービスが落ちないようにするためです。画面は管理ページ共通の外枠（`sysui.page`）で
+サービスが落ちないようにするためです。`?now=1` を POST のときだけ受け付けるのも同じ理由で、
+別のサイトに置いたリンクを管理者に踏ませても再起動しません（別のサイトからの POST は
+入口で断ります。[別のサイトから送られた POST を断る](/Tech/Accounts/Login#別のサイトから送られた-post-を断る)）。画面は管理ページ共通の外枠（`sysui.page`）で
 出ます（[管理ページ](/Tech/AdminPages)）。
 
 ## 誰が実行できるか
 
-既定Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけです。
-再起動はサービス全体に効くので、Wikiがいくつあっても判定は既定Wikiのアカウントで
+起点Wiki（`config/server.yaml` の `farm.default`）の管理者と助手だけです。
+再起動はサービス全体に効くので、Wikiがいくつあっても判定は起点Wikiのアカウントで
 行います（`wikilib.sysui.require_on_default_farm`）。
 
-- **Wiki名を含むURL（`/=<Wiki名>/.restart`）は、既定Wikiのものでも403です。**
+- **Wiki名を含むURL（`/=<Wiki名>/.restart`）は、起点Wikiのものでも403です。**
   ログイン状態のcookieはWikiごとの `Path` に置いてあるので、Wiki名付きのURLも
   通すと、どのWikiのcookieが読まれるかが状況次第になるためです
 - `?now=1` も同じ判定を通ります（受け付ける関数は `serve_restart` 1つ）。
-  cookieを持たないコマンド（素の `curl` など）からは通りません
+  cookieを持たないコマンド（素の `curl` など）からは通りません。
+  コマンドから呼ぶときは、ログインの cookie を付けて `curl -X POST` で送ります
 - 同じ判定を通る画面: [`/.newwiki`](/Tech/NewWiki)・[`/.allwiki`](/Tech/Reference/Views#wikiの一覧)・
-  [`/.delwiki`](/Tech/DelWiki)。既定Wikiが持つ役割のまとめは [設計方針](/Tech/DesignPolicy/Farm#デフォルトのwikiの役割)
+  [`/.delwiki`](/Tech/DelWiki)。起点Wikiが持つ役割のまとめは [設計方針](/Tech/DesignPolicy/Farm#起点wikiの役割)
 
 権限の全体像は [ページごとの権限](/Tech/PagePermissions) にあります。
 
@@ -86,11 +91,11 @@ Apache  : WSGIScriptAlias / /path/to/wikiSystem/wiki.wsgi
 gunicorn: gunicorn --chdir /path/to/wikiSystem 'wiki:app'
 ```
 
-### 依存パッケージの入ったPythonで起動する
+### 依存パッケージをインストールしたPythonで起動する
 
 `wiki.py` を直接実行したときは、`_venv` があればそちらのPythonで自分を起動し直します
 （[設計方針](/Tech/DesignPolicy#ポータビリティ)）。import されたときはWSGIサーバごと
-置き換えてしまうので起動し直しません。WSGIサーバは依存パッケージの入ったPythonで
+置き換えてしまうので起動し直しません。WSGIサーバは依存パッケージをインストールしたPythonで
 起動してください。
 
 ```

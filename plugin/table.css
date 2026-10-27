@@ -1,0 +1,12 @@
+/* table プラグイン（plugin/table.py）の表。
+   base 系のテーマは表そのものを display:block にして横スクロールさせるが、
+   それでは width や列の % が効かないので、スクロールは外側の div で行い、
+   表は通常の表に戻す（技術資料「幅と罫線の作りかた」） */
+.content .table-plugin { overflow-x: auto; margin: 1rem 0; }
+.content .table-plugin > table { display: table; overflow: visible; margin: 0; }
+
+/* 二重線（cols の ||・行と行のあいだの ==）。3px 未満では二重に見えない */
+.content .table-plugin .table-dl { border-left: 3px double var(--table-border, var(--border, #999)); }
+.content .table-plugin .table-dr { border-right: 3px double var(--table-border, var(--border, #999)); }
+.content .table-plugin .table-dt { border-top: 3px double var(--table-border, var(--border, #999)); }
+.content .table-plugin .table-db { border-bottom: 3px double var(--table-border, var(--border, #999)); }

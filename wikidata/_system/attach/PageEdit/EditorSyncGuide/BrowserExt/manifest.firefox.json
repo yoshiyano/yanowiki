@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "wikiedit",
+  "version": "0.3.2",
+  "description": "wikiSystem の編集画面と、手元のエディタのプラグイン（wikiedit）のあいだで通信を受け渡す。",
+  "permissions": [
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "このサイトで wikiedit を使う"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wikiedit@localhost",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  }
+}

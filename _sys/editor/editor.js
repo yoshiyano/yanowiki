@@ -5,7 +5,7 @@
  * どのテーマを選んでいても編集画面が同じように動くようにするため。
  *
  * ツールバーの動きは、サーバーが渡す書式定義（MARKUP_FORMATS）だけを見て決める。
- * 記法そのもの（太字が ** なのか '' なのか等）はこのファイルには書かないので、
+ * 書きかたそのもの（太字が ** なのか '' なのか等）はこのファイルには書かないので、
  * pukiwiki記法などを追加してもこのコードは変更不要。
  *
  * 定義で使える指定（いずれか1つ）:
@@ -1090,9 +1090,28 @@ var wikiSend = (function () {
     navigate(info);
   }
 
+  // 一覧に出す名前の切り替え（自動・ファイル名・タイトル）。選んだものは
+  // localStorage に控える——編集画面はページを移るたびに丸ごと作り直されるので
+  // （JSの状態は残らない）、控えないと移るたびに「自動」へ戻ってしまう。
+  // "auto" は書きかたごとの設定（サーバーが行に埋めた listname）のまま。
+  // あとの2つは全部の行をその基準にそろえる。**並びも出している名前の順**
+  // （TreeView の sortByLabel）。
+  var LISTMODE_KEY = "wiki-edit-list-name";
+  var listModeBar = nav.querySelector(".ep-listmode");
+
+  function readListMode() {
+    var saved = null;
+    try { saved = window.localStorage.getItem(LISTMODE_KEY); } catch (e) { /* 無くても自動で動く */ }
+    return saved === "fname" || saved === "title" ? saved : "auto";
+  }
+
+  var listMode = readListMode();
+
   var tree = new WikiTreeView(box, {
     prefix: "ep",
     showIndex: box.dataset.showIndex === "1",
+    listname: listMode === "auto" ? "" : listMode,
+    sortByLabel: true,
     // 最初はいま開いているページの周りだけ開き、他は畳む（Wiki設計者の指示、2026-09-19）
     collapsed: true,
     // ファイル名とタイトルを並べて出すと幅を圧迫するので、タイトルだけ出す
@@ -1166,9 +1185,42 @@ var wikiSend = (function () {
     box.scrollTop += (r.top - c.top) - (c.height - r.height) / 2;
   }
 
-  try {
-    tree.render(JSON.parse(dataEl.textContent));
+  var treeData = null;
+
+  // 押されているボタンの印（aria-pressed）を、いまの選びかたに合わせる
+  function showListMode() {
+    if (!listModeBar) return;
+    [].forEach.call(listModeBar.querySelectorAll(".ep-listmode-btn"), function (btn) {
+      btn.setAttribute("aria-pressed", btn.dataset.mode === listMode ? "true" : "false");
+    });
+  }
+
+  // 切り替え。描き直すと行の位置が変わるので、いま編集しているページの行を
+  // 一覧の真ん中へ置き直す。開いていたフォルダはそのまま開いておく。
+  // フォーカスはボタンに残す（続けて別の選びかたを試せるように）
+  function setListMode(mode) {
+    if (mode === listMode || !treeData) return;
+    listMode = mode;
+    try { window.localStorage.setItem(LISTMODE_KEY, mode); } catch (e) { /* 控えられなくても切り替えは効く */ }
+    tree.opt.listname = mode === "auto" ? "" : mode;
+    tree.render(treeData, true);
     tree.selectSubpath(currentSubpath, false);
+    if (tree.selected) centerInScroller(tree.selected);
+    showListMode();
+  }
+
+  if (listModeBar) {
+    listModeBar.addEventListener("click", function (event) {
+      var btn = event.target.closest(".ep-listmode-btn");
+      if (btn) setListMode(btn.dataset.mode);
+    });
+  }
+
+  try {
+    treeData = JSON.parse(dataEl.textContent);
+    tree.render(treeData);
+    tree.selectSubpath(currentSubpath, false);
+    showListMode();
     // 開いた直後から矢印キーで一覧をたどれるよう、選んだ行にフォーカスして
     // おく（選ぶだけでは tabIndex が付くだけで、実際にフォーカスはしない）。
     // スクロールは自分で決めるので、フォーカスには任せない
@@ -1334,9 +1386,9 @@ var wikiSend = (function () {
     }
   }
 
-  /* ---- 記法の切り替え（ツールバー・プレビュー・保存先の拡張子） ---- */
-  // 記法はページの拡張子そのものなので、選び直すと保存先のファイル名も変わる。
-  // 本文はいっさい書き換えない（記法を移すのは書き直す作業で、システムが
+  /* ---- 書きかたの切り替え（ツールバー・プレビュー・保存先の拡張子） ---- */
+  // 書きかたはページの拡張子そのものなので、選び直すと保存先のファイル名も変わる。
+  // 本文はいっさい書き換えない（書きかたを移すのは書き直す作業で、システムが
   // 勝手に変換すると、元のとおりに戻せなくなる）。
   var markupRadios = form.querySelectorAll('input[name="markup"]');
   var toolsBox = form.querySelector(".edit-tools");
@@ -1368,7 +1420,7 @@ var wikiSend = (function () {
         toolsBox.appendChild(button);
       });
     }
-    // 新規作成のときの「保存すると作成されます（.md）」を選んだ記法に合わせる
+    // 新規作成のときの「保存すると作成されます（.md）」を選んだ書きかたに合わせる
     if (noteExt) noteExt.textContent = fmt.ext || "";
   }
 
@@ -1636,7 +1688,7 @@ var wikiSend = (function () {
     activePopoverCleanup = watchOutside(pop, button, closePopover);
   }
 
-  // ボタンは記法を切り替えるたびに作り直すので、個々にではなく
+  // ボタンは書きかたを切り替えるたびに作り直すので、個々にではなく
   // ツールバー自体で受ける（作り直しのたびに登録し直さずに済む）
   var toolbar = form.querySelector(".edit-toolbar");
   if (toolbar) {
@@ -1845,13 +1897,24 @@ var wikiSend = (function () {
     });
   }
 
+  // 本文の欄を隠しているとき（エディタと連動しているあいだ。editor.link.js）は、欄の
+  // スクロールが無いので、カーソルのある行にプレビューを合わせる。隠れた欄は幅が 0 なので、
+  // 行の位置も測らない（1字ずつ折り返した複製を組むことになり、長いページで重い）
+  function sourceHidden() { return source.clientWidth === 0; }
+  function caretLine() {
+    var n = 0, i = -1, end = source.selectionStart;
+    while ((i = source.value.indexOf("\n", i + 1)) !== -1 && i < end) n++;
+    return n;
+  }
+
   function syncPreviewScroll() {
     if (!preview || !mirror) return;
-    if (sourceLinesDirty) rebuildSourceLineOffsets();
+    var hidden = sourceHidden();
+    if (sourceLinesDirty && !hidden) rebuildSourceLineOffsets();
     var maxPreviewScroll = preview.scrollHeight - preview.clientHeight;
     if (maxPreviewScroll <= 0) return;
 
-    var lineIdx = topLineAtScrollTop(source.scrollTop);
+    var lineIdx = hidden ? caretLine() : topLineAtScrollTop(source.scrollTop);
     var targetY = null;
     var exact = false;
 
@@ -1874,7 +1937,8 @@ var wikiSend = (function () {
       // data-line を振られた要素が1つも見つからなかった（プラグイン出力だけの
       // ページ等）。文書全体に対する比率で合わせる
       var maxSourceScroll = source.scrollHeight - source.clientHeight;
-      var ratio2 = maxSourceScroll > 0 ? source.scrollTop / maxSourceScroll : 0;
+      var ratio2 = hidden ? lineIdx / Math.max(1, source.value.split("\n").length - 1)
+                 : maxSourceScroll > 0 ? source.scrollTop / maxSourceScroll : 0;
       targetY = ratio2 * preview.scrollHeight;
     } else if (exact) {
       // 厳密に対応が取れた場合は、対応位置がプレビューの上から1/3くらいに
@@ -1900,9 +1964,12 @@ var wikiSend = (function () {
     rebuildSourceLineOffsets();
 
     source.addEventListener("scroll", requestScrollSync);
+    // エディタ連動で欄を隠しているあいだ、エディタのカーソルが動いたら知らせが来る（editor.link.js）
+    source.addEventListener("wiki-editor-caret", requestScrollSync);
 
     if (window.ResizeObserver) {
       new ResizeObserver(function () {
+        if (sourceHidden()) return;   // 隠したとき。表に戻ったときに測り直す
         syncMirrorStyle();
         rebuildSourceLineOffsets();
         requestScrollSync();
@@ -1931,7 +1998,7 @@ var wikiSend = (function () {
     radio.addEventListener("change", function () {
       if (!radio.checked) return;
       useFormat(radio.value);
-      // 本文が同じでも、記法が変われば見えかたは変わる
+      // 本文が同じでも、書きかたが変われば見えかたは変わる
       lastSent = null;
       updatePreview();
     });
@@ -2073,7 +2140,7 @@ var wikiSend = (function () {
   var submitting = false;
 
   /* ---- 送信 ----
-   * **囲んでいるのはボタンだけ**（.edit-actions）。本文・origin・記法は
+   * **囲んでいるのはボタンだけ**（.edit-actions）。本文・origin・書きかたは
    * その外にあるので、押された時点でここが集めて隠し項目へ詰める
    * （Wiki設計者の指示、2026-09-01）。編集画面の全体を <form> で囲むのをやめた
    * ことで、本文のプラグインが返す <form> と入れ子にならなくなった。
@@ -2087,10 +2154,10 @@ var wikiSend = (function () {
   // `.page-editor` の外へ出る。`form.querySelector` で探していたため
   // null になり、**保存の横取りが黙って効かなくなっていた**
   // （Wiki設計者の報告、2026-09-10。iPhoneでページが消されかけた）。
-  // **この変数を `actions` と呼ばない。** 上（記法の切り替え）に、ツールバーの操作の
+  // **この変数を `actions` と呼ばない。** 上（書きかたの切り替え）に、ツールバーの操作の
   // 対応表として同じ関数の中に `var actions = {}` がある。同じ名前だと、どちらかを
   // 代入したとき他方が壊れる——2026-09-10にここを `actions` と書いたため、開いた
-  // 直後にツールバーが効かず、記法を選び直すと今度は保存が黙って失敗していた
+  // 直後にツールバーが効かず、書きかたを選び直すと今度は保存が黙って失敗していた
   // （2026-09-19に発見）。
   var actionForm = document.querySelector(".edit-actions");
   if (!actionForm) return;
@@ -2197,7 +2264,7 @@ var wikiSend = (function () {
    * 同じ（DB上の本文。サーバーが `.edit-saved` のJSONで渡してくる）。
    * 差分が空なら未変更、という1つの規則。
    *
-   * **記法の選び直しも変更として数える。** 本文が同じでも、保存すると拡張子
+   * **書きかたの選び直しも変更として数える。** 本文が同じでも、保存すると拡張子
    * （保存先のファイル）が変わるため。
    *
    * 開いた直後の状態はサーバーが決めて `disabled` を付けてある（付け外しの
@@ -2235,7 +2302,7 @@ var wikiSend = (function () {
     });
   }
   source.addEventListener("input", refreshButtons);
-  form.addEventListener("change", refreshButtons);   // 記法の選び直し
+  form.addEventListener("change", refreshButtons);   // 書きかたの選び直し
   refreshButtons();
 
   /* ---- 「履歴」タブで復元したとき ----
@@ -2270,6 +2337,26 @@ var wikiSend = (function () {
     });
   });
 
+  /* ---- 削除の確かめ（［はい］［いいえ］） ----
+   * 本文を空にした保存で使う（下の submit）。<dialog> か requestSubmit が使えない
+   * ブラウザでは、ブラウザの確認（OK・キャンセル）で代える。Esc で閉じたら［いいえ］。 */
+  var deleteDialog = document.querySelector(".edit-delete-dialog");
+  var deleteConfirmed = false;
+
+  function askDelete(question, onYes) {
+    if (!deleteDialog || !deleteDialog.showModal || !actionForm.requestSubmit) {
+      if (window.confirm(question)) onYes();
+      return;
+    }
+    deleteDialog.querySelector(".edit-delete-message").textContent = question;
+    deleteDialog.returnValue = "";
+    deleteDialog.addEventListener("close", function () {
+      if (deleteDialog.returnValue === "yes") onYes();
+    }, { once: true });
+    deleteDialog.showModal();
+    deleteDialog.querySelector(".edit-delete-no").focus();
+  }
+
   actionForm.addEventListener("submit", function (event) {
     var submitter = event.submitter;
     var action = (submitter && submitter.name === "cmd") ? submitter.value : "save";
@@ -2290,13 +2377,28 @@ var wikiSend = (function () {
 
     // **本文を空にしての保存は、ページを消す**という約束。押し間違い・
     // 画面の不調のどちらでも取り返しがつかないので、その場で確かめる
-    // （Wiki設計者の報告、2026-09-10）
-    if (action === "save" && !source.value.trim()) {
-      if (!window.confirm("本文が空です。このまま保存すると、このページを削除します。よろしいですか？")) {
-        event.preventDefault();
-        return;
-      }
+    // （Wiki設計者の報告、2026-09-10）。
+    //
+    // 添付があれば、添付の行き先（/trashbox）も知らせる（Wiki設計者の指示、
+    // 2026-10-05。文言は設計者のもの。「選択ページ」は「このページ」に読み替えた）。
+    // 添付の操作のたびに画面は開き直されるので、添付タブの行で数えてよい。
+    //
+    // 尋ねるのは［はい］［いいえ］のダイアログ（Wiki設計者の指示、2026-10-10）。
+    // 答えを待つあいだは送信を止め、［はい］なら確かめ済みの印を付けて送り直す
+    if (action === "save" && !source.value.trim() && !deleteConfirmed) {
+      var question = document.querySelector(".attach-row")
+        ? "本文が空です。このまま保存すると、添付ファイルを含むこのページを削除します。\n"
+          + "削除をすると添付ファイルは管理者グループのみアクセスできる場所へ退避され、"
+          + "後日削除されます。\nこのページを削除しますか？"
+        : "本文が空です。このまま保存すると、このページを削除します。よろしいですか？";
+      event.preventDefault();
+      askDelete(question, function () {
+        deleteConfirmed = true;
+        actionForm.requestSubmit(submitter && submitter.form === actionForm ? submitter : undefined);
+      });
+      return;
     }
+    deleteConfirmed = false;
 
     saving = true;   // 離脱の確認は出さない
     // 預け終わるのを待つあいだに Ctrl+S を押されても、二重に送らない

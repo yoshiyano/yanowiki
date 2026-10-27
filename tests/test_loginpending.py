@@ -6,8 +6,8 @@
 一般のアカウントには出さない。承認待ちが0人なら出さない。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_loginpending.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_loginpending.py     （このファイルだけ）
 """
 import importlib.util
 import os
@@ -99,6 +99,17 @@ class TestPendingCount(PendingTestBase):
         userdb.set_approved(self.wiki_dir, userdb.find_by_uid(self.wiki_dir, "w2")["uidnum"], True)
         self.assertNotIn("承認待ち", self.panel("admin"))
 
+    def test_承認の権限を外した助手には出さない(self):
+        from wikilib import staffperms
+        self.wait("w1")
+        helper = userdb.find_by_uid(self.wiki_dir, "helper")["uidnum"]
+        staffperms.save(self.wiki_dir, {helper: set(staffperms.default_set())
+                                        - {"approvals.approve", "approvals.reject"}})
+        self.assertNotIn("承認待ち", self.panel("helper"))
+        # 断る権限だけ残せば、承認の画面は開けるので出す
+        staffperms.save(self.wiki_dir, {helper: set(staffperms.default_set()) - {"approvals.approve"}})
+        self.assertIn("承認待ち 1人", self.panel("helper"))
+
     def test_赤字のCSSがある(self):
         with open(os.path.join(ROOT, "plugin", "login.css"), encoding="utf-8") as f:
             css = f.read()
@@ -122,6 +133,52 @@ class TestResultNotice(PendingTestBase):
         text = self.notice("pending")
         self.assertIn("承認待ち", text)
         self.assertIn("login-notice-error", text)
+
+
+class TestAdminTab(PendingTestBase):
+    """「管理者メニュー」のタブ。**一覧も見た目も本体のもの**で、プラグインは持たない
+    （Wiki設計者の指示、2026-10-12。「ページの二重管理にならないようにしてください」）。"""
+
+    def tab(self, uid):
+        user = userdb.find_by_uid(self.wiki_dir, uid)
+        return self.plugin._admin_panel_html(self.context, user)
+
+    def test_本体の一覧がそのまま入る(self):
+        from wikilib import adminui
+        user = userdb.find_by_uid(self.wiki_dir, "admin")
+        want = adminui.admin_tools_html("/=testwiki", user, True, self.wiki_dir)
+        self.assertIn(want, self.tab("admin"))
+
+    def test_管理の窓口へのリンクは添えない(self):
+        # Wiki設計者の指示、2026-10-12。ツールのリンク（/.admin/…）は並ぶが、
+        # 一覧だけの画面（/.admin）そのものへのリンクは無い
+        html = self.tab("admin")
+        self.assertNotIn('href="/=testwiki/.admin"', html)
+        self.assertNotIn("管理の窓口", html)
+        self.assertIn('href="/=testwiki/.admin/accounts"', html)
+
+    def test_見た目のCSSは本体のものを連れてくる(self):
+        self.assertIn('<link rel="stylesheet" href="/=testwiki/.admin/accounts.css">',
+                      self.tab("admin"))
+
+    def test_助手に与えた権限が印に反映される(self):
+        from wikilib import staffperms
+        helper = userdb.find_by_uid(self.wiki_dir, "helper")["uidnum"]
+        # 既定では、助手はアカウントの一覧を開けない（管理者だけ）
+        self.assertIn('アカウント <span class="acct-only">権限がありません</span>',
+                      self.tab("helper"))
+        staffperms.save(self.wiki_dir,
+                        {helper: set(staffperms.default_set()) | {"accounts.view"}})
+        html = self.tab("helper")
+        self.assertNotIn('アカウント <span class="acct-only">', html)
+        self.assertIn('>アカウント</a>', html)
+
+    def test_login_cssは一覧の見た目を持たない(self):
+        # 持つと、本体の accounts.css との二重管理になる
+        import re
+        with open(os.path.join(ROOT, "plugin", "login.css"), encoding="utf-8") as f:
+            css = f.read()
+        self.assertIsNone(re.search(r"\.acct", css))
 
 
 if __name__ == "__main__":

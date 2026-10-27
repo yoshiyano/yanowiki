@@ -23,8 +23,8 @@
 まま残っている**（当時は 101:無視、102:未登録）。ここで見るのはいまの意味。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_authlog.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_authlog.py     （このファイルだけ）
 """
 import os
 import shutil

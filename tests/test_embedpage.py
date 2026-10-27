@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """別のページの本文を差し込むプラグイン（`include`・`pagediv`）が共有する
-`plugin/_embedpage.py` のテスト。
+`plugin/include_.py` のテスト。
 
-見出し（`title_html`）の編集ボタンは `cmd=edit` をPOSTする `<form>` で、その
-`action` は描画の後段（`render.rewrite_content_links`）が入口を補わない。既定の
-Wiki以外で見出しを押すと、既定のWikiの同じ名前のページへ送られていた
-（2026-09-25、`pagediv` で発覚）ので、入口（`/=Wiki名`）が付くことを見る。
+見出し（ページ名）は、どちらのプラグインも**閲覧リンク**（`read_link`）だけで、
+編集ボタンは持たない（2026-10-12、Wiki設計者の指示。それまでは、編集できる閲覧者
+にだけ `cmd=edit` をPOSTする `<form>` が出ていた）。次を見る。
+
+- 編集できる閲覧者にも、閲覧リンクだけで `<form>` が出ないこと
+- 既定のWiki以外では入口（`/=Wiki名`）が付くこと（`href` は描画の後段
+  `render.rewrite_content_links` が補う）
+- ページ名の `#`・`?`・`%` がエンコードされること（そのまま書くと、別のページ・
+  クエリ・不正なエスケープになる）
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_embedpage.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_embedpage.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -30,8 +35,14 @@ from wikilib.render import parse_source, rewrite_content_links  # noqa: E402
 
 FARM = "other"
 
+# (プラグインの呼びかた, 見出しの入れ物の開きタグ)
+PLUGINS = (
+    ("#include({page})", '<h1 class="include-title">'),
+    ("#pagediv({page})", '<div class="pagediv-title">'),
+)
 
-class TestTitleFormAction(unittest.TestCase):
+
+class TestTitleLink(unittest.TestCase):
     def setUp(self):
         self.work = tempfile.mkdtemp(prefix="embedpage-")
         self.wiki_dir = os.path.join(self.work, "wikidata", FARM, "wiki")
@@ -40,7 +51,7 @@ class TestTitleFormAction(unittest.TestCase):
         self.kept = (paths.WIKIDATA_DIR, auth.SECRET_PATH)
         paths.WIKIDATA_DIR = os.path.join(self.work, "wikidata")
         auth.SECRET_PATH = os.path.join(self.work, "config", "secret.txt")
-        for name in ("Top", "資料/メモ"):
+        for name in ("Top", "資料/メモ", "C#入門", "Q?A", "100%"):
             with open(os.path.join(self.wiki_dir, name + ".txt"), "w", encoding="utf-8") as f:
                 f.write(f"{name}の本文\n")
         sync_wiki(self.wiki_dir, {})
@@ -59,31 +70,42 @@ class TestTitleFormAction(unittest.TestCase):
         html = md.renderer.render(parse_source(md, text, ".txt", env), md.options, env)
         return rewrite_content_links(html, base_url, "Top", self.wiki_dir)
 
-    def test_見出しの編集ボタンはこのWikiのページへ送る(self):
-        want = 'action="/=other/%E8%B3%87%E6%96%99/%E3%83%A1%E3%83%A2"'
-        for text in ("#pagediv(資料/メモ)", "#include(資料/メモ)"):
-            with self.subTest(text=text):
-                html = self.render(text, "/=other")
-                self.assertIn(want, html)
-                self.assertNotIn('action="/資料', html)
+    def test_見出しは閲覧リンクでこのWikiの入口が付く(self):
+        link = ('<a href="/=other/%E8%B3%87%E6%96%99/%E3%83%A1%E3%83%A2">資料/メモ</a>')
+        for call, box in PLUGINS:
+            with self.subTest(call=call):
+                html = self.render(call.format(page="資料/メモ"), "/=other")
+                self.assertIn(box + link, html)
+                self.assertNotIn("<form", html)
+                self.assertNotIn('name="cmd"', html)
 
     def test_既定のWikiでは入口が付かない(self):
-        html = self.render("#pagediv(資料/メモ)", "")
-        self.assertIn('action="/%E8%B3%87%E6%96%99/%E3%83%A1%E3%83%A2"', html)
+        link = '<a href="/%E8%B3%87%E6%96%99/%E3%83%A1%E3%83%A2">資料/メモ</a>'
+        for call, box in PLUGINS:
+            with self.subTest(call=call):
+                html = self.render(call.format(page="資料/メモ"), "")
+                self.assertIn(box + link, html)
 
-
-    def test_見出しの編集ボタンは差し込まれるページを編集できる人にだけ出す(self):
-        # 入口は権限で出し分ける（theme.show_edit は 2026-09-29 に廃止）。include は
-        # ページの情報を渡さないので、差し込まれるページ名で権限を引く
+    def test_編集できる人にも閲覧リンクだけ(self):
         from wikilib import privilege_records
-        for uid in ("alice", "bob"):
-            userdb.add_user(self.wiki_dir, uid, userdb.hash_password(self.wiki_dir, uid, "p"), uid)
+        userdb.add_user(self.wiki_dir, "bob", userdb.hash_password(self.wiki_dir, "bob", "p"), "bob")
         ok, message, _ = privilege_records.put(self.wiki_dir, "資料/メモ", "W", "bob")
         self.assertTrue(ok, message)
-        for uid, want in (("alice", False), ("bob", True)):
-            with self.subTest(uid=uid), auth.act_as(uid):
-                html = self.render("#include(資料/メモ)", "/=other")
-                self.assertEqual('name="cmd" value="edit"' in html, want, html)
+        for call, box in PLUGINS:
+            with self.subTest(call=call), auth.act_as("bob"):
+                html = self.render(call.format(page="資料/メモ"), "/=other")
+                self.assertIn(box + '<a href="', html)
+                self.assertNotIn("<form", html)
+                self.assertNotIn('name="cmd"', html)
+
+    def test_見出しのリンクはページ名の記号をエンコードする(self):
+        for name, want in (("C#入門", "C%23%E5%85%A5%E9%96%80"),
+                           ("Q?A", "Q%3FA"),
+                           ("100%", "100%25")):
+            for call, box in PLUGINS:
+                with self.subTest(name=name, call=call):
+                    html = self.render(call.format(page=name), "/=other")
+                    self.assertIn(f'{box}<a href="/=other/{want}">{name}</a>', html)
 
 
 if __name__ == "__main__":

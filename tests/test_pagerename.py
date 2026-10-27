@@ -14,8 +14,8 @@
 動かして確かめる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pagerename.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pagerename.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -81,9 +81,15 @@ class TestCheckName(unittest.TestCase):
         # 置き場所は「フォルダも変更する」で選ぶもので、名前に混ぜない
         self.assertIsNotNone(check_name("講義/第07回"))
 
-    def test_拡張子の形で終わる名前は断る(self):
-        # リンクに書いたとき添付ファイルと見分けが付かなくなる
+    def test_添付の拡張子で終わる名前は断る(self):
+        # リンクに書いたとき添付ファイルと読まれる（attach.link_exts）
         self.assertIsNotNone(check_name("メモ.txt"))
+        self.assertIsNotNone(check_name("メモ.TXT"))
+
+    def test_一覧に無い拡張子の形は通る(self):
+        # 版番号など。リンクに書いてもページと読まれる
+        self.assertIsNone(check_name("ver1.2"))
+        self.assertIsNone(check_name("v2.0.1"))
 
     def test_システムの目印で始まる名前は断る(self):
         self.assertIsNotNone(check_name(".attach"))

@@ -8,6 +8,7 @@
 
 | ページ | 内容 |
 |---|---|
+| [WebAPI](/Tech/Reference/WebAPI) | 画面から呼ばれるエンドポイント（ページへのPOST・JSON・断片）の一覧 |
 | [URLルーティング](/Tech/Reference/Routing) | URLと、それが指すファイル・画面の対応表。リンクの解決（`resolve_link`） |
 | [対象ページの特定と index の決まり](/Tech/Reference/Resolve) | URLからページの実体を決める手順、`index` の決まりの置き場所 |
 | [DBと平文の読み分け](/Tech/Reference/DataSource) | どこがDBを読み、どこが平文を読むか。保存の後始末 |
@@ -16,20 +17,20 @@
 | [名前と置き場所を変える](/Tech/Reference/Rename) | 改名・移動と、リンクの書き換えの決まり |
 | [設定ファイル](/Tech/Reference/Config) | 設定ファイルの置き場所・読み込む順番・全項目 |
 
-## 版と改訂（バージョン・リビジョン）
+## バージョンとリビジョン
 
 画面のフッタに `Powered by wikiSystem` に続けて `Ver.1.0 Rev.215` の形で出る。
 値は `wiki.py` の先頭（import より前）が持つ。
 
 | 名前 | 意味 |
 |---|---|
-| `VERSION` | 版。main で公開するときに上げる |
-| `VERSION_DATE` | その版をGitHubの `main` に初めて公開した日。改訂の数えはじめの日（いまの 1.0 は `2026-09-05`） |
+| `VERSION` | バージョン。main で公開するときに上げる |
+| `VERSION_DATE` | そのバージョンをGitHubの `main` に初めて公開した日。リビジョンの数えはじめの日（いまの 1.0 は `2026-09-05`） |
 | `REVISION` | `VERSION_DATE` の00:00:00から、いまのHEADまでの総コミット数。コミットするたびに1増やす |
 
 ```bash
-./wiki.py version           # いまの版と、次のコミットで入れるべき改訂を出す
-./wiki.py version --next    # 次の改訂だけを出す（216 のように）
+./wiki.py version           # いまのバージョンと、次のコミットで入れるべきリビジョンを出す
+./wiki.py version --next    # 次のリビジョンだけを出す（216 のように）
 ```
 
 値の受け渡しは `set_version_label()`（`wikiconfig.py`）を通し、値そのものは `wiki.py` の
@@ -63,9 +64,9 @@
 `links` の表のスキーマ、書き込まれる契機、`./wiki.py updatepage` による取り込みは
 [ページのデータベース](/Tech/PageDataBase) にあります。
 
-## プラグインの記法
+## プラグインの書きかた
 
-| 記法 | 呼ばれる関数 |
+| 書きかた | 呼ばれる関数 |
 |---|---|
 | `#name(args)` | `_convert(resolved, body, context)`（`body` は `None`） |
 | `#name(args){本文}` | `_convert(...)`（1行の本文） |

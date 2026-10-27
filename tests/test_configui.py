@@ -16,8 +16,8 @@
 控えに残る、という組み合わせで成り立っている。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_configui.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_configui.py     （このファイルだけ）
 """
 import io
 import json
@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
 
 import bottle  # noqa: E402
 
-from wikilib import auth, configui, userdb, wikiconfig  # noqa: E402
+from wikilib import auth, configui, slottheme, themes, userdb, wikiconfig  # noqa: E402
 from wikilib.paths import (  # noqa: E402
     LOGIN_AUTH_COOKIE, LOGIN_COOKIE, wiki_cookie_name,
 )
@@ -216,6 +216,15 @@ class TestValues(unittest.TestCase):
         self.assertIsNone(value)
         self.assertIn("知らない値", problem)
 
+    def test_選択肢の値は数のまま返す(self):
+        # 標準の拡大率（theme.zoom）のように、設定には数で書く選択肢がある
+        get = self.field("choice", choices=[(70, "70"), (100, "100（既定）")])
+        self.assertEqual(configui._from_text(get, "100"), (100, ""))
+        self.assertEqual(configui._to_text(get, 100), "100")
+        value, problem = configui._from_text(get, "99")
+        self.assertIsNone(value)
+        self.assertIn("知らない値", problem)
+
     def test_項目の出し入れ(self):
         data = {}
         configui._put(data, "a.b.c", 1)
@@ -271,6 +280,38 @@ class TestApplyChange(ConfigTestBase):
         self.assertIn("数を入れてください", message)
         # 元のファイルはそのまま
         self.assertEqual(wikiconfig.read_yaml(self.path)["edit"]["title_length"], 24)
+
+    def test_標準の拡大率は数で書く(self):
+        ok, _message, text = configui.apply_change(self.wiki_dir, "theme.zoom", True, "115")
+        self.assertTrue(ok)
+        self.assertEqual(text, "115")
+        self.assertEqual(wikiconfig.read_yaml(self.path), {"theme": {"zoom": 115}})
+        self.assertIn("zoom: 115\n", self.read())      # '115' と引用符を付けない
+
+    def test_標準の拡大率は選択肢の外を書かない(self):
+        self.put("theme:\n  zoom: 115\n")
+        for bad in ("999", "abc", "112"):
+            ok, message, _text = configui.apply_change(self.wiki_dir, "theme.zoom", True, bad)
+            self.assertFalse(ok, bad)
+            self.assertIn("知らない値", message)
+        self.assertEqual(wikiconfig.read_yaml(self.path)["theme"]["zoom"], 115)
+
+    def test_標準の拡大率の画面には選んだ値が選ばれている(self):
+        field = configui.fields_by_path()["theme.zoom"]
+        html = configui._field_html(field, {"theme": {"zoom": 100}}, {"theme": {"zoom": 130}})
+        self.assertIn('<option value="130" selected>130</option>', html)
+        self.assertIn('<option value="100">100（既定）</option>', html)
+        self.assertEqual(html.count(" selected"), 1)
+        # 指定が無ければ共通の設定（既定は100）が選ばれる
+        html = configui._field_html(field, {"theme": {"zoom": 100}}, {})
+        self.assertIn('<option value="100" selected>100（既定）</option>', html)
+
+    def test_標準の幅は真偽で書く(self):
+        ok, _message, text = configui.apply_change(
+            self.wiki_dir, "theme.content_wide", True, "true")
+        self.assertTrue(ok)
+        self.assertEqual(text, "true")
+        self.assertEqual(wikiconfig.read_yaml(self.path), {"theme": {"content_wide": True}})
 
     def test_知らない項目名は断る(self):
         ok, message, _text = configui.apply_change(
@@ -468,6 +509,119 @@ class TestSchema(unittest.TestCase):
                 continue
             found, _value = configui._walk(common, field["path"])
             self.assertTrue(found, f"{field['path']} が共通の設定に無い")
+
+
+class TestThemeChoice(ConfigTestBase):
+    """設定「テーマ」（`theme.name`）は、選べるテーマの一覧から選ぶ。
+
+    一覧は**テーマを選ぶセレクタと同じ検出**（`themes.list_theme_names`）。
+    提供されたテーマ（共通の theme/・slottheme/）と、このWiki専用（local）の
+    テーマの両方が並ぶ。"""
+
+    def setUp(self):
+        super().setUp()
+        root = self.work
+        self.common_theme = os.path.join(root, "theme")
+        self.common_slot = os.path.join(root, "slottheme")
+        self.local_theme = os.path.join(root, "wikidata", "testwiki", "theme")
+        for d in (self.common_theme, self.common_slot, self.local_theme):
+            os.makedirs(d)
+        # 共通の置き場所を、このテストの一時フォルダに差し替える
+        self._saved = (themes.THEME_DIR, slottheme.SLOTTHEME_DIR)
+        themes.THEME_DIR, slottheme.SLOTTHEME_DIR = self.common_theme, self.common_slot
+        self.put_theme(self.common_theme, "base.html")
+        self.put_theme(self.common_theme, "bloom/bloom.html")        # フォルダ形式
+        self.put_theme(self.common_slot, "slotty.html")              # スロットHTML
+        self.put_theme(self.local_theme, "mine.html")                # このWiki専用
+
+    def tearDown(self):
+        themes.THEME_DIR, slottheme.SLOTTHEME_DIR = self._saved
+        super().tearDown()
+
+    @staticmethod
+    def put_theme(directory, relpath):
+        path = os.path.join(directory, relpath)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("x")
+
+    def field(self):
+        return configui.fields_by_path()["theme.name"]
+
+    def names(self):
+        return [v for v, _label in configui.resolve_choices(self.field(), self.wiki_dir)["choices"]]
+
+    def test_提供されたテーマとlocalのテーマが並ぶ(self):
+        self.assertEqual(self.names(), ["base", "bloom", "mine", "slotty"])
+
+    def test_セレクタと同じ一覧(self):
+        self.assertEqual(self.names(), themes.list_theme_names(self.wiki_dir))
+
+    def test_localだけにあるテーマは他のWikiの一覧に出ない(self):
+        other = os.path.join(self.work, "wikidata", "other", "wiki")
+        os.makedirs(other)
+        self.assertNotIn("mine", [v for v, _l in configui.theme_choices(other)])
+
+    def test_同じ名前は1つにまとめる(self):
+        self.put_theme(self.local_theme, "base.html")      # 提供のテーマと同名
+        self.assertEqual(self.names().count("base"), 1)
+
+    def test_選択肢が関数でない項目はそのまま(self):
+        zoom = configui.fields_by_path()["theme.zoom"]
+        self.assertIs(configui.resolve_choices(zoom, self.wiki_dir), zoom)
+
+    def test_localのテーマ名を書ける(self):
+        ok, _message, text = configui.apply_change(self.wiki_dir, "theme.name", True, "mine")
+        self.assertTrue(ok)
+        self.assertEqual(text, "mine")
+        self.assertEqual(wikiconfig.read_yaml(self.path), {"theme": {"name": "mine"}})
+
+    def test_提供されたテーマ名を書ける(self):
+        ok, _message, text = configui.apply_change(self.wiki_dir, "theme.name", True, "bloom")
+        self.assertTrue(ok)
+        self.assertEqual(wikiconfig.read_yaml(self.path), {"theme": {"name": "bloom"}})
+
+    def test_一覧に無い名前は書かない(self):
+        self.put("theme:\n  name: mine\n")
+        for bad in ("nothing", "../theme/base", ""):
+            ok, message, _text = configui.apply_change(self.wiki_dir, "theme.name", True, bad)
+            self.assertFalse(ok, bad)
+            self.assertIn("知らない値", message)
+        self.assertEqual(wikiconfig.read_yaml(self.path)["theme"]["name"], "mine")
+
+    def test_画面の入力欄にlocalのテーマも出て_選んだ値が選ばれている(self):
+        field = configui.resolve_choices(self.field(), self.wiki_dir)
+        html = configui._field_html(field, {"theme": {"name": "base"}},
+                                    {"theme": {"name": "mine"}})
+        for name in ("base", "bloom", "mine", "slotty"):
+            self.assertIn(f'<option value="{name}"', html)
+        self.assertIn('<option value="mine" selected>mine</option>', html)
+        self.assertEqual(html.count(" selected"), 1)
+
+    def test_指定が無ければ共通の設定のテーマが選ばれる(self):
+        field = configui.resolve_choices(self.field(), self.wiki_dir)
+        html = configui._field_html(field, {"theme": {"name": "base"}}, {})
+        self.assertIn('<option value="base" selected>base</option>', html)
+
+    def test_一覧に無い値が書かれていれば_それを先頭に足して選ぶ(self):
+        # 手で書いた・テーマのフォルダを消した、など。先頭の base が選ばれて
+        # いるように見えると、いま効いている名前を見誤る
+        field = configui.resolve_choices(self.field(), self.wiki_dir)
+        html = configui._field_html(field, {"theme": {"name": "base"}},
+                                    {"theme": {"name": "gone"}})
+        self.assertIn('<option value="gone" selected>gone（一覧に無い値）</option>', html)
+        self.assertEqual(html.count(" selected"), 1)
+        self.assertLess(html.index('value="gone"'), html.index('value="base"'))
+
+    def test_設定画面の組み立てで選択肢が決まる(self):
+        # 関数のままの選択肢は、画面を組む段階で解決される
+        bottle.request.environ.clear()
+        bottle.request.environ.update({"REQUEST_METHOD": "GET", "QUERY_STRING": ""})
+        html = configui._screen_html(
+            wikiconfig.load_config(), wikiconfig.read_yaml(self.path), self.path,
+            "testwiki", "/=testwiki", configui._opening_tab(), self.wiki_dir)
+        self.assertIn('<option value="mine"', html)
+        self.assertIn('<option value="slotty"', html)
 
 
 if __name__ == "__main__":

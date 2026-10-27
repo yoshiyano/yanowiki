@@ -17,8 +17,8 @@
 判定そのもの（誰に `W`/`R`/`-` が返るか）は `tests/test_pageprivilege.py` が見る。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_editprivilege.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_editprivilege.py     （このファイルだけ）
 """
 import io
 import json
@@ -294,6 +294,37 @@ class TestSection(EditPrivilegeTestBase):
             res = editor.serve_section(self.wiki_dir, self.config(True), FARM, "Open", False)
         self.assertEqual(res.status_code, 403)
         self.assertFalse(save.called)
+
+
+class TestSectionLinkInfo(EditPrivilegeTestBase):
+    """節の取り出し（parts=1）が、外部エディタとつなぐための書きかたと添付の一覧も返すこと
+    （セクション編集の外部エディタ連動。`editor._section_link_info`）。"""
+
+    def parts(self):
+        self.login_as(None, {"REQUEST_METHOD": "GET", "QUERY_STRING": "parts=1"})
+        res = editor.serve_section(self.wiki_dir, self.config(False), FARM, "Open", False)
+        self.assertEqual(res.status_code, 200)
+        return json.loads(res.body)
+
+    def test_書きかたとURL(self):
+        page = self.parts()["page"]
+        self.assertEqual(page["markup"], "markdown")
+        self.assertEqual(page["ext"], ".md")
+        self.assertEqual(page["path"], "Open")
+        self.assertTrue(page["url"].endswith("/Open"))
+
+    def test_添付の一覧は添付タブと同じ書きかた(self):
+        from wikilib.attach import attach_dir_for
+        folder = attach_dir_for(self.wiki_dir, "Open")
+        os.makedirs(folder)
+        with open(os.path.join(folder, "memo.txt"), "w", encoding="utf-8") as f:
+            f.write("x")
+        found = self.parts()["attachments"]
+        self.assertEqual([a["name"] for a in found], ["memo.txt"])
+        self.assertEqual(found[0]["ref"], editor.attach_ref_text("memo.txt", False, ".md"))
+
+    def test_添付が無ければ空(self):
+        self.assertEqual(self.parts()["attachments"], [])
 
 
 class TestRename(EditPrivilegeTestBase):

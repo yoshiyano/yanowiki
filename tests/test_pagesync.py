@@ -10,8 +10,8 @@
 その数えかたと、書き添える1行である。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pagesync.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pagesync.py     （このファイルだけ）
 """
 import os
 import shutil

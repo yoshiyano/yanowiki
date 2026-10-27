@@ -34,7 +34,8 @@ class _Node:
 
 
 class MemoryProvider(Provider):
-    capabilities = frozenset({"mkdir", "touch", "rename", "delete", "trash", "copy", "move", "stream"})
+    capabilities = frozenset({"mkdir", "touch", "rename", "delete", "trash", "copy", "move", "stream",
+                              "update_mtime", "replace"})
 
     def __init__(self):
         self._root = _Node("dir")
@@ -135,6 +136,13 @@ class MemoryProvider(Provider):
             parent.touch()
             return self._entry(new_name, parent.children[new_name])
 
+    def update_mtime(self, path):
+        with self._lock:
+            parent, name = self._parent_and_name(path)
+            node = parent.children[name]
+            node.touch()
+            return self._entry(name, node)
+
     def delete(self, path):
         with self._lock:
             parent, name = self._parent_and_name(path)
@@ -176,7 +184,7 @@ class MemoryProvider(Provider):
                 raise ApiError("bad_path", "フォルダは中身を読めません", vpath.join(path))
             return io.BytesIO(node.data)  # 読んでいるあいだに書き換えられても、読み始めたときの中身を返す
 
-    def write_file(self, parent, name, stream):
+    def write_file(self, parent, name, stream, mtime=None):
         with self._lock:  # 先に名前を確かめる（大きな中身を読んでから断らないように）
             self._free(self._dir(parent), parent, name)
         buf = io.BytesIO()
@@ -185,7 +193,29 @@ class MemoryProvider(Provider):
             if buf.tell() > MAX_FILE_SIZE:
                 raise ApiError("forbidden", f"メモリのマウントには {MAX_FILE_SIZE // (1024 * 1024)}MB を超えるファイルを置けません",
                                vpath.join(parent + (name,)))
-        return self._create(parent, name, _Node("file", buf.getvalue()))
+        node = _Node("file", buf.getvalue())
+        if mtime is not None:
+            node.mtime = mtime
+        return self._create(parent, name, node)
+
+    def replace_file(self, path, stream):
+        with self._lock:
+            if self._node(path).kind != "file":
+                raise ApiError("bad_path", "フォルダは中身を置き換えられません", vpath.join(path))
+        buf = io.BytesIO()
+        while chunk := stream.read(1024 * 1024):
+            buf.write(chunk)
+            if buf.tell() > MAX_FILE_SIZE:
+                raise ApiError("forbidden", f"メモリのマウントには {MAX_FILE_SIZE // (1024 * 1024)}MB を超えるファイルを置けません",
+                               vpath.join(path))
+        with self._lock:  # 読んでいるあいだに消えたなら not_found
+            parent, name = self._parent_and_name(path)
+            node = parent.children[name]
+            if node.kind != "file":
+                raise ApiError("bad_path", "フォルダは中身を置き換えられません", vpath.join(path))
+            node.data = buf.getvalue()
+            node.touch()
+            return self._entry(name, node)
 
     # --- ごみ箱 ---
 

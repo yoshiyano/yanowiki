@@ -25,7 +25,7 @@
   末尾が数字でなければ今年です
 - 月に13以上を書くと翌年です（`- 14/25 模擬講義` は翌年の2月25日）
 - 期間は、月末を越えて翌月へ続けられます（`- 1/30-33` は1月30日〜2月2日。60日目まで）
-- 予定の文字には、その予定表のページと同じ記法（太字・色・リンクなど）が使えます
+- 予定の文字には、その予定表のページと同じ書きかた（太字・色・リンクなど）が使えます
 - `::` のあとに書いた文字は、マウスを重ねたときに出る説明（ツールチップ）になります。
   説明の中の `\\n` は改行です
 
@@ -58,10 +58,10 @@ Wiki設計者の手元にあった独自プラグイン `calendar3.inc.php`（`~
   ツールチップは `title` 属性へエスケープして入れる
 
 表示の部分は、本家が `convert_html()` で描いてから外側の `<p>` を外していた。
-ここでは**予定表のページと同じ記法**で描き（`render_source`。予定表のページを
+ここでは**予定表のページと同じ書きかた**で描き（`render_source`。予定表のページを
 描いているのと同じ `PluginContext` なので、リンクや添付の裸の名前は予定表の
 ページを基準に解ける）、外側の `<p>` を1つだけ外す。使われたプラグインの資材は
-呼び出し元へ合流させる（`_embedpage.render` と同じ）。
+呼び出し元へ合流させる（`include_.render` と同じ）。
 
 ## 閲覧の権限
 
@@ -76,7 +76,7 @@ Wiki設計者の手元にあった独自プラグイン `calendar3.inc.php`（`~
 を取りに行く。`_action` がカレンダーの表だけを返す）。
 
 リンクの `href` は、他のカレンダーと同じく**このページを問い合わせ付きで開き直す
-URL**にしてある（`_calendar.nav_url`）。JavaScriptが動かない環境でも前後の月へ
+URL**にしてある（`calendar_.nav_url`）。JavaScriptが動かない環境でも前後の月へ
 移れる。`page` は `href` を組み立て直すための、カレンダーを置いたページ名。
 
 ## 出力
@@ -116,8 +116,8 @@ _OUTER_P_RE = re.compile(r"^\s*<p>(.*)</p>\s*$", re.S)
 
 
 def _load_common():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_calendar.py")
-    spec = importlib.util.spec_from_file_location("wikiplugin__calendar", path)
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calendar_.py")
+    spec = importlib.util.spec_from_file_location("wikiplugin_calendar_", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

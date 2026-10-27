@@ -22,15 +22,3 @@
 }
 .include-title a { text-decoration: none; }
 .include-title a:hover { text-decoration: underline; }
-.include-title form { display: contents; }
-.include-title button {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-decoration: none;
-}
-.include-title button:hover { text-decoration: underline; }

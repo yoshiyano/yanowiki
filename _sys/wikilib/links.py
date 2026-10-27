@@ -15,7 +15,7 @@ owner, filename)`）。位置（文字オフセット）ではなく文字列を
 だけを持てば足りるからである（rewrite_links がリライトのたびに resolve_link
 を呼ばずに済む）。
 
-拾うのは**本文の記法として書かれたリンク**（`pagelinks.link_spans`）と、
+拾うのは**本文の書きかたとして書かれたリンク**（`pagelinks.link_spans`）と、
 **`PLUGIN_INFO["args"]` で `"link": True` と宣言された引数の値**
 （`plugin_arg_links`）。プラグインの引数はプラグインごとに形が違うため、
 「この引数はページ/添付への参照だ」と宣言されたものだけを拾う（宣言が
@@ -31,7 +31,7 @@ owner, filename)`）。位置（文字オフセット）ではなく文字列を
 from wikilib import pagedb
 from wikilib.paths import pagepath_of_subpath
 from wikilib.pagelinks import link_spans, resolve_href
-from wikilib.plugins import bind_plugin_args, parse_plugin_args
+from wikilib.plugins import bind_plugin_args, link_arg_href, parse_plugin_args
 from wikilib.render import build_toc, parse_source, split_title, uses_title_heading
 
 
@@ -87,17 +87,18 @@ def plugin_arg_links(tokens, registry, subpath, wiki_dir=None, interwiki=None):
         if entry is None or entry.get("error"):
             continue
         schema = (entry.get("info") or {}).get("args") or ()
-        link_names = [item["name"] for item in schema if item.get("link")]
-        if not link_names:
+        link_items = [item for item in schema if item.get("link")]
+        if not link_items:
             continue
         args, kwargs = parse_plugin_args(meta.get("args") or "")
         resolved, err = bind_plugin_args(args, kwargs, schema)
         if err is not None:
             continue
-        for name in link_names:
-            href = resolved.get(name)
+        for item in link_items:
+            href = resolved.get(item["name"])
             if not isinstance(href, str) or not href.strip():
                 continue
+            href = link_arg_href(item, href)
             resolved_link = resolve_href(subpath, href, wiki_dir, interwiki)
             if resolved_link is None:
                 continue

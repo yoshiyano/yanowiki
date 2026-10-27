@@ -14,6 +14,8 @@ def _action(context):
 別のWikiを明示している場合は `/=sandbox/.plugin/<名前>` のようにWiki名が付きます。
 `_action` を持たないプラグインや存在しない名前は `no page`（404）です。
 
+別のサイトのページから送られた POST は、`_action` へ届く前に本体が 403 で断ります（[ログインの仕組み](/Tech/Accounts/Login) の「別のサイトから送られた POST を断る」）。同じ Wiki の画面からの送信（フォーム・`fetch`）は、そのまま届きます。
+
 クエリは `from bottle import request` で読みます（`ls` の読み込みAPIの例）。
 
 ```python

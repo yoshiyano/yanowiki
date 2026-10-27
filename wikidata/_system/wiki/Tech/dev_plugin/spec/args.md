@@ -74,7 +74,7 @@ PLUGIN_INFO = {
 
 ```python
 "args": [
-    {"name": "src", "num_order": 1, "link": True},
+    {"name": "src", "num_order": 1, "link": "attach"},
     {"name": "size", "default": None, "candidate": [(SIZE_PATTERN, "re")], "label": "大きさ"},
     {"name": "align", "default": "LEFT", "candidate": ["LEFT", "CENTER", "RIGHT"], "label": "寄せ"},
     {"name": "wrap", "flag": True, "default": False, "label": "枠"},

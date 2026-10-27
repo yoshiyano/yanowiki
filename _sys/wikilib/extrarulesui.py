@@ -440,7 +440,7 @@ def _kind_html(kind, title, help_html, entries, editable):
                placeholder="置換文字列" spellcheck="false" autocomplete="off"
                aria-label="追加する置換文字列"{disabled}>
         <span class="wcfg-rx-tools">
-          <button type="button" data-act="try" title="この下書きを、保存せずに試験欄で試す"{disabled}>試す</button>
+          <button type="button" data-act="try" title="この下書きを、保存せずにテスト欄で試す"{disabled}>試す</button>
           <button type="button" data-act="add"{disabled}>追加</button>
         </span>
         <span class="wcfg-said" role="status"></span>
@@ -491,12 +491,12 @@ def panel_html(wiki_dir, opening_key, key):
       <strong>上のものが優先</strong>されます。書き込みは直したその場です。</p>
     <div class="wcfg-rx" data-sample="{escape(DEFAULT_SAMPLE)}">
       <section class="wcfg-rx-test">
-        <h3>試験</h3>
+        <h3>テスト</h3>
         <p class="wcfg-help">文章を入れると、いま効いている定義を掛けた結果が出ます。
           下の「試す」で、<strong>まだ保存していない下書き</strong>のルールも
           いっしょに試せます。</p>
         <textarea class="wcfg-rx-text" rows="3" maxlength="{TEXT_LIMIT}"
-                  spellcheck="false" aria-label="試験する文章">{escape(DEFAULT_SAMPLE)}</textarea>
+                  spellcheck="false" aria-label="テストする文章">{escape(DEFAULT_SAMPLE)}</textarea>
         <div class="wcfg-rx-testbar">
           <button type="button" data-act="test">試す</button>
           <span class="wcfg-said" data-role="test-said" role="status"></span>

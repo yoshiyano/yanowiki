@@ -10,8 +10,8 @@
 tests/test_section.py にある。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_conflict.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_conflict.py     （このファイルだけ）
 """
 import os
 import shutil

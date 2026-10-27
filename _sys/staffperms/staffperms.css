@@ -1,0 +1,176 @@
+/* staffperms.css — /.admin/staffperms（助手の権限）の表。
+ *
+ * 色は var(--…, 既定値) の形で書く。共通の外枠（_sys/sysui/shell.css）が同じ名前の
+ * 変数を定めているので、明暗はOSの設定に従う。共通の acct- のクラス（accounts.css）の
+ * うえに、この画面だけの表の形を足す。 */
+
+.staffperms .sp-notes {
+  margin: 0.5em 0 1em;
+  padding-left: 1.4em;
+}
+
+.staffperms .sp-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+}
+
+.staffperms .sp-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: auto;
+  min-width: 100%;
+  margin: 0;
+}
+
+.staffperms .sp-table th,
+.staffperms .sp-table td {
+  padding: 0.35em 0.7em;
+  border-bottom: 1px solid var(--table-border, var(--border, #d0d7de));
+  vertical-align: middle;
+}
+
+/* 一番左の「機能」の列は、横にスクロールしても見えるように固定する */
+.staffperms .sp-table .sp-func {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 18em;
+  max-width: 28em;
+  text-align: left;
+  font-weight: normal;
+  white-space: normal;
+  background: var(--bg, #fff);
+}
+
+.staffperms .sp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel-bg, #f6f8fa);
+  color: var(--muted, #57606a);
+  font-weight: 600;
+  text-align: center;
+}
+
+.staffperms .sp-table thead .sp-func {
+  z-index: 3;
+  text-align: left;
+}
+
+.staffperms .sp-default,
+.staffperms .sp-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.staffperms .sp-default {
+  color: var(--muted, #57606a);
+  background: var(--panel-bg, #f6f8fa);
+}
+
+.staffperms .sp-on {
+  color: var(--accent, #0969da);
+  font-weight: 600;
+}
+
+.staffperms .sp-off {
+  color: var(--muted, #57606a);
+}
+
+/* 助手の列の見出し（ID・名前・既定に戻す） */
+.staffperms .sp-user {
+  min-width: 7em;
+  white-space: nowrap;
+}
+
+.staffperms .sp-user .sp-name {
+  display: block;
+  font-size: 0.85em;
+  font-weight: normal;
+}
+
+.staffperms .sp-reset {
+  margin-top: 0.3em;
+  padding: 0.1em 0.5em;
+  font-size: 0.8em;
+  font-weight: normal;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: var(--fg, #1f2328);
+  cursor: pointer;
+}
+
+.staffperms .sp-reset:hover {
+  border-color: var(--accent, #0969da);
+}
+
+/* 画面ごとの見出しの行 */
+.staffperms .sp-group th {
+  position: static;
+  padding: 0.5em 0.7em;
+  text-align: left;
+  background: var(--panel-bg, #f6f8fa);
+  color: var(--fg, #1f2328);
+  font-weight: 600;
+}
+
+.staffperms .sp-url {
+  margin-left: 0.5em;
+  font-size: 0.85em;
+  font-weight: normal;
+  font-family: ui-monospace, monospace;
+}
+
+/* 前提のある操作は字下げする */
+.staffperms .sp-dep .sp-func {
+  padding-left: 2.2em;
+}
+
+.staffperms .sp-dep .sp-func::before {
+  content: "└";
+  margin-left: -1.2em;
+  margin-right: 0.3em;
+  color: var(--muted, #57606a);
+}
+
+.staffperms .sp-warn {
+  display: block;
+  margin-top: 0.15em;
+  font-size: 0.85em;
+  color: var(--muted, #57606a);
+}
+
+.staffperms .sp-warn-mark {
+  display: inline-block;
+  margin-right: 0.4em;
+  padding: 0 0.4em;
+  font-size: 0.85em;
+  border: 1px solid #bf8700;
+  border-radius: var(--radius, 6px);
+  color: #9a6700;
+}
+
+@media (prefers-color-scheme: dark) {
+  .staffperms .sp-warn-mark {
+    border-color: #d29922;
+    color: #d29922;
+  }
+}
+
+/* 既定と違う・保存していない変更のあるセル */
+.staffperms .sp-cell.sp-changed {
+  background: color-mix(in srgb, var(--accent, #0969da) 18%, transparent);
+}
+
+.staffperms .sp-cell input[type="checkbox"] {
+  width: 1.15em;
+  height: 1.15em;
+  cursor: pointer;
+}
+
+.staffperms .sp-actions {
+  margin-top: 1em;
+}

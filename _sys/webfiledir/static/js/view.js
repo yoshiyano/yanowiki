@@ -3,12 +3,13 @@
 // （ふだんは名前、ごみ箱では ID。同じ名前のものを何度も消せるため）。
 //
 // 選択（Wiki「画面設計 > 選択」）: クリック・Ctrl・Shift・ラバーバンド・Ctrl+A・矢印キー。規則は selection.js。
-// 名前の変更: 項目の上に入力欄を開く。**入力しているあいだは描き直さない**（位置が動かないように）。
+// 名前の入力欄（部品 inlineEdit。runner.js が名前の変更などのコマンドで使う）: 項目の上に入力欄を開く。
+// **入力しているあいだは描き直さない**（位置が動かないように）。
 
 import { h, icon } from "./dom.js";
-import { splitExt } from "./filetypes.js";
+import { stemLength } from "./filetypes.js";
 import { attributeText } from "./attributes.js";
-import { attributesOf, canPutInto, currentMount, enabled } from "./model.js";
+import { attributesOf, canPutInto, currentMount } from "./model.js";
 import { entryIcon } from "./icons.js";
 import { effectiveSort } from "./sort.js";
 import { isCutPath } from "./clipboard.js";
@@ -60,7 +61,7 @@ export function createView(store, actions) {
         ...(droppable ? { dropMount: loc.mount, dropPath: path, dropDenied: canPutInto(entry) ? null : "1" } : {}),
       },
       // ごみ箱の中からは持ち出せない。名前の入力中も動かさない
-      draggable: normal && s.editing !== entry.key && enabled(s, "dnd") ? "true" : null,
+      draggable: normal && s.editing !== entry.key ? "true" : null,
       "aria-selected": String(selected),
       role: "option",
       onclick: (e) => {
@@ -82,7 +83,7 @@ export function createView(store, actions) {
   }
 
   function nameFor(entry, s) {
-    if (s.editing === entry.key) return renameInput(entry);
+    if (s.editing === entry.key) return renameInput(entry, s.editValue, s.editSelect);
     return h("span", { class: "fd-item-name" }, entry.name);
   }
 
@@ -90,22 +91,22 @@ export function createView(store, actions) {
 
   let editingRendered = null; // 入力欄を描いた項目の key
 
-  function renameInput(entry) {
+  function renameInput(entry, value = entry.name, select = "stem") {
     editingRendered = entry.key;
     let busy = false;
     let finished = false;
     const input = h("input", {
-      class: "fd-rename", type: "text", value: entry.name, spellcheck: "false", "aria-label": "新しい名前",
+      class: "fd-rename", type: "text", value, spellcheck: "false", "aria-label": "新しい名前",
     });
     const selectStem = () => {
-      // ファイルは拡張子の手前まで、フォルダは全部を選んだ状態で入る（エクスプローラーと同じ）
-      const { stem } = splitExt(entry.name, entry.kind);
-      input.setSelectionRange(0, entry.kind === "dir" ? entry.name.length : stem.length);
+      // "stem" なら、ファイルは拡張子（サーバが決めた entry.ext）の手前まで、フォルダは全部を選んだ状態で入る
+      input.setSelectionRange(0, select === "stem" ? stemLength(input.value, entry) : input.value.length);
     };
     const commit = async () => {
       if (busy || finished) return;
       busy = true;
-      const ok = await actions.commitRename(entry, input.value);
+      // 実行役へ渡す。入力を終えてよければ true、誤り（同じ名前がある など）なら開いたまま false
+      const ok = await actions.submitEdit(input.value);
       busy = false;
       if (ok) {
         finished = true;
@@ -123,7 +124,7 @@ export function createView(store, actions) {
       } else if (e.key === "Escape") {
         e.preventDefault();
         finished = true;
-        actions.cancelRename();
+        actions.cancelEdit();
       }
     });
     input.addEventListener("blur", () => {

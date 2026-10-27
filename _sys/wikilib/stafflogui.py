@@ -1,12 +1,14 @@
-"""助手の操作の記録を確かめる画面（`/.admin/stafflog`。**管理者だけ**。Wiki設計者の
+"""助手の操作の記録を確かめる画面（`/.admin/stafflog`。**既定は管理者だけ**。Wiki設計者の
 指示、2026-09-26）。記録は `wikilib.stafflog`、戻しかたは `wikilib.staffundo`。
 
     /.admin/stafflog              一覧（新しい順。?actor=<ID> で助手を絞る、?page=2 で次へ）
     /.admin/stafflog?id=<番号>    1件の詳細（操作の前と後）。戻せるものは「元に戻す」
     POST id=<番号>                元に戻す
 
-管理者だけにしてあるのは、記録に**操作の前後の中身**（ページの本文・設定・
-アカウントの行）が入り、戻す操作は助手自身の作業を取り消すものだから。
+管理者だけを既定にしてあるのは、記録に**操作の前後の中身**（ページの本文・設定・
+アカウントの行）が入り、戻す操作は助手自身の作業を取り消すものだから。管理者が
+`/.admin/staffperms` で許せば、助手も見られる（`stafflog.view`）・戻せる
+（`stafflog.undo`）。許された助手には、**ほかの助手の操作も**見える・戻せる。
 """
 import datetime
 import difflib
@@ -25,8 +27,8 @@ TITLE = "助手の操作の記録"
 
 
 def render_stafflog(wiki_dir, config, farm, explicit_farm):
-    denied = sysui.require(wiki_dir, config, farm, explicit_farm,
-                           STAFFLOG_URLPATH, auth.ADMIN_ONLY)
+    denied = sysui.require_perm(wiki_dir, config, farm, explicit_farm,
+                                STAFFLOG_URLPATH, "stafflog.view")
     if denied is not None:
         return denied
     base = make_plugin_context(config, farm, wiki_dir, STAFFLOG_URLPATH,
@@ -37,14 +39,18 @@ def render_stafflog(wiki_dir, config, farm, explicit_farm):
     entry_id = request.forms.get("id") if request.method == "POST" else request.query.get("id")
     if request.method == "POST" and entry_id:
         user = auth.current_user(wiki_dir, farm)
-        ok, message = staffundo.undo(wiki_dir, config, farm, entry_id, user["uid"])
+        if auth.can(wiki_dir, farm, "stafflog.undo"):
+            ok, message = staffundo.undo(wiki_dir, config, farm, entry_id, user["uid"])
+        else:
+            ok, message = False, "元に戻す権限がありません。"
         cls = "acct-notice" if ok else "acct-notice acct-notice-error"
         notice = f'<div class="{cls}" role="status">{escape(message)}</div>'
 
     if entry_id:
         entry = stafflog.get(wiki_dir, entry_id)
-        body = notice + (_detail_html(entry, here, wiki_dir) if entry is not None
-                         else "<p>その記録はありません。</p>")
+        body = notice + (_detail_html(entry, here, wiki_dir,
+                                      auth.can(wiki_dir, farm, "stafflog.undo"))
+                         if entry is not None else "<p>その記録はありません。</p>")
     else:
         body = _list_html(wiki_dir, here)
     return sysui.page(wiki_dir, config, farm, explicit_farm, STAFFLOG_URLPATH, TITLE,
@@ -137,7 +143,7 @@ def _diff_html(before, after):
     return '<pre class="stafflog-diff">' + escape("\n".join(lines)) + "</pre>"
 
 
-def _detail_html(entry, here, wiki_dir):
+def _detail_html(entry, here, wiki_dir, can_undo=True):
     rows = [
         ("日時", _time(entry["unixtime"])),
         ("助手", escape(entry["actor_uid"])),
@@ -150,7 +156,7 @@ def _detail_html(entry, here, wiki_dir):
         rows.append(("戻したときの結果", escape(entry["undo_note"])))
     table = "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in rows)
     action = ""
-    if staffundo.undoable(entry):
+    if staffundo.undoable(entry) and can_undo:
         action = (f'<form method="post" action="{escape(here)}" style="margin: 1em 0">'
                   f'<input type="hidden" name="id" value="{entry["id"]}">'
                   '<button type="submit" class="acct-go">元に戻す</button> '

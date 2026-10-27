@@ -15,8 +15,8 @@
 サーバーは立てず、一時ディレクトリにテーマの置き場所だけを作って確かめる。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_themes.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_themes.py     （このファイルだけ）
 """
 import os
 import sys
@@ -128,6 +128,80 @@ class TestListThemeNames(ThemeDirsFixture):
         os.rmdir(self.local)
         self.put(self.common, "base.html")
         self.assertEqual(themes.list_theme_names(self.wiki_dir), ["base"])
+
+
+class TestSearchTemplatePlace(unittest.TestCase):
+    """検索結果のテンプレートは**テーマではない**ので、theme/ ではなく _sys/search/ に置く。
+
+    theme/ に置くとテーマとして数えられ、セレクタや設定「テーマ」で選べてしまう
+    （選ぶと自分自身への継承で描けない）。"""
+
+    def test_共通のtheme_に置かない(self):
+        self.assertFalse(os.path.exists(os.path.join(themes.THEME_DIR, "search.html")))
+
+    def test_本体の置き場所にある(self):
+        from wikilib.paths import SEARCH_DIR, SEARCH_TEMPLATE, SEARCH_TEMPLATE_PREFIX
+        self.assertTrue(SEARCH_TEMPLATE.startswith(SEARCH_TEMPLATE_PREFIX + "/"))
+        rest = SEARCH_TEMPLATE[len(SEARCH_TEMPLATE_PREFIX) + 1:]
+        self.assertTrue(os.path.isfile(os.path.join(SEARCH_DIR, rest)))
+
+    def test_テーマの一覧に出ない(self):
+        from wikilib.paths import farm_wiki_dir
+        self.assertNotIn("search", themes.list_theme_names(farm_wiki_dir("_system")))
+
+
+class TestDefaultZoom(unittest.TestCase):
+    """`theme.zoom`（標準の拡大率）。**手書きの設定でも、common.js が受け付ける範囲に収める。**"""
+
+    def zoom(self, value):
+        return themes.default_zoom({"theme": {"zoom": value}})
+
+    def test_未設定は100(self):
+        self.assertEqual(themes.default_zoom({}), 100)
+        self.assertEqual(themes.default_zoom({"theme": None}), 100)
+        self.assertEqual(themes.default_zoom({"theme": {"name": "base"}}), 100)
+
+    def test_数はそのまま(self):
+        self.assertEqual(self.zoom(115), 115)
+        self.assertEqual(self.zoom(70), 70)
+        self.assertEqual(self.zoom(112.5), 112.5)
+        self.assertEqual(self.zoom(130.0), 130)
+        self.assertIsInstance(self.zoom(130.0), int)    # テーマが 130.0 と出さない
+
+    def test_範囲は10から400まで(self):
+        self.assertEqual(self.zoom(10), 10)
+        self.assertEqual(self.zoom(400), 400)
+        for out in (5, 9.9, 400.1, 999, 0, -50):
+            self.assertEqual(self.zoom(out), 100, out)
+
+    def test_数でないものは100(self):
+        for bad in ("abc", "", None, True, False, [115], {"a": 1}, float("nan"), float("inf")):
+            self.assertEqual(self.zoom(bad), 100, repr(bad))
+
+    def test_数字の文字列は数として読む(self):
+        self.assertEqual(self.zoom("115"), 115)
+        self.assertEqual(self.zoom(" 130 "), 130)
+        self.assertEqual(self.zoom("999"), 100)
+
+
+class TestDefaultContentWide(unittest.TestCase):
+    """`theme.content_wide`（本文の幅の上限を標準で外すか）。"""
+
+    def wide(self, value):
+        return themes.default_content_wide({"theme": {"content_wide": value}})
+
+    def test_未設定は偽(self):
+        self.assertFalse(themes.default_content_wide({}))
+        self.assertFalse(themes.default_content_wide({"theme": None}))
+
+    def test_真偽(self):
+        self.assertTrue(self.wide(True))
+        self.assertFalse(self.wide(False))
+
+    def test_文字列の書きかたの揺れは_他の真偽の設定と同じに読む(self):
+        self.assertTrue(self.wide("true"))
+        for off in ("false", "no", "off", "0"):
+            self.assertFalse(self.wide(off), off)
 
 
 if __name__ == "__main__":

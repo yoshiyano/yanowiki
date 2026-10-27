@@ -9,8 +9,8 @@
 一覧から丸ごと消える**（`#ls()` で実際に起きた。Wiki設計者の指示、2026-09-05）。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_pagedb.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_pagedb.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -124,7 +124,7 @@ class TestPageChildren(PageChildrenTestBase):
 
 
 class TestUpdatedStamp(PageChildrenTestBase):
-    """`updated`（最終更新日時）は、本文か記法が変わったときだけ進む。
+    """`updated`（最終更新日時）は、本文か書きかたが変わったときだけ進む。
 
     同じ中身を入れ直すたびに進めると、`updatepage --force` の全ページの取り込み直しで
     どのページも取り込んだ時刻になり、「最新の更新」が並んでしまった（2026-09-29）。"""
@@ -157,7 +157,7 @@ class TestUpdatedStamp(PageChildrenTestBase):
         self.assertEqual(pagedb.load_page(self.wiki_dir, "P")["updated"],
                          pagedb.stamp_of(1_500_000_000))
 
-    def test_記法が変われば進む(self):
+    def test_書きかたが変われば進む(self):
         first = self.record("本文\n", now=1_000_000_000)
         os.remove(os.path.join(self.wiki_dir, "P.txt"))
         self.assertNotEqual(self.record("本文\n", ext=".md", now=1_000_086_400), first)

@@ -14,7 +14,10 @@ from pathlib import Path
 # これ以外の種類は、利用する側が create_app(providers=...) で差し込む（Wiki「プロバイダの作りかた」）。
 # 種類が実在するかは、プロバイダを組み立てるとき（server/app.py の build_mounts）に確かめる
 BUILTIN_PROVIDER_TYPES = frozenset({"local", "memory"})
-MOUNT_COMMON_KEYS = frozenset({"id", "type", "readonly", "label"})
+# disable・commands はコマンドを止める・見せかたを変える設定（Wiki「サーバ側 > コマンドを止める」「既定のコマンドを変える」）
+MOUNT_COMMON_KEYS = frozenset({"id", "type", "readonly", "label", "disable", "commands", "samples"})
+# 見本のコマンド（ダイアログ・プログレスバーの出力例）。[[mount]] の samples に書いたマウントにだけ出す
+SAMPLE_COMMANDS = frozenset({"duplicate", "trim", "touch", "numbering", "timer"})
 DEFAULT_LABEL = "(root)"  # label を書かないマウントの表示名
 
 # マウント名は URL のハッシュ（#/<mount>/...）と API の引数に載るので、使える文字を限る
@@ -37,6 +40,12 @@ class MountConfig:
     label: str = ""
     # 差し込んだ種類に固有の設定（共通の項目以外すべて）。組み込みの種類では空。検査はプロバイダを作る関数が行う
     options: dict = field(default_factory=dict)
+    # 出さないコマンドの id。id が実在するかは、コマンドを組み立てるとき（server/app.py）に確かめる
+    disable: tuple[str, ...] = ()
+    # コマンドの見せかたを変える {id: {label・icon・places・group・order・key・texts}}（同上）
+    commands: dict = field(default_factory=dict)
+    # 出す見本のコマンドの id（SAMPLE_COMMANDS のどれか）。書かなければ出さない
+    samples: tuple[str, ...] = ()
 
     @property
     def trash_dir(self) -> Path:
@@ -49,6 +58,10 @@ class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8616
     allowed_origins: tuple[str, ...] = ()
+    # アップロード（Wiki「サーバ側 > アップロード」）。1 ファイルの大きさの上限（バイト。None なら上限なし）と、
+    # 受け付けない拡張子（小文字・"." なし。名前の末尾が ".拡張子" なら断る。"tar.gz" のようにも書ける）
+    max_upload_size: int | None = None
+    upload_deny_exts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -88,7 +101,7 @@ def parse_config(data: dict) -> Config:
 def _parse_server(s) -> ServerConfig:
     if not isinstance(s, dict):
         raise ConfigError("[server] は表（テーブル）で書いてください")
-    _reject_unknown(s, {"host", "port", "allowed_origins"}, "[server]")
+    _reject_unknown(s, {"host", "port", "allowed_origins", "max_upload_size", "upload_deny_exts"}, "[server]")
     host = s.get("host", ServerConfig.host)
     port = s.get("port", ServerConfig.port)
     origins = s.get("allowed_origins", [])
@@ -99,7 +112,14 @@ def _parse_server(s) -> ServerConfig:
         raise ConfigError("[server] port は 1〜65535 の整数にしてください")
     if not isinstance(origins, list) or not all(isinstance(o, str) for o in origins):
         raise ConfigError("[server] allowed_origins は文字列の配列にしてください")
-    return ServerConfig(host=host, port=port, allowed_origins=tuple(origins))
+    max_upload = s.get("max_upload_size")
+    if max_upload is not None and (isinstance(max_upload, bool) or not isinstance(max_upload, int) or max_upload < 1):
+        raise ConfigError("[server] max_upload_size は 1 以上の整数（バイト）にしてください")
+    deny = s.get("upload_deny_exts", [])
+    if not isinstance(deny, list) or not all(isinstance(x, str) and x.strip(".") and "/" not in x for x in deny):
+        raise ConfigError("[server] upload_deny_exts は拡張子（\"php\"・\"tar.gz\" など）の配列にしてください")
+    return ServerConfig(host=host, port=port, allowed_origins=tuple(origins), max_upload_size=max_upload,
+                        upload_deny_exts=tuple(x.strip(".").lower() for x in deny))
 
 
 def _parse_mount(m, index: int) -> MountConfig:
@@ -142,8 +162,20 @@ def _parse_mount(m, index: int) -> MountConfig:
     if not isinstance(label, str):
         raise ConfigError(f"{where}: label は文字列にしてください")
 
+    disable = m.get("disable", [])
+    if not isinstance(disable, list) or not all(isinstance(x, str) and x for x in disable):
+        raise ConfigError(f"{where}: disable はコマンドの id（文字列）の配列にしてください")
+    commands = m.get("commands", {})
+    if not isinstance(commands, dict) or not all(isinstance(v, dict) for v in commands.values()):
+        raise ConfigError(f"{where}: commands は [mount.commands.<id>] の表で書いてください")
+
+    samples = m.get("samples", [])
+    if not isinstance(samples, list) or not all(isinstance(x, str) for x in samples) \
+            or set(samples) - SAMPLE_COMMANDS:
+        raise ConfigError(f"{where}: samples は見本のコマンドの id（{', '.join(sorted(SAMPLE_COMMANDS))}）の配列にしてください")
+
     return MountConfig(id=mid, type=mtype, root=root, readonly=readonly, trash=trash, label=label,
-                       options=options)
+                       options=options, disable=tuple(disable), commands=commands, samples=tuple(samples))
 
 
 def _abs_path(value, what: str) -> Path:

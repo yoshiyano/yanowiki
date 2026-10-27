@@ -157,7 +157,7 @@ def list_attachments(wiki_dir, subpath, base_url):
 
     `url` には内容バージョン `?v=<int(st_mtime * 10)>`（100ミリ秒刻み）を
     付ける。これは編集画面の添付タブ専用の対策で（この関数の呼び出し元は
-    build_attach_panel_html だけ）、本文の記法や描画済みページの `<img>` には
+    build_attach_panel_html だけ）、本文の書きかたや描画済みページの `<img>` には
     影響しない。
 
     狙いは「同じ名前で貼り直したとき、マウスオーバーのサムネイルが古いまま
@@ -482,6 +482,44 @@ def attach_not_found():
                         content_type="text/plain; charset=utf-8")
 
 
+# 種類が分からない添付の Content-Type。付けないと bottle の既定（text/html）で配られる
+ATTACH_UNKNOWN_TYPE = "application/octet-stream"
+# `Content-Security-Policy: sandbox` を付けない種類。ブラウザの PDF の表示が、
+# sandbox の下では開かない（Chrome は「ブロックされました」になる）。PDF の中の
+# スクリプトは PDF の表示の中で動き、Wiki のオリジンでは動かない
+ATTACH_NO_SANDBOX_TYPES = ("application/pdf",)
+
+
+def guard_attach_response(response):
+    """添付を配る応答に、**添付の中身を Wiki のオリジンで動かさない**ための見出しを付ける。
+
+    添付は書き手なら誰でも置ける。HTML や SVG のスクリプトが Wiki と同じオリジンで動くと、
+    リンクを開いた人（管理者を含む）の権限で操作されてしまう。そこで:
+
+    - 種類の分からないもの（`.el` など）は `application/octet-stream`（`ATTACH_UNKNOWN_TYPE`）
+    - `X-Content-Type-Options: nosniff`（中身から種類を推し量らせない）
+    - `Content-Security-Policy: sandbox`。HTML・SVG はそのまま表示できるが、スクリプトは
+      動かず、オリジンも Wiki と別扱いになる。ページに `<img>` で貼った画像には影響しない。
+      PDF だけは付けない（`ATTACH_NO_SANDBOX_TYPES`）
+
+    ダウンロードさせる（`Content-Disposition: attachment`）案もあったが、HTML・SVG の添付を
+    画面で見られなくなるので採らなかった（クロコの実装例。設計者は未確認）。
+
+    **`sandbox allow-scripts` には緩めない**（Wiki設計者の判断、2026-10-19「厳しい形のままでOK」）。
+    オリジンは別のままでも、スクリプトで偽のログイン画面を作って入力を盗めるため。
+    添付の HTML のスクリプトは動かない（PluginDev_Tutorial.html のような添付も含めて）。"""
+    if response.status_code >= 400:
+        return response
+    content_type = response.headers.get("Content-Type")
+    if not content_type:
+        response.set_header("Content-Type", ATTACH_UNKNOWN_TYPE)
+        content_type = ATTACH_UNKNOWN_TYPE
+    response.set_header("X-Content-Type-Options", "nosniff")
+    if content_type.split(";")[0].strip().lower() not in ATTACH_NO_SANDBOX_TYPES:
+        response.set_header("Content-Security-Policy", "sandbox")
+    return response
+
+
 def serve_attach(wiki_dir, config, farm, relpath, explicit_farm):
     """添付ファイルを配信する。置き場所はページのパスをそのままミラーする
     （例: ページ "data/file" の添付は attach/data/file/img.zip、"index.md" 自体の
@@ -498,6 +536,7 @@ def serve_attach(wiki_dir, config, farm, relpath, explicit_farm):
         return attach_not_found()
     directory, filename = os.path.split(real_target)
     response = static_file(filename, root=directory)
+    guard_attach_response(response)
     # 304（ブラウザ側キャッシュの再検証。実際には転送していない）はログの
     # 対象外にする。これを含めると、同じ画像を貼ったページを開き直すたびに
     # 「新規アクセス」が積み重なってしまうため（本文はrender_page側にキャッシュの

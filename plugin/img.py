@@ -62,13 +62,13 @@ r""" 技術資料
 本家から変更している点で、他のPukiWiki移植プラグインの「完全互換」方針とは
 別枠）。
 
-## src の "タイトル>リンク" 記法
+## src の "タイトル>リンク" の書きかた
 
 PukiWikiのブラケットリンク `[[タイトル>リンク先]]` と同じ書きかたを
 `src`引数に採用した。`>` があれば手前をタイトル、後ろを実際のsrcとして
 分ける（`_split_title()`）。
 
-**`"link": True` はsrc全体（タイトルを含む生の文字列）に対して働く。**
+**`"link": "attach"` はsrc全体（タイトルを含む生の文字列）に対して働く。**
 `wikilib.links.plugin_arg_links` は宣言だけを見てプラグインを実行せずに
 値を取り出すため、`タイトル>src` のうち`src`だけを取り出すこの
 プラグイン固有の分割ルールまでは知らない。そのため、**タイトル付きで
@@ -369,7 +369,7 @@ import re
 from html import escape
 
 from wikilib.attach import attach_dir_for
-from wikilib.paths import resolve_link, resolve_page_ref
+from wikilib.paths import as_attach_link, resolve_link, resolve_page_ref
 from wikilib.plugins import PluginArgumentError
 
 SHOW_IMAGE = True  # 本家PLUGIN_IMG_SHOW_IMAGE相当。falseで外部/添付画像をリンクだけの表示にする
@@ -397,7 +397,7 @@ PLUGIN_INFO = {
     "expand_inline": True,
     "expand_plugin": True,
     "args": [
-        {"name": "src", "num_order": 1, "default": "", "link": True},
+        {"name": "src", "num_order": 1, "default": "", "link": "attach"},
         {"name": "float", "candidate": FLOAT_CANDIDATES, "default": None, "label": "回り込み"},
         {"name": "makelink", "candidate": ["true", "false", "nolink"], "default": "true", "label": "リンク作成"},
         {"name": "zoom", "default": None, "label": "大きさ"},
@@ -476,7 +476,11 @@ def _parse_zoom(zoom):
 
 def _resolve(src, context):
     """(実在するか, urlとして埋め込む値) を返す。urlは書かれた値そのまま
-    （/.attach/... への書き換えは rewrite_content_links に任せる）。"""
+    （/.attach/... への書き換えは rewrite_content_links に任せる）。
+
+    src は添付ファイルかURLしか取らないので、`::` を付けた形で読み、埋め込む
+    （拡張子が添付の一覧に無いファイルもページと読まれないようにする）。"""
+    src = as_attach_link(src)
     ref = resolve_page_ref(context.wiki_dir, context.page or "")
     kind, target = resolve_link(ref.subpath, src, context.wiki_dir)
     if kind == "keep":

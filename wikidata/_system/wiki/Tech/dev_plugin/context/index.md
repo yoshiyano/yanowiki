@@ -6,10 +6,11 @@
 |---|---|
 | `context.config` | そのWikiに効いている設定（共通の既定値 `config/default.example.yaml` に個別Wikiのものを重ねたもの） |
 | `context.farm` | Wiki名 |
-| `context.page` | ページパス |
+| `context.page` | いま描いている本文のページパス。**メニュー（`mainmenu` など）の中では、メニューページ自身**（見ているページではない。2026-10-05。`#contents`・`#login`・`#newpage`・`./` 付きの相対指定などは、メニューの中ではメニューページが基準になる） |
+| `context.in_menu` | メニューページを描いているときだけ `True`。`page` がメニューページ自身になるので、ふつうのプラグインは見なくてよい（本文とメニューが同じページ名になるとき、状態を別に数えたいものが見分けるための印） |
 | `context.base_url` | URL接頭辞（`=Wiki名/` の明示・`server.prefix` を含む） |
 | `context.explicit_farm` | URLで `=Wiki名` が明示されていたか |
-| `context.ext` | いま描いているページの拡張子（`.md` / `.txt`）。記法の見分けに使う |
+| `context.ext` | いま描いているページの拡張子（`.md` / `.txt`）。書きかたの見分けに使う |
 | `context.wiki_dir` | そのWikiのページ置き場の絶対パス |
 | `context.partial` | 部分プレビュー中か |
 | `context.debug` | エラー詳細を表示する設定か |

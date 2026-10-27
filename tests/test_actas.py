@@ -14,8 +14,8 @@
   - ページの表示・添付の配信も、成り代わった相手の権限で判定する
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_actas.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_actas.py     （このファイルだけ）
 """
 import os
 import shutil
@@ -147,6 +147,49 @@ class TestCurrentUid(ActAsTestBase):
             f"{wiki_cookie_name(LOGIN_COOKIE, FARM)}=$sys; "
             f"{wiki_cookie_name(LOGIN_AUTH_COOKIE, FARM)}=anything")
         self.assertIsNone(self.uid())
+
+
+class TestFixViewer(ActAsTestBase):
+    """閲覧者の固定（auth.fix_viewer。webFileDir のジョブのように別のスレッドで続ける処理向け）。"""
+
+    def in_thread(self, context):
+        """文脈を写して別のスレッドで閲覧者を問い合わせる。"""
+        got = {}
+
+        def run():
+            # 別のスレッドには bottle の要求が結び付いていない（cookie を読みに行くと例外に
+            # なる）。固定が効いていれば要求に触れずに返る
+            got["uid"] = self.uid()
+
+        thread = threading.Thread(target=context.run, args=(run,))
+        thread.start()
+        thread.join()
+        return got["uid"]
+
+    def test_固定した閲覧者を別のスレッドで読める(self):
+        import contextvars
+        self.login_as("alice")
+        with auth.fix_viewer(self.uid()):
+            context = contextvars.copy_context()
+        self.assertEqual(self.in_thread(context), "alice")
+
+    def test_未ログインも固定できる(self):
+        import contextvars
+        self.login_as("alice")
+        with auth.fix_viewer(None):
+            self.assertIsNone(self.uid())   # cookie があっても固定した値を使う
+            context = contextvars.copy_context()
+        self.assertIsNone(self.in_thread(context))
+        self.assertEqual(self.uid(), "alice")   # 抜けたら cookie に戻る
+
+    def test_成り代わりのほうが強い(self):
+        with auth.fix_viewer("alice"), act_as(SYSTEM_UID):
+            self.assertEqual(self.uid(), SYSTEM_UID)
+
+    def test_名前の形を確かめる(self):
+        with self.assertRaises(ValueError):
+            with auth.fix_viewer("$sys"):
+                pass
 
 
 class TestSystemPrivilege(ActAsTestBase):

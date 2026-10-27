@@ -14,6 +14,7 @@
   --fg: #1f2a24;
   --muted: #6b7d73;
   --border: #dbe7e0;
+  --table-border: #dbe7e0;
   --accent: #2f8f5b;
   --panel-bg: #f4faf6;
   /* 元は#f2f7f4（B>Rで、わずかに青寄りに見えていた）。R>Bにして緑寄りに寄せた */
@@ -35,6 +36,7 @@
     --fg: #dfe9e3;
     --muted: #91a79b;
     --border: #26332c;
+    --table-border: #26332c;
     --accent: #5fc98c;
     --panel-bg: #161f1a;
     --code-bg: #16211a;
@@ -83,6 +85,32 @@ body {
   border-bottom: 2px solid var(--accent);
 }
 
+/* ---- タイトル右端の道具置き場（info・幅の上限のボタン）は、ヘッダの右上に固定する ----
+   （Wiki設計者の指示 2026-10-12。同日、隙間を詰めて検索などをその下へ回り込ませる指示）。
+   common.css は見出しの右端へ浮かべるが、fresh の見出しは文字の幅に縮むので、そのままでは
+   ページごとにタイトルの長さで位置が動き、文字の直後に詰まる。ヘッダは sticky
+   （位置指定あり）で、絶対配置の基準になる。top・right は、ヘッダの上・右の余白
+   （.site-header の padding）に合わせてある。
+
+   道具置き場は、ヘッダの右上の細い帯（高さ 1.2rem）に詰めて置く。common.css の
+   既定（高さは見出しの1行ぶん、ボタンの幅 1.4em、間隔 0.5rem）だと、info と矢印の
+   間が大きく空くため。帯の下にコマンド群（検索など）が来る：コマンド群は
+   align-items: flex-end でヘッダの下端に揃い、高さ（約 30px）は、ヘッダの中身の
+   高さ（約 46px）から帯の高さ（約 17px）を引いた余りに収まる。右の余白を広げる
+   必要はなく、検索の右端と矢印の右端がそのまま揃う。幅が足りずコマンド群が
+   2行目へ折り返すときも、帯は1行目の右上に残り、重ならない。 */
+.site-header .page-title-tools {
+  position: absolute;
+  top: 0.55rem;
+  right: 1.4rem;
+  height: 1.2rem;
+}
+.site-header .page-title-tools > * { margin-left: 0.3rem; }
+.site-header .content-width-toggle {
+  width: 1.1rem;
+  height: 100%;
+}
+
 /* ---- レイアウト: サイドバーを右へ ---- */
 .layout {
   grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
@@ -109,7 +137,7 @@ body {
   padding: 0;
   margin-bottom: 1.8rem;
 }
-.panel h1, .panel h2, .panel h3, .panel-title {
+.panel h1, .panel h2, .panel-title {
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -117,6 +145,30 @@ body {
   border-bottom: none;
   padding-bottom: 0.2rem;
   margin: 0 0 0.4rem;
+}
+/* menu1 / menu2 の見出しを段ごとに見分けられるようにする（2026-10-03）。
+   h2: 字間を空けた文字＋アクセント色の下線 / h3: 本文色＋左の灰色の線 /
+   h4: 本文色の小さな太字。base.css の .panel h2〜h4 を上書きする。
+   h2 だけアクセント色を使い、h3 より目立たせる（目次の .panel-title は従来どおり） */
+.panel h1, .panel h2 {
+  font-size: 0.8rem;
+  color: var(--fg);
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid var(--accent);
+}
+.panel h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0.8rem 0 0.3rem;
+  padding: 0 0 0 0.5rem;
+  border-left: 2px solid var(--border);
+}
+.panel h4, .panel h5, .panel h6 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0.6rem 0 0.2rem;
 }
 .panel ul { padding-left: 0; list-style: none; }
 .panel li { padding: 0.12rem 0; }

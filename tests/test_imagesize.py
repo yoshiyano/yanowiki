@@ -12,8 +12,8 @@ SVGは、ルート要素の width・height を使い、無いものは viewBox �
   - どこからも決まらなければ None。一覧では画像なら "(未知)" を添える
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_imagesize.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_imagesize.py     （このファイルだけ）
 """
 import os
 import shutil

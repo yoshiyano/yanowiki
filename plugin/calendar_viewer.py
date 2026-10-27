@@ -63,7 +63,7 @@
 
 ## 本文の差し込み
 
-`include` と同じ `_embedpage` で差し込む（表示を止めたページ・添付へのリンク・
+`include` と同じ `include_` で差し込む（表示を止めたページ・添付へのリンク・
 資材の合流を共有する）。
 
 **同じページを2つの calendar_viewer に出してよい**（本家と同じ。`include` のように
@@ -72,7 +72,7 @@
 無限ループ（AのページのviewerがBを出し、BのページのviewerがAを出す）は、本家の
 `PLUGIN_CALENDAR_VIEWER_MAX_SHOW_COUNT`（同じページ名を基準にした呼び出しは4回まで）
 で止める。本家は `static` 変数で1回の要求全体を数えていたので、ここでも数えを
-**差し込みの記録（`_embedpage.state`。入れ子の描画をまたいで共有される）**に置く。
+**差し込みの記録（`include_.state`。入れ子の描画をまたいで共有される）**に置く。
 `PluginContext` に置くと、差し込み先を描く新しい `PluginContext` ごとに0から
 数え直してしまい、ループが止まらない。
 
@@ -80,8 +80,12 @@
 
 本家は `<h1><a href="?cmd=edit&page=…">2026/9/25 (金)</a></h1>`（`PKWK_READONLY` なら
 閲覧のリンク）。ここでは編集の権限（`W`）があれば
-`cmd=edit` をPOSTするボタン、無ければ閲覧のリンクにした（`_embedpage.title_html`
-と同じ考えかた。文字は日付）。日付として読めないページ名はそのまま出す。
+`cmd=edit` をPOSTするボタン、無ければ閲覧のリンクにした（文字は日付）。
+日付として読めないページ名はそのまま出す。
+
+`include`・`pagediv` の見出しは、2026-10-12のWiki設計者の指示で閲覧のリンクだけに
+したが、**ここは変えていない**（指示はその2つの見出しについてで、`calendar_viewer` には
+及んでいない。揃えるかどうかは `ChangeLog/Plugin/ai-notes` の `embed-title`）。
 
 ## 長い記事（Wiki設計者の指示、2026-09-27）
 
@@ -106,7 +110,7 @@
 
 本家は `?plugin=calendar_viewer&mode=…&file=…&date_sep=…&date=…` で、一覧だけの
 プラグインの画面を開いた。ここでは**このページ自身を同じ問い合わせ付きで開き
-直す**（`_calendar.nav_url`・`nav_query`。理由は `_calendar.py`）。`past` では
+直す**（`calendar_.nav_url`・`nav_query`。理由は `calendar_.py`）。`past` では
 左が新しい月（`<<2026-10`）、右が古い月（`2026-08>>`）。それ以外は逆。件数の
 表示では `<<前の5件`・`次の5件>>`。
 """
@@ -193,7 +197,7 @@ def _title_html(cal, context, page, sep):
 
 
 def _convert(resolved, body, context):
-    cal = _load("_calendar")
+    cal = _load("calendar_")
     cal.use_css(context)
     here = (context.page or "").strip("/")
     name = cal.strip_bracket(resolved.get("page") or "")
@@ -220,7 +224,7 @@ def _convert(resolved, body, context):
             f"2つ目の引数が正しくありません: {spec}（this・yyyy{sep}mm・件数・x*件数 のどれか）")
     page_ym, limit_base, limit_pitch, limit_page = parsed
 
-    embed = _load("_embedpage")
+    embed = _load("include_")
     state = embed.state(context)
     # 数えは差し込みの記録（入れ子の描画をまたいで共有される）に置く。技術資料「本文の差し込み」
     counts = state.setdefault("calendar_viewer", {})

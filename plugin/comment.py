@@ -1,3 +1,4 @@
+# 参照する共有モジュール: _polling.py（同じフォルダのものを importlib で読み込む）
 """comment — コメント投稿フォームと、投稿済みコメントの一覧を置く、
 ブロック専用のプラグイン。
 
@@ -14,6 +15,9 @@
  5. newbottom … 単語を書くと、新しいコメントを下（一覧の末尾）に追加する
        (default: 上に追加。本家PukiWikiと同じ、古い→新しい の並び順に
        したいときに使う)
+ 6. id … このコメント欄を見分ける ID（`id="cmtaB3xY"` の形）。書かなくて
+       かまいません——ページを表示したときに、プラグイン自身が書き足します
+       (default: 表示したときに書き足す)
 
 投稿済みのコメントは`{{ }}`（波括弧2つ、複数行）の本体に溜まります。
 **書かなくてもかまいません**——`#comment()`のように本体を省略すると、
@@ -25,11 +29,17 @@
 枠線は付きません。
 
 1つのページに`#comment()`を複数置くと、それぞれ別々にコメントを溜め
-られます。
+られます。投稿の書き込み先は`id`で見分けます（`#comment()`を写して`id`が
+重なっても、次に表示したときに後のほうへ新しい`id`が振られます）。
 
 名前欄はブラウザのlocalStorageに前回使った値を覚えていて、次に開いた
 ときの既定値として入れておきます（`comment.js`）。リンクは作りません
 （ただの文字列として本文に書き足すだけです）。
+
+投稿にはJavaScriptが必要です（使えない環境では「この環境では投稿ができません」と
+出て、投稿できません）。ページを開いている間は、5分ごとに新しいコメントを取り込んで
+コメント欄だけを更新します（書きかけの文はそのまま残ります）。コメント欄がページから
+消されていたら「該当フォームがなくなりました」と出ます。
 """
 
 r""" 技術資料
@@ -61,58 +71,68 @@ comment.py側が判定できない**という問題があった（コメント�
    自身のaction URL}">`）と、本体（`body`。投稿済みコメントの生テキスト。
    まだ無ければ空文字列）を
    `<fieldset><legend>…</legend>{フォーム}<hr>{本体}</fieldset>`の形に
-   まとめて描く。隠しフィールドに、対象ページ（`page`）・このページ内で
-   何番目の`#comment(...)`か（`comment_no`）・`noname`/`nodate`/`newtop`・
-   **投稿時点の本文のハッシュ（`digest`）**を持たせる
+   まとめて描き、`_polling.wrap`で包む。隠しフィールドに、対象ページ（`page`）・
+   この呼び出しの ID（`comment_id`）・`noname`/`nodate`/`newtop`を持たせる
 2. 投稿されると`_action`が呼ばれ、`msg`（必須）・`name`（任意）を受け取り、
    コメント行を組み立てる
 3. **そのページの現在の本文を読み直し**（フォームを開いてから他の人が
-   編集したかもしれないので、投稿の直前に改めて読む）、`comment_no`
-   番目の`#comment(...)`を探す。`{{ ... }}`が無ければ**その場で付け足し**、
+   編集したかもしれないので、投稿の直前に改めて読む）、ID が`comment_id`の
+   `#comment(...)`を探す。`{{ ... }}`が無ければ**その場で付け足し**、
    本体の先頭（`newtop`。**既定はこちら**）または末尾（`newbottom`）に
    コメント行を挿し込む
-4. `wikilib.pagesave.save_page`で保存し、そのページの表示へ303リダイレクト
-   する（フォームの2重送信を防ぐ、いつもの作法）
+4. `wikilib.pagesave.save_page`で保存し、204を返す。投稿は`comment.js`の
+   fetchによるもの（`X-Requested-With: fetch`）だけを受け付ける（次の節）
 
-## `comment_no`（1ページに複数の#comment()があるとき）
+## 投稿はページ遷移なしで反映する（2026-10-05）・JS 必須と polling（2026-10-23）
 
-本家は`static $numbers`（PHP、1リクエスト内で保持される連想配列）で
-「このページで#commentが何回描かれたか」を数える。このシステムは
-`build_markdown_renderer`のたびにプラグインが読み直されるためモジュール
-直下の変数では持ち越せない（`ls.py`の`_action`・`include.py`の状態共有
-と同じ制約）。ここでは`context`に直接カウンタを乗せる
-（`context._comment_counters`、ページパスごとの辞書。`include.py`が
-`PluginContext`にstateを乗せて手渡す設計と同じ考えかた）。
+`comment.js`が送信を止めて`fetch`で投稿する。書き込み先のページへ303で移ってしまうと、
+`#include`で取り込まれたコメント欄から投稿したときに、取り込み元に留まれないため
+（フォームの`page`は書き込み先＝取り込まれた側のページ）。
 
-カウンタは`body is None`（本体をまだ書いていない`#comment()`）でも
-**必ず増やす**（エラーにはしない。技術資料「初期状態で{{ }}が無い
-場合」参照）。`_action`側の`_insert_comment`も本体の有無に関わらず
-出現ごとに数を進めるため、両者の「何番目か」の数えかたは常に一致する。
+- **JS が使えない環境では投稿を受け付けない**（Wiki設計者の指示、2026-10-20）。送信ボタンは
+  `disabled`で描き、`_polling.js`が外す。`_action`は`X-Requested-With: fetch`の無い投稿を
+  400で断る（`_polling.fetch_only`）。以前の「エラーなら通常の送信に切り替える」道は
+  無くなった（通信が切れたときに同じ内容を2回送るおそれもあった）
+- 成功したら、`location.reload()`ではなく、`_polling.js`にこのページを問い合わせてもらい、
+  コメント欄だけを差し替える（ai-notes の E8）。断られたら、理由をフォームのそばに出し、
+  入力した内容は残す（Wiki設計者の指示、2026-10-22「投稿データを待避できる状態」）
+- ページを開いている間は、5分ごとに新しいコメントを取り込む（`_polling.py`。
+  `PLUGIN_INFO["polling"]`）。書きかけの入力は引き継ぐ
+- 以前（2026-10-05）、コメント欄だけを差し替える案は、Wiki設計者が再読み込みで足りるなら、と
+  指示して見送っていた。polling で差し替えの仕組みができたので、投稿後もそれを使う
+  （クロコの実装例）
 
-## digest（投稿の競合検出）
+## 書き込み先の見分けかた（ID、2026-09-30）
 
-`wikilib.editor.source_hash`（SHA256。編集画面の保存時の競合検出と
-同じ関数）でdigestを作り、フォームを描いた時点の本文ハッシュとして
-持たせる。
+以前は「ページの中で何番目の`#comment(`行か」（`comment_no`）で書き込み先を
+探していた。描く側（`_convert`）は描いた順に、投稿を受ける側（`_action`）は
+本文の`#comment(`行を上から数えていたため、描かれない所（`#code`の本体、
+`#table`のセル）に書いた`#comment(`行まで数えて、別の`#comment`の本体へ
+書き込んでいた。
 
-本家PukiWikiはdigestが食い違っていても（誰かが間に合わせて編集して
-いても）警告を出しつつコメント自体は追加してしまうが、**このシステムは
-食い違っていたら投稿を拒否する（コンフリクト扱い）**（Wiki設計者の指示）。
-食い違っていたら409（`_insert_comment`が対象の本体を見つけられなかった
-場合と同じステータス）で断り、投稿者に読み直してからやり直してもらう。
-本家にあった「競合時の専用警告画面」（テーマのレンダリング一式を通す
-必要がありスコープが大きい）は実装せず、簡素な断り文だけを返す。
+Wiki設計者の指示で、呼び出しごとの ID（`id="cmtaB3xY"`）で見分ける形に改めた。
+ID は描いたときに書き足し、投稿は ID で探す。決まり（ID の形・重なったときの
+振り直し・見つからないときの断りかた）と実装は、`vote`と共通の`_polling.py`にある。
+描いている本文がこのページの保存済みの本文と対応しない（ファイルを直接直して取り込んで
+いないときなど）と ID が決まらないので、投稿できないフォーム（`disabled`）にする。
 
-digestが空（古いフォーム・外部からの直接POST等）のときは確かめようが
-ないので素通しする（`editor.py`の`origin`/`sent_hash`チェックと同じ
-考えかた）。
+フォームの部品の`id`属性（`comment-name-cmtaB3xY`など）は、呼び出しの ID から作る。
+polling で1つのコメント欄だけを描き直しても、ページのほかの部品と重ならないようにするため。
+ID が決まらない呼び出しには、`context._comment_counters`（1回の描画全体の通し番号）を使う。
 
-**なお、これで防げるのは「コメントを開いてから本文が変わっていた」
-場合の食い違いだけ**であり、「編集画面を開いたまま一時中断し、その間に
-コメントが増えたページを、中断から戻って保存する」という逆方向の
-食い違いは、`_sys/wikilib/editor.py`側の一時中断／再開の設計（origin
-再計算の穴）に関わる問題で、既にwikiSystem側で修正済み（2026-08-27、
-`origin`をdraftと一緒に保存するようにした）。
+## digest をやめた（2026-09-30）
+
+以前は、フォームを描いた時点の本文ハッシュ（`digest`）を持たせ、投稿のときに本文が
+変わっていたら409で断っていた（Wiki設計者の指示）。目的は、何番目の`#comment`かで
+探していた書き込み先がずれるのを防ぐことだった。
+
+ID で書き込み先を探すようにしたので、本文が変わっていても書き込み先は取り違え
+ない。Wiki設計者の基準「ほかのフォームへ投稿が乗らないようにする ＞ 利用者の利便性」
+（2026-09-30）に照らして、取り違えの心配が無くなった検査で投稿を断る理由は無いと
+クロコが判断し、`digest`をやめた。同じ ID が付け直されたあとの古いフォームは、
+polling で投稿の前に「該当フォームがなくなりました」と分かる（`_polling.py`）。
+
+本家PukiWikiは`digest`が食い違うと警告しつつ追加していた。いまは警告も出さずに追加する。
 
 ## コメント行の組み立て
 
@@ -168,29 +188,47 @@ Pythonへ移した。
 残る情報で、サーバには送られない（フォーム送信時に`name`欄の値として
 初めてサーバへ渡る、これはlocalStorageを使わない場合と同じ経路）。
 
-## `#comment(...)`の探しかた・本体への差し込みかた
+## 本体への差し込みかた
 
-出現数を数える判定（`MARKER_RE`）は`^#comment\(`という緩い正規表現で、
-本体の有無やフェンス記号の数に関わらず「`#comment(`で始まる行」を
-すべて1つと数える（`_convert`側のカウンタと数を合わせるため。技術資料
-「comment_no」参照）。
+書き込む`#comment`の行は`_polling.find_call`が見つける（同じ ID が重なっていれば最初の
+もの。行の中の位置と、閉じ
+括弧の後ろの位置も返す）。閉じ括弧の後ろ（丸括弧の無い PukiWiki記法では
+`#comment`の直後）を見て、3通りに分けて扱う。
 
-対象の行が見つかったら、3通りに分けて扱う。
-
-1. **既に`{{ ... }}`本体がある**（`FENCE_OPEN_RE`——`#comment(...)`の
-   直後に`{{`（2つ以上の`{`）だけを置いて終わっている行。
-   `_sys/wikilib/plugins.py`の`PLUGIN_BLOCK_FENCE_RE`と同じ考えかた）。
+1. **既に`{{ ... }}`本体がある**（`FENCE_TAIL_RE`——後ろに`{{`（2つ以上の`{`）
+   だけがある。`_sys/wikilib/plugins.py`の`PLUGIN_BLOCK_FENCE_RE`と同じ考えかた）。
    開き括弧と同じ数以上の`}`だけの行が現れるまでを本体として扱い
    （`plugin_block_rule`の`close_re`と同じロジック）、`newtop`ならその
    先頭に、`newbottom`ならその末尾にコメント行を追加する。
-2. **本体を何も書いていない素の`#comment(...)`**（`BARE_RE`——閉じ括弧の
-   直後に何も無く行が終わっている）。**この場合はエラーにせず、その場で
-   `{{`・コメント行・`}}`の3行を書き足す**（Wiki設計者の指示。技術資料「初期
-   状態で{{ }}が無い場合」参照）。newtop/newbottomの違いは、コメントが
-   1件も無い状態への挿入なので結果は同じになる。
+2. **本体を何も書いていない素の`#comment(...)`**（後ろに何も無い）。**この場合は
+   エラーにせず、その場で`{{`・コメント行・`}}`の3行を書き足す**（Wiki設計者の
+   指示。技術資料「初期状態で{{ }}が無い場合」参照）。newtop/newbottomの違いは、
+   コメントが1件も無い状態への挿入なので結果は同じになる。
 3. どちらにも当てはまらない（1行の`{…}`形式など、壊れた・想定外の
    書きかた）。差し込めないので`inserted=False`のまま呼び出し元へ返し、
    409（「コメントを追加する場所が見つかりませんでした」）にする。
+
+リストや引用の中に書かれた`#comment`は、書き足す行の頭を呼び出しの行にそろえる
+（`- #comment()`なら字下げ2つ、`> #comment()`なら`> `）。以前は行頭の`#comment`
+しか探していなかったので、ここは ID にしたときに広がった。
+
+## #table のセルの中（2026-10-23）
+
+`#table`のセルの中の`#comment`にも投稿できる（Wiki設計者の指示）。書き込み先の走査は
+`_polling.py`がセルの中まで見る。書き足しは、セルの区切り（`|`）が同じ行に続くことがあるので、
+次のようにする（`_insert_comment`）。
+
+```
+|#comment(id="cmtaB3xY")|\\     →   |#comment(id="cmtaB3xY"){{
+                                     - コメント -- 名無しさん &new(){…};
+                                     }}|\\
+```
+
+- **閉じ括弧（`}}`）の行には、セルの残り（`|\\`など）を続け、閉じ括弧だけの行にしない。**
+  閉じ括弧だけの行は、外側の`#table(){{ … }}`の終わりと読まれるため（開き括弧と同じ数
+  以上の`}`だけの行が終わり、という決まり）
+- 本体がすでにある場合は、`}}|…`の行を閉じ括弧の行として探す
+- セルの中は字下げしない（字下げすると、PukiWiki のページでは整形済みテキストになる）
 
 ## 初期状態で`{{ }}`が無い場合（Wiki設計者の指示）
 
@@ -206,10 +244,9 @@ Pythonへ移した。
 PukiWiki記法は、丸括弧の無い `#comment`（本家の実データでいちばん多い書きかた）や
 `#comment{{` もプラグインとして描く。ところが差し込む先を探す正規表現が
 `^#comment\(` だったため、フォームは出るのに、投稿すると「書き足す場所が見つからない」
-（409）で必ず断られていた。`_insert_comment` に拡張子を渡し、PukiWiki記法では
-`PUKI_*_RE`（丸括弧を省けるもの）で探して数える。Markdownでは丸括弧の無い
-`#comment` は文字のまま出る（プラグインにならない）ので、これまでどおり数えない
-（`comment_no` は描いた順の番号なので、数えかたを描画と合わせる必要がある）。
+（409）で必ず断られていた。2026-09-30 からは書き込み先をページと同じパーサーで
+探す（`_polling.py`）ので、書きかたごとの区別はパーサーに任せている。ID を書き足すと
+`#comment(id="…")` のように丸括弧が付く。
 
 ## 表示（`<fieldset>`・区切り線）
 
@@ -232,7 +269,7 @@ Markdownの「生HTMLブロック」判定が`<hr>`の続きとして`body`の1�
 踏んだ。2026-09-02に`body`を先に展開して返り値を再パースしない方式へ
 変わり、この問題自体が起きなくなったため空行は不要になった）。
 
-**投稿の差し込み・digest計算は`_convert`が受け取る`body`引数とは無関係**
+**投稿の差し込みは`_convert`が受け取る`body`引数とは無関係**
 （`_action`が`ref.body`＝ページの生ソースをディスクから読み直して処理する、
 完全に独立した経路）で、この変更の影響を受けない。
 """
@@ -244,7 +281,6 @@ from html import escape
 from bottle import HTTPResponse, request
 
 from wikilib.auth import PAGE_NONE
-from wikilib.editor import source_hash
 from wikilib.pagedb import resolve_page_ref
 from wikilib.pagesave import save_page
 from wikilib.paths import PLUGIN_URLPATH, is_valid_pagepath
@@ -256,15 +292,20 @@ from wikilib.web import plain
 DEFAULT_LEGEND = "コメント"
 
 PLUGIN_INFO = {
-    "help": "#comment(legend,noname,nodate,newtop,newbottom){{追加されたコメント}}",
+    "help": "#comment(legend,noname,nodate,newtop,newbottom,id){{追加されたコメント}}",
     "expand_block": True,
     "expand_inline": True,
     "expand_plugin": True,
+    # 開いている間、保存されている本文に合わせて描き直す（`_polling.py`）
+    "polling": True,
     "args": [
         {"name": "legend", "num_order": 1, "default": DEFAULT_LEGEND, "label": "見出し"},
         {"name": "noname", "flag": True, "default": False, "label": "名前欄を隠す"},
         {"name": "nodate", "flag": True, "default": False, "label": "日時を付けない"},
         {"name": "newbottom", "flag": True, "default": False, "label": "下に追加"},
+        # 呼び出しごとの ID（技術資料「書き込み先の見分けかた」）。描いたときに書き足す
+        {"name": "id", "kw_only": True, "default": "", "label": "ID",
+         "candidate": [(r"[0-9A-Za-z_-]+", "re")]},
         # newtop だけ num_order: -1（残り物の受け皿）にしている。num_order
         # を1つも宣言しないと自由順序モードに切り替わらない（pre.pyの
         # color引数で踏んだのと同じ落とし穴）。newtop/newbottomどちらを
@@ -276,15 +317,7 @@ PLUGIN_INFO = {
 }
 
 ANONYMOUS = "名無しさん"
-MARKER_RE = re.compile(r"^#comment\(")
-FENCE_OPEN_RE = re.compile(r"^#comment\(.*\)(\{\{+)\s*$")
-BARE_RE = re.compile(r"^#comment\(.*\)\s*$")
-# PukiWiki記法は丸括弧の無い `#comment`・`#comment{{` もプラグインとして描く
-# （本家の実データでいちばん多い書きかた）。Markdownでは文字のまま出るので数えない。
-# 技術資料「丸括弧の無い #comment」
-PUKI_MARKER_RE = re.compile(r"^#comment(?:\(|\{|\s*$)")
-PUKI_FENCE_OPEN_RE = re.compile(r"^#comment(?:\(.*\))?\s*(\{\{+)\s*$")
-PUKI_BARE_RE = re.compile(r"^#comment(?:\(.*\))?\s*$")
+FENCE_TAIL_RE = re.compile(r"\s*(\{\{+)\s*")
 HEAD_RE = re.compile(r"^(-{1,2})-*\s*(.*)$")
 
 
@@ -296,17 +329,22 @@ def _convert(resolved, body, context):
     if ref is None:
         raise PluginArgumentError("ページが見つかりません。")
 
-    # 1ページに複数の#comment()があっても別々に数えられるよう、contextに
-    # カウンタを乗せて持ち回す（build_markdown_rendererの呼び出し1回＝
-    # 1回のページ描画の間だけ有効。詳しくは技術資料）。body無しでエラーに
-    # なる場合も含め、出現するたびに必ず増やす（_action側の数えかたと
-    # 一致させるため）。
+    # フォームの部品の id を分けるための通し番号（ID が決まらないときだけ使う。技術資料
+    # 「書き込み先の見分けかた」）。本文とメニューで重ならないよう、1回の描画全体で数える
     counters = getattr(context, "_comment_counters", None)
     if counters is None:
         counters = {}
         context._comment_counters = counters
-    comment_no = counters.get(context.page, 0)
-    counters[context.page] = comment_no + 1
+    comment_no = counters.get("all", 0)
+    counters["all"] = comment_no + 1
+
+    # 書き込み先を見分ける ID。無ければここで本文へ書き足され、本体が描き直す（技術資料
+    # 「書き込み先の見分けかた」）。None なら、このページの保存済みの本文と対応が取れない
+    # （取り込み前など）ので、投稿できないフォームにする
+    polling = _load_polling()
+    comment_id = polling.call_id(context, "comment", resolved["id"])
+    postable = comment_id is not None
+    part = comment_id or comment_no
 
     # 本体（{{ }}）はまだ無くてもよい（Wiki設計者の指示）。エラーにはせず、
     # 空文字列として扱う。実際に本体を書き足すのは最初の投稿があった
@@ -325,34 +363,38 @@ def _convert(resolved, body, context):
     if newtop_raw and newtop_raw != "newtop":
         raise PluginArgumentError(f"上に追加の指定が正しくありません: {newtop_raw}")
     new_at_top = not newbottom  # 既定は本体の先頭に追加（新しい投稿がフォーム直下、上ほど新しい）
-    digest = source_hash(ref.body or "")
 
     api = escape(f"{context.base_url}/{PLUGIN_URLPATH}/comment", quote=True)
     page_val = escape(context.page, quote=True)
 
+    # 送信できるのは JS が動く環境だけ（`_polling.NEEDS_JS`。技術資料「投稿はページ遷移なしで…」）
+    off = polling.NEEDS_JS if postable else " disabled"
     name_field = ""
     if not noname:
         name_field = (
-            f'<label for="comment-name-{comment_no}">名前</label>'
-            f'<input type="text" name="name" id="comment-name-{comment_no}" size="15">'
+            f'<label for="comment-name-{part}">名前</label>'
+            f'<input type="text" name="name" id="comment-name-{part}" size="15">'
         )
+    note = "" if postable else (
+        '<p class="comment-note">このコメント欄には、ここからは投稿できません'
+        '（書かれているページを開いて投稿してください）。</p>')
 
     form_html = (
         f'<form class="comment-form" method="post" action="{api}">'
         f'<input type="hidden" name="page" value="{page_val}">'
-        f'<input type="hidden" name="comment_no" value="{comment_no}">'
+        f'<input type="hidden" name="comment_id" value="{escape(comment_id or "", quote=True)}">'
         f'<input type="hidden" name="noname" value="{"1" if noname else "0"}">'
         f'<input type="hidden" name="nodate" value="{"1" if nodate else "0"}">'
         f'<input type="hidden" name="newtop" value="{"1" if new_at_top else "0"}">'
-        f'<input type="hidden" name="digest" value="{digest}">'
         f"{name_field}"
-        f'<label for="comment-msg-{comment_no}">コメント</label>'
-        f'<input type="text" name="msg" id="comment-msg-{comment_no}" required>'
-        '<button type="submit">投稿</button>'
+        f'<label for="comment-msg-{part}">コメント</label>'
+        f'<input type="text" name="msg" id="comment-msg-{part}" required>'
+        f'<button type="submit"{off}>投稿</button>'
         "</form>"
+        f"{note}"
     )
 
-    return (
+    html = (
         '<fieldset class="comment-fieldset">'
         f'<legend>{escape(legend)}</legend>'
         f'{form_html}'
@@ -360,6 +402,7 @@ def _convert(resolved, body, context):
         f'{body_text}'
         "</fieldset>"
     )
+    return polling.wrap(html, context, "comment", comment_id)
 
 
 def _date_call(stamp, ext):
@@ -384,73 +427,67 @@ def _format_comment(msg, head, name, noname, nodate, ext=".txt"):
     return f"-{head} {body}".rstrip()
 
 
-def _insert_comment(source, comment_no, comment_line, new_at_top, ext=".md"):
-    """`source`の`comment_no`番目の`#comment(...)`を探し、その本体
-    （`{{`〜`}}`の中）の先頭（`new_at_top`）または末尾に`comment_line`を
-    挿す。本体（`{{ }}`）をまだ書いていない素の`#comment(...)`なら、
-    エラーにせずその場で`{{`・`comment_line`・`}}`を書き足す（Wiki設計者の
-    指示。技術資料「初期状態で{{ }}が無い場合」参照）。対象が見つから
-    ない、閉じ括弧が無い、1行の`{…}`形式など想定外の書きかたの、
-    いずれかなら (source, False) をそのまま返す。"""
-    if is_pukiwiki(ext):
-        marker_re, fence_open_re, bare_re = PUKI_MARKER_RE, PUKI_FENCE_OPEN_RE, PUKI_BARE_RE
-    else:
-        marker_re, fence_open_re, bare_re = MARKER_RE, FENCE_OPEN_RE, BARE_RE
+def _insert_comment(source, call, comment_line, new_at_top):
+    """`source`の、`call`（`_polling.find_call`が見つけた呼び出し）の本体
+    （`{{`〜`}}`の中）の先頭（`new_at_top`）または末尾に`comment_line`を挿す。
+    本体（`{{ }}`）をまだ書いていない素の`#comment(...)`なら、エラーにせずその場で
+    `{{`・`comment_line`・`}}`を書き足す（Wiki設計者の指示。技術資料「初期状態で
+    {{ }}が無い場合」参照）。`#table`のセルの中なら、閉じ括弧の行にセルの残り（`|\\`
+    など）を続ける（技術資料「#table のセルの中」）。閉じ括弧が無い、1行の`{…}`形式など
+    想定外の書きかたなら (source, False) をそのまま返す。"""
     lines = source.split("\n")
-    out = []
-    count = 0
-    inserted = False
-    i, n = 0, len(lines)
-    while i < n:
-        line = lines[i]
-        if marker_re.match(line) and count == comment_no and not inserted:
-            fence_m = fence_open_re.match(line)
-            if fence_m:
-                fence = fence_m.group(1)
-                close_re = re.compile(r"^\}{" + str(len(fence)) + r",}\s*$")
-                j = i + 1
-                inner = []
-                close_idx = None
-                while j < n:
-                    if close_re.match(lines[j]):
-                        close_idx = j
-                        break
-                    inner.append(lines[j])
-                    j += 1
-                if close_idx is not None:
-                    inner = [comment_line] + inner if new_at_top else inner + [comment_line]
-                    out.append(line)
-                    out.extend(inner)
-                    out.append(lines[close_idx])
-                    i = close_idx + 1
-                    count += 1
-                    inserted = True
-                    continue
-            elif bare_re.match(line):
-                # {{ }}を書いていない素の呼びかた。ここで自動的に用意する
-                # （newtop/newbottomのどちらでも、コメントが1件も無い
-                # 状態への挿入なので結果は同じ）
-                out.append(line.rstrip() + "{{")
-                out.append(comment_line)
-                out.append("}}")
-                i += 1
-                count += 1
-                inserted = True
-                continue
-            # 1行の{…}形式など、上記どちらにも当てはまらない想定外の
-            # 書きかた。差し込めないのでそのまま出力して次へ進む。
-            out.append(line)
-            count += 1
-            i += 1
-            continue
-        if marker_re.match(line):
-            count += 1
-        out.append(line)
-        i += 1
-    return "\n".join(out), inserted
+    i, loc = call["line"], call["loc"]
+    line = lines[i]
+    tail = line[loc["tail"]:]
+    in_cell = "|" in line[:loc["pos"]]
+    # リストや引用の中に書かれていたら、本体の行もその字下げ（`>`）にそろえる。
+    # `#table` のセルの中は、セルの区切りより後ろが中身なので字下げしない
+    indent = "" if in_cell else re.sub(r"[^\s>]", " ", line[:loc["pos"]])
+    fence_m = FENCE_TAIL_RE.fullmatch(tail)
+    if fence_m:
+        fence = fence_m.group(1)
+        # セルの中では、閉じ括弧の行にセルの区切り（`|`）が続く
+        close_re = re.compile(r"^[\s>]*\}{" + str(len(fence)) + r",}\s*(\|.*)?$")
+        for j in range(i + 1, len(lines)):
+            if close_re.match(lines[j]):
+                lines.insert(i + 1 if new_at_top else j, indent + comment_line)
+                return "\n".join(lines), True
+        return source, False
+    if not tail.strip():
+        # {{ }}を書いていない素の呼びかた。ここで自動的に用意する
+        # （newtop/newbottomのどちらでも、コメントが1件も無い
+        # 状態への挿入なので結果は同じ）
+        lines[i:i + 1] = [line.rstrip() + "{{", indent + comment_line, indent + "}}"]
+        return "\n".join(lines), True
+    if in_cell and tail.lstrip().startswith("|"):
+        # `#table` のセルの中で、呼び出しの後ろに同じ行でセルの区切りが続く。
+        # 呼び出しの直後で行を分け、閉じ括弧の行にセルの残りを続ける（閉じ括弧だけの行に
+        # すると、外側の `#table(){{ … }}` の終わりと読まれるため）
+        lines[i:i + 1] = [line[:loc["tail"]] + "{{", comment_line, "}}" + tail.lstrip()]
+        return "\n".join(lines), True
+    # 1行の{…}形式など、上記どちらにも当てはまらない想定外の書きかた
+    return source, False
+
+
+def _load_polling():
+    """兄弟の`_polling.py`（共有モジュール）を読み込む（呼び出しごと）。"""
+    import importlib.util
+    import os
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_polling.py")
+    spec = importlib.util.spec_from_file_location("wikiplugin__polling", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _action(context):
+    polling = _load_polling()
+    if request.method == "GET" and request.query.get("poll"):
+        return polling.handle(context)
+    refused = polling.fetch_only()
+    if refused is not None:
+        return refused
+
     pagepath = (request.forms.getunicode("page", "") or "").strip("/")
     if pagepath and not is_valid_pagepath(pagepath):
         return plain("ページの指定が正しくありません。", status=400)
@@ -462,21 +499,17 @@ def _action(context):
         head, msg = m.group(1), m.group(2)
     msg = msg.strip()
 
-    redirect_to = context.base_url + "/" + pagepath
-
+    # 成功は 204 だけ返し、画面の更新は comment.js・_polling.js が行う（技術資料
+    # 「投稿はページ遷移なしで反映する」）
     if not msg:
         # 本家と同じく、書く内容が無ければ何もせず戻すだけ（エラーにしない）
-        return HTTPResponse(status=303, headers={"Location": redirect_to})
+        return HTTPResponse(status=204)
 
     name = request.forms.getunicode("name", "")
     noname = request.forms.get("noname") == "1"
     nodate = request.forms.get("nodate") == "1"
     new_at_top = request.forms.get("newtop") == "1"
-    digest = request.forms.get("digest", "")
-    try:
-        comment_no = int(request.forms.get("comment_no", "0"))
-    except ValueError:
-        comment_no = 0
+    comment_id = (request.forms.getunicode("comment_id", "") or "").strip()
 
     # 閲覧の権限が無いページには書き込ませない（Wiki設計者の指示、2026-09-15）。
     # R のページは通す——プラグインによる書き換えはユーザの編集とは別に数え、
@@ -488,28 +521,19 @@ def _action(context):
     if ref is None or not ref.exists:
         return plain("そのページはまだありません。", status=404)
 
-    # コンフリクト検出（Wiki設計者の指示）。フォームを開いてから本文が変わって
-    # いたら、comment_no（何番目の#comment(...)か）の勘定がずれている
-    # かもしれないので、本家PukiWikiと違い黙って続行せず投稿を拒否する。
-    # digestが空（古いフォーム・外部からの直接POST等）のときは確かめようが
-    # ないので、その場合は素通しする（editor.pyのorigin/sent_hashチェックと
-    # 同じ考えかた）。
-    if digest and digest != source_hash(ref.body or ""):
-        return plain(
-            "コメントフォームを開いてから、このページは別の場所で更新されて"
-            "います。ページを読み直してから、もう一度コメントを投稿して"
-            "ください。",
-            status=409)
-
+    # フォームを開いてから本文が変わっていても断らない（技術資料「digest をやめた」）。
+    # 書き込み先は ID で探す（重なっていれば最初のもの）
+    source = ref.body or ""
+    call, reason = polling.find_call(context, source, ref.ext, "comment", comment_id)
+    if call is None:
+        return plain(reason, status=409)
     comment_line = _format_comment(msg, head, name, noname, nodate, ref.ext)
-    new_source, inserted = _insert_comment(ref.body or "", comment_no, comment_line, new_at_top,
-                                           ref.ext)
+    new_source, inserted = _insert_comment(source, call, comment_line, new_at_top)
     if not inserted:
         return plain(
             "コメントを追加する場所（#comment(){{ }}の本体）が見つかりません"
-            "でした。ページが編集されて位置がずれた可能性があります。",
+            "でした。本体の書きかたが正しいか確かめてください。",
             status=409)
 
     save_page(context.wiki_dir, context.config, ref.subpath, ref.ext, new_source)
-
-    return HTTPResponse(status=303, headers={"Location": redirect_to})
+    return HTTPResponse(status=204)

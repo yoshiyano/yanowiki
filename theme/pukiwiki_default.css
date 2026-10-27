@@ -21,6 +21,7 @@
   --fg: #000000;
   --muted: #555555;
   --border: #ddeeff;
+  --table-border: #888899;
   --accent: #215dc6;
   /* PukiWiki のサイドバー・ヘッダは白地。青(#DDEEFF)が付くのは見出し帯だけ
      なので、パネル全体の下地は白にし、青は .panel-title 等へ個別に当てる。 */
@@ -47,6 +48,7 @@
     --fg: #000000;
     --muted: #555555;
     --border: #ddeeff;
+    --table-border: #888899;
     --accent: #215dc6;
     --panel-bg: #ffffff;
     --code-bg: #f0f8ff;
@@ -124,6 +126,30 @@ a:hover { background-color: #ccddee; text-decoration: underline; }
   flex-wrap: wrap;
 }
 
+/* ---- info の場所と、本文の幅の上限を外す／戻すボタン（Wiki設計者の指示 2026-10-12） ----
+   検索の下・「新規」の右。コマンド群の2段目（倍率＋リンク列）の末尾に置く
+   （pukiwiki_default.html の .header-tools）。見出しの右端ではないので、common.css の
+   .page-title-tools（見出しの文字を基準にする大きさ）は使わず、ここでリンクの文字
+   （.command と同じ 0.9rem）に合わせる。矢印は文字サイズまで小さくした（設計者の許可）。
+   info のアイコン（本体が渡す <a><img></a>）は、common.css の img・svg の規則
+   （高さ 1.4em）が、この文字サイズ基準で効く。 */
+.header-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+.header-tools .page-info-slot { font-size: 1em; }
+.header-tools .content-width-toggle {
+  width: 1.2em;
+  height: 1.2em;
+  justify-content: center;
+}
+.header-tools .content-width-toggle::before {
+  width: 1em;
+  height: 1em;
+}
+
 /* ヘッダ内のリンクは mouse over のハイライト（薄青の下地・下線）をしない
    （Wiki設計者の指示 2026-09-04）。検索の <button>（.search-scope /
    .search-submit）はリンクではないので対象外＝従来どおり hover する。 */
@@ -186,6 +212,13 @@ html.bp-narrow .commands .search {
   grid-column: 1 / -1;
   justify-self: end;
 }
+/* info とボタンは、検索の下の段の右端（リンク列はメニューへ移るため、「新規」の右ではなく
+   検索の下に置く）。 */
+html.bp-narrow .commands .header-tools {
+  grid-row: 3;
+  grid-column: 1 / -1;
+  justify-self: end;
+}
 
 /* ---- サイドバー（.subbar / .mainbar）の表示条件（Wiki設計者の指示 2026-09-04、
    pukiwiki_default のみ） ----
@@ -228,6 +261,13 @@ html:not(.bp-narrow):not(.bp-narrower) .layout:not(:has(.mainbar)):not(:has(.sub
   /* menu1 なし: 本文1カラム（全幅）。上のルールを打ち消す */
   grid-template-columns: minmax(0, 1fr);
   max-width: none;   /* 「横幅最大で使わせたい」＝上限を外す */
+}
+/* 本文の幅の上限を外す（タイトル右端のボタン。common.js が <html> に content-wide を
+   付け外しする）。base.css の html.content-wide .layout は、上の「空の .subbar を畳む」
+   規則（:not() を重ねていて詳細度が高い）に負けるので、同じ条件に html.content-wide を
+   足して上回る。 */
+html.content-wide:not(.bp-narrow):not(.bp-narrower) .layout:not(:has(.subbar > :not(.subbar-commands))) {
+  max-width: none;
 }
 
 /* bp-narrow（menu1 は帯へ折りたたみ済み・.subbar はまだ通常配置）では、
@@ -308,12 +348,36 @@ html.bp-narrow:not(.bp-narrower) .layout:not(:has(.subbar > *)) {
 .content th { background: #e0e8f0; }
 
 /* ---- サイドバー（menu1 / 目次 / menu2）の見出しを PukiWiki 風の薄青帯に ---- */
-.panel-title {
+.panel-title,
+.panel h1,
+.panel h2 {
   background-color: #ddeeff;
   color: #000000;
   font-size: 1rem;
   padding: 0.3em 0.5em;
   border: 0;
+}
+/* menu1 / menu2 の h3 / h4 は、本文の見出し（上の「本文の見出し」）と同じ
+   飾りを細くして当て、段ごとに見分けられるようにする（2026-10-03。
+   以前は base.css の下線のままで h2 と h3 が同じ見た目だった）。
+   h2: 薄青の帯 / h3: 薄青の枠 / h4: 太い左線 */
+.panel h3 {
+  font-size: 0.95rem;
+  padding: 0.2em 0.4em;
+  border: 0;
+  border-top: 1px solid #ddeeff;
+  border-right: 3px solid #ddeeff;
+  border-bottom: 2px solid #ddeeff;
+  border-left: 6px solid #ddeeff;
+}
+.panel h4,
+.panel h5,
+.panel h6 {
+  font-size: 0.9rem;
+  color: #000000;
+  padding: 0.1em 0.4em;
+  border: 0;
+  border-left: 10px solid #ddeeff;
 }
 
 /* ---- フッタ ---- */
@@ -326,15 +390,17 @@ html.bp-narrow:not(.bp-narrower) .layout:not(:has(.subbar > *)) {
    参照サイト（_1ev-py）は img#logo { width:80px; height:80px } で本家ロゴを
    出している。.site-header は base.css で display:flex; align-items:center
    なので、floatは使わず縦中央揃えに任せる。
-   大きさは 72×72（Wiki設計者の指示、2026-09-29。以前は 56×56）。 */
+   大きさは高さだけを 72px に決め、横幅は画像の縦横比に応じて自由にする
+   （Wiki設計者の指示、2026-10-13。以前は 72×72 固定で、正方形でないロゴが
+   歪んだ。72px になったのは 2026-09-29、その前は 56×56）。 */
 .pukiwiki-logo-link {
   display: block;
   flex: 0 0 auto;
 }
 .pukiwiki-logo {
   display: block;
-  width: 72px;
   height: 72px;
+  width: auto;
 }
 
 /* ---- 「新規」ダイアログ（コマンドバー） ---- */

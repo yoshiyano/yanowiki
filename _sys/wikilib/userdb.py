@@ -33,10 +33,26 @@ IDとパスワードがそのアカウントのものかを確かめること（
 同じ**。承認を取り消す（`approved = 0` に戻す）と、その場でログイン状態も効かなくなる。
 
 **列は後から足したもの**なので、古いDBを開いたときは `connect` が列を足す
-（`ALTER TABLE`。既存のアカウントはすべて承認済み＝`1`）。管理者が作るアカウント
+（`ALTER TABLE`。既存のアカウントはすべて承認済み＝`1`）。
+
+申請の受付には限りがある（設計者の決定、2026-10-19）。
+
+- **承認待ちの申請が `PENDING_MAX`（20）件あるあいだは、受け付けない**（`signup_open`）
+- **申請から `PENDING_DAYS`（3）日たっても承認されなければ、「承認されなかった」扱い**で、
+  断ったときと同じく行を消す（`expire_pending`。ID も空く）。申請した日時は `applied_at`
+  （UNIX 時刻）。承認待ちの一覧（`pending_users`）を引くたびに片付ける
+- 同じ IP からの回数の制限は `wikilib.auth.do_signup` が受け持つ
+
+`applied_at` が 0 の承認待ち（承認を取り消したアカウント）は、申請ではないので数えも消しもしない。
+ただし助手の承認を元に戻したとき（`set_approved(..., False)`）は、申請に戻ったものとして、その時点から
+数え直す（`renew=True`）。管理者が作るアカウント
 （`/.admin/accounts`・`./wiki.py initusers` など）は、常に承認済み。
 
 `uidnum = 1` に `admin` / `adminpw` / `管理者` を最初から入れておく。
+
+助手に与える権限の表（`staff_perms`）は `wikilib.staffperms` が読み書きする。
+`connect` が開くたびに `CREATE TABLE IF NOT EXISTS` で用意するので、古いDBにも
+そのまま増える。
 
 ## いつ作るか
 
@@ -99,6 +115,7 @@ import hashlib
 import os
 import re
 import sqlite3
+import time
 
 from wikilib.paths import farm_users_db_path
 from wikilib.wikiconfig import account_pw_salt, load_wiki_config
@@ -111,6 +128,9 @@ HASH_SEPARATOR = "\x00"
 # `str.isalnum()` は使えない——あれは「あ」も真になるので、日本語のIDが
 # 通ってしまう。範囲を書いた正規表現で見る。
 UID_RE = re.compile(r"^[0-9A-Za-z]+$")
+NAME_MAX = 32       # 表示名の長さ（文字数）の上限（設計者の決定、2026-10-19）
+PENDING_MAX = 20    # 承認待ちの申請がこの件数あれば、受け付けない（同）
+PENDING_DAYS = 3    # 申請からこの日数たっても承認されなければ消す（同）
 
 # ロックしたアカウントの `pw` に入れる値（Wiki設計者の指示、2026-09-06）。
 # **ハッシュ値が入るはずのところに、ハッシュ値ではない文字列を置く**という
@@ -136,7 +156,8 @@ CREATE TABLE IF NOT EXISTS passwd (
     pw       TEXT NOT NULL,
     name     TEXT NOT NULL DEFAULT '',
     approved INTEGER NOT NULL DEFAULT 1,
-    cnt      INTEGER NOT NULL DEFAULT 0
+    cnt      INTEGER NOT NULL DEFAULT 0,
+    applied_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS passwd_uid ON passwd(uid);
 CREATE TABLE IF NOT EXISTS group_members (
@@ -144,6 +165,12 @@ CREATE TABLE IF NOT EXISTS group_members (
     uidnum    INTEGER NOT NULL,
     joined_at INTEGER NOT NULL,
     PRIMARY KEY (gname, uidnum)
+);
+CREATE TABLE IF NOT EXISTS staff_perms (
+    uidnum  INTEGER NOT NULL,
+    perm    TEXT    NOT NULL,
+    allowed INTEGER NOT NULL,
+    PRIMARY KEY (uidnum, perm)
 );
 """
 
@@ -216,6 +243,12 @@ def connect(wiki_dir, create=False, password=None):
     if "cnt" not in {r[1] for r in con.execute("PRAGMA table_info(passwd)")}:
         con.execute("ALTER TABLE passwd ADD COLUMN cnt INTEGER NOT NULL DEFAULT 0")
         con.commit()
+    # 申請した日時（`applied_at`）。列の無かったころの承認待ちは、いまを申請の日時にする
+    # （いきなり期限切れで消さない）
+    if "applied_at" not in {r[1] for r in con.execute("PRAGMA table_info(passwd)")}:
+        con.execute("ALTER TABLE passwd ADD COLUMN applied_at INTEGER NOT NULL DEFAULT 0")
+        con.execute("UPDATE passwd SET applied_at = ? WHERE approved = 0", (int(time.time()),))
+        con.commit()
     if create:
         con.execute(
             "INSERT OR IGNORE INTO passwd (uidnum, uid, pw, name) VALUES (?, ?, ?, ?)",
@@ -254,7 +287,7 @@ def all_users(wiki_dir):
     try:
         with connect(wiki_dir) as con:
             return [dict(r) for r in con.execute(
-                "SELECT uidnum, uid, pw, name, approved, cnt FROM passwd ORDER BY uidnum")]
+                "SELECT uidnum, uid, pw, name, approved, cnt, applied_at FROM passwd ORDER BY uidnum")]
     except (sqlite3.Error, OSError):
         return []
 
@@ -264,7 +297,7 @@ def get_user(wiki_dir, uidnum):
     try:
         with connect(wiki_dir) as con:
             row = con.execute(
-                "SELECT uidnum, uid, pw, name, approved, cnt FROM passwd WHERE uidnum = ?",
+                "SELECT uidnum, uid, pw, name, approved, cnt, applied_at FROM passwd WHERE uidnum = ?",
                 (uidnum,)).fetchone()
     except (sqlite3.Error, OSError):
         return None
@@ -276,7 +309,7 @@ def find_by_uid(wiki_dir, uid):
     try:
         with connect(wiki_dir) as con:
             row = con.execute(
-                "SELECT uidnum, uid, pw, name, approved, cnt FROM passwd WHERE uid = ?",
+                "SELECT uidnum, uid, pw, name, approved, cnt, applied_at FROM passwd WHERE uid = ?",
                 (uid,)).fetchone()
     except (sqlite3.Error, OSError):
         return None
@@ -314,6 +347,14 @@ def check_uid(uid):
     return None
 
 
+def check_name(name):
+    """表示名として使えるか。使えれば None、駄目なら理由を返す。長さ（`NAME_MAX`）だけを見る。
+    誰でも送れる申請で、巨大な表示名を置かれないようにするため。"""
+    if len(name or "") > NAME_MAX:
+        return f"名前が長すぎます（{NAME_MAX}文字まで）。"
+    return None
+
+
 def add_user(wiki_dir, uid, pw_hash, name, approved=True):
     """アカウントを1つ足す。(成否, 知らせる文言) を返す。
 
@@ -324,7 +365,7 @@ def add_user(wiki_dir, uid, pw_hash, name, approved=True):
     Wikiの「アカウント作成」。モジュール冒頭参照）。既定は承認済み。"""
     if not exists(wiki_dir):
         return False, NO_DB_MESSAGE
-    problem = check_uid(uid)
+    problem = check_uid(uid) or check_name(name)
     if problem:
         return False, problem
     if not pw_hash:
@@ -334,8 +375,10 @@ def add_user(wiki_dir, uid, pw_hash, name, approved=True):
     try:
         with connect(wiki_dir) as con:
             con.execute(
-                "INSERT INTO passwd (uidnum, uid, pw, name, approved) VALUES (?, ?, ?, ?, ?)",
-                (next_uidnum(wiki_dir), uid, pw_hash, name or "", 1 if approved else 0))
+                "INSERT INTO passwd (uidnum, uid, pw, name, approved, applied_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (next_uidnum(wiki_dir), uid, pw_hash, name or "", 1 if approved else 0,
+                 0 if approved else int(time.time())))
             con.commit()
     except (sqlite3.Error, OSError):
         return False, "登録できませんでした。"
@@ -373,12 +416,38 @@ def is_approved(user):
     return bool(user.get("approved", 1))
 
 
-def pending_users(wiki_dir):
-    """承認待ちのアカウントを、古い順（uidnum順）で返す。"""
+def pending_users(wiki_dir, now=None):
+    """承認待ちのアカウントを、古い順（uidnum順）で返す。期限切れの申請は、先に片付ける
+    （`expire_pending`）。"""
+    expire_pending(wiki_dir, now)
     return [u for u in all_users(wiki_dir) if not is_approved(u)]
 
 
-def set_approved(wiki_dir, uidnum, approved=True):
+def expire_pending(wiki_dir, now=None):
+    """申請から `PENDING_DAYS` 日たっても承認されていない申請を消す（「承認されなかった」扱い。
+    断ったときと同じく `delete_user`）。消したIDの一覧を返す。"""
+    if not exists(wiki_dir):
+        return []
+    limit = int(now if now is not None else time.time()) - PENDING_DAYS * 24 * 60 * 60
+    gone = []
+    for user in all_users(wiki_dir):
+        if not is_approved(user) and 0 < int(user.get("applied_at") or 0) <= limit:
+            if delete_user(wiki_dir, user["uidnum"])[0]:
+                gone.append(user["uid"])
+    return gone
+
+
+def pending_applications(wiki_dir, now=None):
+    """受付の上限に数える、承認待ちの申請の件数（`applied_at` のあるもの）。"""
+    return sum(1 for u in pending_users(wiki_dir, now) if int(u.get("applied_at") or 0) > 0)
+
+
+def signup_open(wiki_dir, now=None):
+    """申請を受け付けているか（承認待ちの申請が `PENDING_MAX` 件に届いていない）。"""
+    return pending_applications(wiki_dir, now) < PENDING_MAX
+
+
+def set_approved(wiki_dir, uidnum, approved=True, renew=False):
     """承認する（`approved=False` なら承認を取り消す）。(成否, 知らせる文言) を返す。
 
     **`admin`（uidnum=1）の承認は取り消せない。** 管理者が居なくなるため
@@ -394,6 +463,10 @@ def set_approved(wiki_dir, uidnum, approved=True):
         with connect(wiki_dir) as con:
             con.execute("UPDATE passwd SET approved = ? WHERE uidnum = ?",
                         (1 if approved else 0, uidnum))
+            if renew and not approved:
+                # 申請に戻す。期限（`PENDING_DAYS`）は、いまから数え直す
+                con.execute("UPDATE passwd SET applied_at = ? WHERE uidnum = ?",
+                            (int(time.time()), uidnum))
             con.commit()
     except (sqlite3.Error, OSError):
         return False, "書き換えられませんでした。"
@@ -412,7 +485,7 @@ def update_user(wiki_dir, uidnum, uid, pw_hash, name):
     「付け直していない」として断る。"""
     if not exists(wiki_dir):
         return False, NO_DB_MESSAGE
-    problem = check_uid(uid)
+    problem = check_uid(uid) or check_name(name)
     if problem:
         return False, problem
     current = get_user(wiki_dir, uidnum)
@@ -454,10 +527,12 @@ def restore_user(wiki_dir, row):
     try:
         with connect(wiki_dir) as con:
             con.execute(
-                "INSERT INTO passwd (uidnum, uid, pw, name, approved, cnt)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO passwd (uidnum, uid, pw, name, approved, cnt, applied_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (row["uidnum"], row["uid"], row["pw"], row.get("name") or "",
-                 row.get("approved", 0), row.get("cnt", 0)))
+                 row.get("approved", 0), row.get("cnt", 0),
+                 # 承認待ちで戻すのは、断った申請を元に戻すとき。期限はいまから数え直す
+                 0 if row.get("approved", 0) else int(time.time())))
             con.commit()
     except (sqlite3.Error, OSError):
         return False, "入れ直せませんでした。"
@@ -483,6 +558,9 @@ def delete_user(wiki_dir, uidnum):
             # 別の人に回ったときにその人が別のグループのメンバー（助手を
             # 含む）になってしまう
             con.execute("DELETE FROM group_members WHERE uidnum = ?", (uidnum,))
+            # **助手に与えた権限も消す。** 同じ理由（番号が別の人に回ったとき、前の人に
+            # 与えた権限を引き継がせない）
+            con.execute("DELETE FROM staff_perms WHERE uidnum = ?", (uidnum,))
             con.commit()
     except (sqlite3.Error, OSError):
         return False, "消せませんでした。"

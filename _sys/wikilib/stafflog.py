@@ -74,6 +74,7 @@ KINDS = {
     "page.save": "ページの保存",
     "page.delete": "ページの削除",
     "page.rename": "ページの改名・移動",
+    "page.dupsolve": "同じ名前の .txt と .md の整理",
     "attach.put": "添付の追加",
     "attach.delete": "添付の削除",
     "attach.rename": "添付の名前の変更",
@@ -84,10 +85,21 @@ KINDS = {
     "group.members": "グループ",
     "account.approve": "アカウントの承認",
     "account.reject": "アカウントの申請を断る",
+    # `/.admin/accounts`（管理者が `accounts.*` を許した助手の操作）
+    "account.add": "アカウントの追加",
+    "account.update": "アカウントの書き換え",
+    "account.delete": "アカウントの削除",
     "garbagecollect": "削除したページの添付を集める",
     "wiki.create": "Wikiの作成",
     "wiki.delete": "Wikiの削除",
     "restart": "サービスの再起動",
+    "update": "公開版からの更新",
+    # テーマのファイル（/.admin/themes/ の slottheme。wikilib.themefilesui）。記録だけで、戻す操作は無い
+    "theme.put": "テーマのファイルの追加",
+    "theme.edit": "テーマのファイルの編集",
+    "theme.rename": "テーマのファイルの名前の変更・移動",
+    "theme.delete": "テーマのファイルの削除",
+    "theme.restore": "テーマのファイルをごみ箱から戻す",
 }
 
 _quiet = contextvars.ContextVar("stafflog_quiet", default=0)

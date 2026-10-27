@@ -14,8 +14,8 @@
 判定そのもの（誰に何が返るか）は `tests/test_pageprivilege.py` が見る。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_publishedref.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_publishedref.py     （このファイルだけ）
 """
 import os
 import shutil

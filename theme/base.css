@@ -12,6 +12,9 @@
   --fg: #1f2328;
   --muted: #656d76;
   --border: #d0d7de;
+  /* 表（本文の表・table プラグイン・本体の一覧表）の罫線。パネル枠などに使う
+     --border とは別に濃さを決められるようにしてある */
+  --table-border: #d0d7de;
   --accent: #0969da;
   --panel-bg: #f6f8fa;
   --code-bg: #f6f8fa;
@@ -34,6 +37,7 @@
     --fg: #e6edf3;
     --muted: #9198a1;
     --border: #30363d;
+    --table-border: #30363d;
     --accent: #4493f8;
     --panel-bg: #161b22;
     --code-bg: #161b22;
@@ -84,7 +88,7 @@ a:hover { text-decoration: underline; }
    .searchの幅が定まらず、Chromeでは「幅を計算する時点」と「実際に
    描画する時点」とで.search-wordの実効幅がずれ、.search-submit
    （検索ボタン）の右側に空白が残っていた（post_it_1で見つかったのと
-   同じ原因。/Tech/ChangeLog/themes/2026-08-26参照）。固定値に
+   同じ原因。/ChangeLog/Theme/2026-08-26参照）。固定値に
    置き換えて解消する。フォーカス時に広がる挙動（common.cssの
    .search:focus-within .search-word { width: 12rem; }）はこのテーマでも
    変更していないため、そのまま効く。 */
@@ -147,6 +151,26 @@ body:not(:has(.mainbar)) .page-header:has(~ .layout) {
 .layout:not(:has(.mainbar)) .subbar { grid-column: 2; }
 
 /*
+  ---- 本文の幅の上限を外す／戻す（h1.page-title の右端のボタン） ----
+  ボタンは base.html が h1 の中に置き（.content-width-toggle。矢印の見た目は
+  common.css、振る舞いは common.js）、押すと <html> に content-wide が付く。
+  このとき .layout と .page-header の max-width（--content-max から計算）を外す。
+  fresh・pukiwiki_default は、このファイルを @import するので同じ規則が効く。
+  --content-max の値そのものは書き換えない（ほかの用途で参照されても意味が
+  変わらないようにするため）。
+  .page-header も外すのは、残すとタイトルの下線だけが本文より狭いままになるため。
+  詳細度: .layout 側は上の .layout:not(:has(.mainbar)) (0,2,0) より
+  html.content-wide .layout (0,2,1) が高く、メニュー有無の両方に効く。
+  .page-header 側は body:not(:has(.mainbar)) .page-header:has(~ .layout)
+  (0,3,1) があるので、同じ形に html.content-wide を前置して上回る。
+*/
+html.content-wide .layout,
+html.content-wide .page-header,
+html.content-wide body:not(:has(.mainbar)) .page-header:has(~ .layout) {
+  max-width: none;
+}
+
+/*
   3カラムぶんの幅が確保できない画面幅では、まずmenu1を本文+右サイドバーの
   下に全幅で落として2カラムに戻す（menu1が無いページと同じ見えかたになる）。
   1024px（横幅の目安として要求された値）では3カラムのまま収まるよう、
@@ -181,20 +205,95 @@ html.bp-narrower .content { grid-column: 1; grid-row: 1; }
   margin-bottom: 1rem;
   font-size: 0.92rem;
 }
-.panel h1, .panel h2, .panel h3, .panel-title {
+.panel h1, .panel h2, .panel-title {
   font-size: 0.95rem;
   margin: 0.4rem 0;
   padding-bottom: 0.3rem;
   border-bottom: 1px solid var(--border);
 }
+/* menu1 / menu2 の見出しは段ごとに飾りを変えて見分けられるようにする
+   （h2 と h3 が同じ見た目で区別できなかった。2026-10-03）。
+   h2: アクセント色の太い下線 / h3: 左の灰色の線 / h4: 小さめの薄い文字。
+   h3 の線をアクセント色にすると h2 より目立ってしまうため、h2 側だけに
+   アクセント色を使う。目次の見出し（.panel-title）は従来の細い下線のまま。 */
+.panel h1, .panel h2 {
+  font-size: 1rem;
+  padding-bottom: 0.1rem;   /* 下線との隙間（0.3rem の 1/3） */
+  border-bottom: 2px solid var(--accent);
+}
+.panel h3 {
+  font-size: 0.92rem;
+  margin: 0.5rem 0 0.3rem;
+  padding-left: 0.4rem;
+  border-left: 3px solid var(--border);
+}
+.panel h4, .panel h5, .panel h6 {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.4rem 0 0.2rem;
+}
 .panel ul { margin: 0.4rem 0; padding-left: 1.2rem; }
+
+/* ---- menu1 / menu2: h2 ごとの囲み ----
+   base.js が、menu1・menu2 の h2 から次の h2 の手前までを
+   <section class="menu-group"> で包む。fieldset と legend のように、枠線の上辺に
+   h2 を重ねる。囲みの内側は薄灰色の面（--panel-bg）にする。
+   （旧 base2 を統合したもの。2026-10-12 設計者「Bの案で進めて」。枠だけで内側を
+   透明にする案 A と見比べて、面にする案 B を選んだ。A に戻すなら、.menu-group の
+   background と h2 の background を、それぞれ none と var(--bg) にする。）
+   fresh・pukiwiki_default などがこのファイルを @import しても、.menu-group は
+   base.js が base のときだけ作るので、ここの規則は base 以外には何も起こさない。
+
+   囲みを持つ .panel は、パネル自身の見た目を外す。.panel（背景・枠線・角丸・
+   内側の余白）の中に .menu-group が入ると、枠が二重になるため。要素は残す
+   （base.js・common.js が .menu1 / .menu2 を手掛かりにするため）。
+   :has(> .menu-group) で絞るので、h2 が無く囲みを作らないメニューは、従来どおり
+   .panel の見た目のまま。目次（.panel.toc）は囲みを持たないので、これも従来どおり。 */
+.panel:has(> .menu-group) {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+/* h2 は、上半分が枠の外（背面。.panel の背景を上で外したので、ページの背景
+   --bg）、下半分が枠の内側（--panel-bg）に乗る。重なった枠線を隠すために、
+   その境目を二色の背景で作る。境目は h2 の1行目の中央（0.65em）。em の固定値に
+   するのは、長い見出しが折り返して背が高くなっても、境目が枠線の位置から
+   動かないため（50% にすると、折り返した分だけ下へずれて、枠の内側に
+   --bg の帯が出る）。
+   折りたたみのドロワーが開いたときの背景（--drawer-bg）や fix モードも、
+   既定では --bg と同じ。
+   上へずらす量（-0.65em）は line-height 1.3 の半分で、文字の高さの中央が
+   枠線に乗る。上の境目（0.65em）と同じ値なので、一方を変えるときは
+   もう一方も揃える。position:absolute にしないので、長い見出しが折り返しても
+   中身と重ならない。 */
+.panel .menu-group {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 0.7rem 0.3rem;
+  margin: 1.2rem 0 0.6rem;
+}
+.panel .menu-group > h2 {
+  width: fit-content;
+  max-width: 100%;
+  margin: -0.65em 0 0.3rem -0.3rem;
+  padding: 0 0.35rem;
+  line-height: 1.3;
+  background: linear-gradient(var(--bg) 0.65em, var(--panel-bg) 0.65em);
+  border: 0;   /* 上の h2 の下線は、囲みがあるので要らない */
+}
 
 /* ---- menu1の階層開閉 ----
    base.js が「子リストを持つli」を<details>/<summary>に組み替える
-   （.mainbar .menu1 にしか無いマークアップ。開閉状態・キーボード操作・
-   三角マーカーはブラウザ標準のdetails/summaryに任せている）。
+   （.mainbar .menu1 にしか無いマークアップ。開閉状態・キーボード操作は
+   ブラウザ標準のdetails/summaryに任せている）。
    三角が付く項目（=子を持つ項目）は、liの既定の丸ブレットを消して
-   三角だけにする（子を持たない項目は丸ブレットのまま）。 */
+   三角だけにする（子を持たない項目は丸ブレットのまま）。
+   三角は summary::before にCSSで描く（ブラウザ標準のマーカーは位置も大きさも
+   ブレットと別に決まるため）。文字の開始位置は丸ブレットの項目と揃っているので、
+   三角を動かしても文字は動かさない（::before の幅は常に 1em のまま、
+   描く位置だけ relative でずらす）。 */
 .menu1 li:has(> details.menu1-node) { list-style: none; }
 .menu1 summary {
   cursor: pointer;
@@ -207,12 +306,21 @@ html.bp-narrower .content { grid-column: 1; grid-row: 1; }
    summary内でも改行させず三角マーカーと同じ行に収める。 */
 .menu1 summary > p { display: inline; margin: 0; }
 .menu1 summary::before {
-  content: "▸";
+  content: "";
   display: inline-block;
   width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  /* 三角の左端を、丸ブレット（●）の左端（文字の開始位置から 1.13em 左）に置く。
+     summary は margin-left: -0.9rem の位置から始まるので、その差だけ描画をずらす */
+  position: relative;
+  left: calc(0.9rem - 1.13em);
   color: var(--accent);
+  background: currentColor;
+  /* 閉じているとき ▶（幅 0.7em × 高さ 0.8em）、開いているとき ▼（同じ大きさ） */
+  clip-path: polygon(0 10%, 70% 50%, 0 90%);
 }
-.menu1 details[open] > summary::before { content: "▾"; }
+.menu1 details[open] > summary::before { clip-path: polygon(0 10%, 70% 10%, 35% 90%); }
 .menu1 details > ul { margin-top: 0.2rem; }
 
 .toc ul { list-style: none; padding-left: 0; }
@@ -263,7 +371,7 @@ html.bp-narrower .content { grid-column: 1; grid-row: 1; }
   border-left: 3px solid var(--border);
 }
 .content table { border-collapse: collapse; display: block; overflow-x: auto; }
-.content th, .content td { border: 1px solid var(--border); padding: 0.4rem 0.8rem; }
+.content th, .content td { border: 1px solid var(--table-border, var(--border)); padding: 0.4rem 0.8rem; }
 .content th { background: var(--panel-bg); }
 .content .contains-task-list { list-style: none; padding-left: 1rem; }
 

@@ -7,8 +7,8 @@ calendar3・calendar_viewer）のテスト。
 移動（同じページを問い合わせ付きで開き直す）を見る。「今日」は 2026-09-25 に固定する。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_calendar.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_calendar.py     （このファイルだけ）
 """
 import datetime
 import importlib.util

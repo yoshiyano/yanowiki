@@ -1,4 +1,4 @@
-"""PukiWiki記法の InterWiki（`[[登録名:ページ名]]` で外部サイトへリンクする記法）。
+"""PukiWiki記法の InterWiki（`[[登録名:ページ名]]` で外部サイトへリンクする書きかた）。
 
 本家PukiWikiは登録名の一覧を専用のページ（InterWikiName）に書くが、
 このシステムでは他の管理者向けの定義（`wikilib.extrarules` の置換ルール等）

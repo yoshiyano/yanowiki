@@ -21,7 +21,7 @@ tname.html・tname.css・tname.js を使います（ファイル名の付けか�
   wikiSystem/theme/base.html      ← 実体（Git管理）
   wikiThemes/base.html            → 上へのリンク
 
-修正の記録は wiki の /Tech/ChangeLog/themes に残します（本体の更新履歴とは
+修正の記録は wiki の /ChangeLog/Theme に残します（本体の更新履歴とは
 分けています。直す人も、直す周期も違うため）。
 テーマを直してコミットするときは、その記録を見てからコミット文を書きます。
 
@@ -44,6 +44,22 @@ common.* には「テーマの作りに関わらず働くもの」だけを置�
 (2) は common.js が作るのではなく、テーマが置いたものに振る舞いを付ける関係です。
 クラス名を合わせておけば、一から書いたテーマでも検索がそのまま使えます。
 検索フォームを置かないテーマでは、何もしないだけなので問題ありません。
+
+タイトル右端の道具置き場も、同じ関係です（Wiki設計者の指示 2026-10-11）。タイトルの <h1> の
+中、文字より前に次を置きます。<h1 class="title"> など、h1 のクラス名は問いません。
+
+  <span class="page-title-tools">
+    <span class="page-info-slot">{{ page_info|default("", true) }}</span>
+    <button type="button" class="content-width-toggle"></button>
+  </span>
+
+  .page-info-slot       info の場所。本体が変数 page_info（<a ...>...</a>）で渡す。空なら幅を取らない
+  .content-width-toggle 本文の幅の上限を外す／戻すボタン（↗／↙）。押すと <html> に
+                        content-wide が付き外れる。覚えておき次のページへ引き継ぐ（common.js）
+
+矢印の見た目と info の整えかたは common.css が持ちます。**「外す」の中身（html.content-wide の
+ときに、どの要素の幅の上限を外すか）はテーマごとに作りが違うので、各テーマのCSSが書きます。**
+書かなければボタンを押しても見た目は変わりません。ボタンを置かないテーマでは、何も起きません。
 
 編集リンクと data-editable は必ず {% if editable %} で囲んでください。
 editable はサーバーが決める1つの窓口で、閲覧者のそのページの編集の権限で
@@ -85,7 +101,19 @@ base   … 標準テーマ（青系）。サイドバー付き2コラム。
          base.html / base.css
          base.css は base.html のページ構造の見た目（検索は common.css へ移管済み）
          base.js   （common.js に加えて読み込む独自スクリプト。menu1の階層メニューを
-                     details/summary に組み替えて開閉できるようにする）
+                     details/summary に組み替えて開閉できるようにする。menu1 / menu2 の
+                     h2 ごとに <section class="menu-group"> で包む）
+         menu1 / menu2 は、h2 から次の h2 の手前までを枠で囲み、枠の上辺に h2 を重ねて
+         fieldset と legend のように見せる（囲みの見た目は base.css）。囲みを持つ
+         menu1 / menu2 は、外側の .panel の背景・枠線・余白を外す（枠の二重を避けるため。
+         h2 が無く囲みを作らないメニューは .panel のまま）。囲みの内側は薄灰色の面（--panel-bg）。
+         囲みは base だけの見た目で、base.html を継承する pukiwiki_default には
+         作らない（base.html が <body> に theme-<テーマ名> のクラスを付け、base.js が
+         theme-base のときだけ動く）。旧 base2 を統合したもの。
+         タイトル(h1.page-title)の右端には、本文の幅の上限を外す／戻すボタン（↗／↙）と、
+         その左に info の場所（page_info ブロック）がある。bloom・post_it_1・pkwk も同じ。
+         置き場所だけ違うテーマがある: fresh はヘッダの右上（検索の上の細い帯）に絶対配置、
+         pukiwiki_default は見出しの外（ヘッダのコマンド群の2段目の末尾。検索の下・「新規」の右）。
 
 fresh  … 薄緑系のすっきりしたサンプル。サイドバーは右。
          fresh.html （common/base.html を継承して差分だけ記述）
@@ -126,18 +154,14 @@ pukiwiki_default … PukiWiki標準スキン（skin/pukiwiki.css）の見た目�
          pukiwiki_default.css  （@import で base.css を土台に上書き）
          ※ JavaScript は common.js だけで足りるため .js はありません
 
-pkwk_wide … pukiwiki_default をコピーし、本文の最大幅の上限を外して画面の
-         横幅全体を使うようにしたもの（左右のメニュー幅はそのまま、本文が
-         伸びる）。それ以外の見た目・ヘッダ構成は pukiwiki_default と同じ。
-         pkwk_wide.html （pukiwiki_default.html のコピー）
-         pkwk_wide.css  （pukiwiki_default.css のコピー＋.layout の
-                     max-width を none にする節）
-         ※ コピーなので、pukiwiki_default への変更は自動では反映されない
+（pkwk_wide は 2026-10-14 に廃止した。本文の幅の上限を外して画面いっぱいに使う見た目は、
+設定「テーマと画面」の「本文の幅の上限を、標準で外す」（theme.content_wide）で、本文の
+大きさは「標準の拡大率」（theme.zoom）で代える。）
 
 ## pkwk / pukiwiki_default のヘッダロゴについて
 
 どちらもヘッダにロゴ画像を出す作り（pkwk は {{ theme_url }}/pkwk-logo.png、
-pukiwiki_default / pkwk_wide は {{ theme_url }}/logo.png。pukiwiki_default だけ
+pukiwiki_default は {{ theme_url }}/logo.png。pukiwiki_default だけ
 テーマ名を付けない名前にしてある、Wiki設計者の指示 2026-09-19）だが、**画像そのものは theme/ に同梱していない。** 参考にした
 サイトが使っていたロゴ（Python公式ロゴ／PukiWiki公式ロゴ）をそのまま
 再配布すると商標・著作権の許容範囲を超えうるため（2026-09-03、
@@ -151,12 +175,19 @@ wikiSystem側からの指摘）で、これらの画像ファイルは
   （現状 `wikidata/sandbox/theme/` に本家ロゴのサンプルを置いてある）
 - logo.png だけは、wikiSystem 自身のロゴをこの theme/ に置いてある。いまは
   本の木の図案（logo_booktree.png と同じ中身。2026-09-29 に Wiki設計者が差し替えた）。
-  ファーム側に logo.png を用意していなければ、pukiwiki_default / pkwk_wide の
+  ファーム側に logo.png を用意していなければ、pukiwiki_default の
   ヘッダにはこれが出る。
   pkwk-logo.png は同梱していないので、pkwk を使うファームでは引き続き
   ファーム側に用意すること（無いと404で壊れた画像アイコンになる）。
 - 自分の環境で本家の見た目を再現したい場合、ライセンス上問題ないと自分で
   判断できるロゴを同じファイル名で `wikidata/<farm名>/theme/` に置く。
+- **ロゴの大きさは高さだけを決め、横幅は画像の縦横比に任せる**（Wiki設計者の指示、
+  2026-10-13。それまでの pukiwiki_default は 72×72 固定で、正方形でない
+  ロゴが歪んだ）。高さは pukiwiki_default が 72px、pkwk が 64px。
+  ロゴを出す bloom の headicon.svg（タイトルの左）も同じ仕様で、高さ 64px。
+  画像は正方形でなくてよい。ただし、横長すぎる画像は幅の狭い画面でヘッダが横に
+  はみ出す。実測（2026-10-13）では、縦横比 2.5:1 は 320px 幅まで収まり、4:1 以上は
+  pukiwiki_default で 400px 幅以下ではみ出した（700px 幅以上は収まる）。
 
 ### wikiSystem ロゴのバリエーション（logo*.png）
 
@@ -165,14 +196,14 @@ logo.png のほかは、どのテーマからも参照していない素材で�
 _system トップの画像から切り出して背景を透過にしたもの。
 
   logo.png          256×256  既定のロゴ。logo_booktree.png と同じ中身
-  logo_booktree.png 256×256  本の木（枝に開いた本が実る木）、透過背景。ヘッダの72×72表示用
+  logo_booktree.png 256×256  本の木（枝に開いた本が実る木）、透過背景。ヘッダの高さ72px表示用
   logo1.png         256×256  エンブレム（本と葉）、透過背景。2026-09-29 まで logo.png だったもの
   logo2.png         256×256  生成りの角丸バッジに入れたもの（暗いヘッダでも沈まない）
   logo3.png         256×256  深緑の縁取りの円形バッジに入れたもの
   logo4.png         256×256  深緑一色のデュオトーン（落ち着いた配色のテーマ向け）
   logo5.png         404×160  横長の元デザイン（「Wiki」の文字入り）、透過背景。
-                            文字が深緑なので明るい背景向け。正方形の枠には入れないこと
-                            （72×72 に押し込むと潰れる）
+                            文字が深緑なので明るい背景向け。ヘッダには高さ72px・
+                            横幅約182px（縦横比のまま）で出る
 
 tDiary（http://www.tdiary.org/）用CSSテーマ（342種、GPL2）をwikiSystemの
 テーマへ変換する仕組み（PukiWiki本家の skin/tdiary.skin.php 相当）も
@@ -181,7 +212,7 @@ tDiary（http://www.tdiary.org/）用CSSテーマ（342種、GPL2）をwikiSyste
 テーマ一式は、いずれも wikidata/freshtest/theme/ に置く運用にした（Wiki設計者の
 指示。個別テーマCSSと同じ理由に加え、342種ぶんの生成物でリポジトリを
 太らせないため）。詳細は wikidata/freshtest/theme/tdiary.build.py
-自身のdocstringと、Tech/ChangeLog/themes/2026-09-04 を参照。
+自身のdocstringと、ChangeLog/Theme/2026-09-04 を参照。
 
 search.html は「設定中のテーマ」を継承するため、どのテーマを選んでも
 検索結果ページはそのデザインに追従します。

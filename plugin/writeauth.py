@@ -25,7 +25,7 @@ wikiSystem本体が行います（`/.admin/privileges`で手で登録する編�
 """
 
 """ 技術資料
-`readauth`と同じ作り（`_authcommon.py`。規則・落とし穴・記録の扱いはそちらの
+`readauth`と同じ作り（`readauth_.py`。規則・落とし穴・記録の扱いはそちらの
 docstring）。違いは種類が`W`であることだけ。
 
 ## 本体が`privileges.plugin`を読むようになった（2026-09-23）
@@ -53,9 +53,9 @@ PLUGIN_INFO = {
 
 
 def _load_common():
-    """兄弟の`_authcommon.py`を読み込む（呼び出しごと。理由は`_authcommon.py`の docstring）。"""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_authcommon.py")
-    spec = importlib.util.spec_from_file_location("wikiplugin__authcommon", path)
+    """兄弟の`readauth_.py`を読み込む（呼び出しごと。理由は`readauth_.py`の docstring）。"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "readauth_.py")
+    spec = importlib.util.spec_from_file_location("wikiplugin_readauth_", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

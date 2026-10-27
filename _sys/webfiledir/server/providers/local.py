@@ -38,7 +38,8 @@ TRASH_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
 class LocalProvider(Provider):
-    capabilities = frozenset({"mkdir", "touch", "rename", "delete", "trash", "copy", "move", "stream"})
+    capabilities = frozenset({"mkdir", "touch", "rename", "delete", "trash", "copy", "move", "stream",
+                              "update_mtime", "replace"})
 
     def __init__(self, root: str | os.PathLike, trash_dir: str | os.PathLike | None = None):
         # 根そのものは起動時に（シンボリックリンクでないことを含めて）確かめてある
@@ -113,6 +114,13 @@ class LocalProvider(Provider):
         self._os(lambda p: os.rename(p, dst), src, path)
         return self._path_entry(dst, new_name)
 
+    def update_mtime(self, path):
+        target = self._existing_target(path)
+        # シンボリックリンクは辿らず、リンクそのものの日時を変える（touch -h と同じ）。
+        # 辿ると、根の外を指すリンクの先を書き換えうる
+        self._os(lambda p: os.utime(p, follow_symlinks=False), target, path)
+        return self._path_entry(target, path[-1])
+
     def delete(self, path):
         target = self._existing_target(path)
 
@@ -132,7 +140,7 @@ class LocalProvider(Provider):
             raise ApiError("bad_path", "フォルダは中身を読めません", vpath.join(path))
         return self._os(lambda p: open(p, "rb"), real, path)
 
-    def write_file(self, parent, name, stream):
+    def write_file(self, parent, name, stream, mtime=None):
         target = self._new_target(parent, name)
         shown = parent + (name,)
         # O_EXCL: 同じ名前があれば上書きせずに失敗させる（確かめてから書くまでの間に作られても上書きしない）
@@ -140,6 +148,8 @@ class LocalProvider(Provider):
         try:
             with os.fdopen(fd, "wb") as out:
                 shutil.copyfileobj(stream, out, 1024 * 1024)
+            if mtime is not None:
+                os.utime(target, (mtime, mtime))
         except BaseException as e:
             # 書きかけのファイルを残さない
             try:
@@ -150,6 +160,32 @@ class LocalProvider(Provider):
                 self._raise_os(e, vpath.join(shown))  # ディスクが一杯などを、ほかの操作と同じエラーの形に
             raise
         return self._path_entry(target, name)
+
+    def replace_file(self, path, stream):
+        target = self._existing_target(path)
+        if os.path.islink(target):
+            # 置き換えると、リンクが普通のファイルになる（辿った先も変わらない）
+            raise ApiError("unsupported", "シンボリックリンクは中身を置き換えられません", vpath.join(path))
+        if os.path.isdir(target):
+            raise ApiError("bad_path", "フォルダは中身を置き換えられません", vpath.join(path))
+        mode = self._os(os.stat, target, path).st_mode & 0o7777
+        # 同じフォルダに書いてから入れ替える。途中で失敗しても元の中身が残る（入れ替えは一度に起きる）
+        tmp = os.path.join(os.path.dirname(target), f".fdweb-edit-{uuid.uuid4().hex}")
+        fd = self._os(lambda p: os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), tmp, path)
+        try:
+            with os.fdopen(fd, "wb") as out:
+                shutil.copyfileobj(stream, out, 1024 * 1024)
+            os.chmod(tmp, mode)  # 元の権限のまま
+            os.replace(tmp, target)
+        except BaseException as e:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            if isinstance(e, OSError):
+                self._raise_os(e, vpath.join(path))
+            raise
+        return self._path_entry(target, path[-1])
 
     def copy(self, src, dest_dir, new_name=None):
         s, dst, name = self._transfer_targets(src, dest_dir, new_name)

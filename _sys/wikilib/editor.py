@@ -14,7 +14,7 @@ from urllib.parse import quote as urlquote
 from bottle import HTTPResponse, request
 
 from wikilib.paths import (
-    BASE_COLOR_NAMES, CONFLICT_URLPATH, DEFAULT_CUSTOM_COLORS,
+    ATTACH_LINK_MARK, BASE_COLOR_NAMES, CONFLICT_URLPATH, DEFAULT_CUSTOM_COLORS,
     DEFAULT_THEMEFILE,
     EDITOR_DIR, EDITOR_URLPATH,
     FILES_URLPATH, TREEVIEW_URLPATH,
@@ -74,22 +74,26 @@ ATTACH_ICON_SPRITE = """<svg class="attach-icon-defs" aria-hidden="true" focusab
 def attach_ref_text(name, is_image, ext=None):
     """そのファイルを本文から参照する書きかたを返す。
 
-    添付ファイルは「そのページの添付」として、裸のファイル名だけで参照できる
-    （[本文中のリンク](/Tech/Reference/Routing) 参照）。画像は貼り込みたいことが多いので
-    埋め込みの書きかたにしておく。
+    添付ファイルは「そのページの添付」として、ファイル名だけで参照できる
+    （[本文中のリンク](/Tech/Reference/Routing) 参照）。**先頭に `::` を付けた形を
+    標準の書きかたとして見せる**（paths.ATTACH_LINK_MARK）。拡張子が添付の一覧に
+    あるかどうかを書き手が気にせずに済み、どんなファイル名でも同じ形で書ける。
+    画像は貼り込みたいことが多いので埋め込みの書きかたにしておく。
 
-    **記法（`ext`）によって書きかたが違う。** Markdownは`![name](name)`の
-    画像記法、PukiWikiには画像専用の記法が無いため`&img(name);`
-    （インラインプラグイン、[img](/Syntax/Plugin/img)）を使う。画像以外は
-    Markdownがリンク記法`[name](name)`、PukiWikiが角括弧リンク記法
-    `[[name>name]]`。`ext`を渡さない・記法が判定できない場合は、従来どおり
+    **ページの書きかた（`ext`）によって、書く形が違う。** Markdownは`![name](::name)`の
+    画像記法、PukiWikiには画像専用の書きかたが無いため`&img(name);`
+    （インラインプラグイン、[img](/Syntax/Plugin/img)。引数は常に添付ファイルと
+    読むので `::` は要らない）を使う。画像以外は Markdownがリンク記法
+    `[name](::name)`、PukiWikiが角括弧リンク記法`[[::name]]`（表示名は `::` を
+    外した `name` になる）。`ext`を渡さない・書きかたが判定できない場合は、
     Markdownの書きかたを返す。
 
     一覧にはこの文字列をそのまま出す。「本文での書きかた」と書いてある欄に
     ファイル名だけが並んでいても、何を書けばよいのかは分からないため。"""
+    mark = ATTACH_LINK_MARK
     if is_pukiwiki(ext):
-        return f"&img({name});" if is_image else f"[[{name}>{name}]]"
-    return ("![{}]({})" if is_image else "[{}]({})").format(name, name)
+        return f"&img({name});" if is_image else f"[[{mark}{name}]]"
+    return ("![{}]({}{})" if is_image else "[{}]({}{})").format(name, mark, name)
 
 
 def build_attach_panel_html(items, subpath, action, tree_url, attach_message="",
@@ -97,7 +101,7 @@ def build_attach_panel_html(items, subpath, action, tree_url, attach_message="",
                             index_shown=False, ext=None):
     """編集画面の「添付ファイル」タブの中身を組み立てる。
 
-    `ext` は「本文での書きかた」欄の記法を決める（画面で選んでいる記法。
+    `ext` は「本文での書きかた」欄の書きかたを決める（画面で選んでいる書きかた。
     保存済みファイルの拡張子とは限らない。呼び出し側を参照）。
 
     このページに添付されたファイルの一覧・追加・削除をここで完結させる。
@@ -268,7 +272,7 @@ def title_length_of(config):
 
 
 def _apply_listnames(node, config):
-    """一覧の行に、そのページの記法から決めた `listname`（"fname"/"title"）を足す。
+    """一覧の行に、そのページの書きかたから決めた `listname`（"fname"/"title"）を足す。
 
     PukiWiki記法とMarkdownで一覧の基準（ファイル名／タイトル）が違う
     （`wikiconfig.listname_for`。Wiki設計者の指示、2026-09-18。「pukiwiki は
@@ -277,7 +281,7 @@ def _apply_listnames(node, config):
     木を組んだあとにここで解決する。`build_page_tree` 自体は設定を知らない
     （`ext` を運ぶだけ）ので、設定を持つこちら側でページ1件ごとに見て回る。
 
-    記法が分からない行（実体の無い書きかけだけのページ・フォルダ自身の
+    書きかたが分からない行（実体の無い書きかけだけのページ・フォルダ自身の
     行）は "fname" のまま（`TreeView` 側もタイトルが無ければファイル名に
     落ちるので、実害は無い）。"""
     if node.get("kind") == "page":
@@ -321,11 +325,17 @@ def build_page_list_html(base_url, wiki_dir, current_subpath, config, index_show
     が行う（表示だけの都合のため）。
 
     **どちらを出すか（ファイル名／タイトル）はページごとに変わる。**
-    PukiWiki記法はファイル名基準、Markdownはタイトル基準という記法ごとの
+    PukiWiki記法はファイル名基準、Markdownはタイトル基準という書きかたごとの
     流儀があるため（`markdown.listname`/`pukiwiki.listname`。Wiki設計者の
     指示、2026-09-18）、`_apply_listnames` で行ごとに決めてから埋め込む
-    （`editor.js` 側は行に付いた `listname` を見るだけで、記法までは
+    （`editor.js` 側は行に付いた `listname` を見るだけで、書きかたまでは
     知らない）。
+
+    **行の名前は、見出しの下のボタンで切り替えられる**（自動・ファイル名・タイトル。
+    押した結果は `editor.js` がブラウザに控える）。「自動」は上の書きかたごとの
+    `listname`（既定）のままで、あとの2つは全部の行をその基準にそろえる。
+    **並び順も出している名前の順に直す**（`treeview.js` の `sortByLabel`。サーバーが
+    渡す木はファイル名順のままで、並べ替えはブラウザ側）。
 
     **トップページ（`/`）だけは特別扱い。** 他のフォルダは自分の行が中の
     `index` を兼ねるが、木のいちばん外側（ルート）には行そのものが無いため、
@@ -338,6 +348,14 @@ def build_page_list_html(base_url, wiki_dir, current_subpath, config, index_show
      data-edit-url="{escape(base_url)}"
      data-current-subpath="{escape(current_subpath, quote=True)}">
   <h2 class="panel-title">ページ一覧</h2>
+  <div class="ep-listmode" role="group" aria-label="一覧に出す名前">
+    <button type="button" class="ep-listmode-btn" data-mode="auto" aria-pressed="true"
+            title="ページの書きかたごとの設定に従って、ファイル名かタイトルを出す">自動</button>
+    <button type="button" class="ep-listmode-btn" data-mode="fname" aria-pressed="false"
+            title="ファイル名を出し、ファイル名の順に並べる">ファイル名</button>
+    <button type="button" class="ep-listmode-btn" data-mode="title" aria-pressed="false"
+            title="タイトルを出し、タイトルの順に並べる">タイトル</button>
+  </div>
   <div class="ep-tree" role="tree" tabindex="0" aria-label="ページ一覧"
        data-show-index="{index_flag}" data-title-length="{int(title_length)}"></div>
   <script type="application/json" class="edit-pages-tree">{tree_json}</script>
@@ -349,7 +367,7 @@ def build_page_list_html(base_url, wiki_dir, current_subpath, config, index_show
 def build_toolbar_html(actions):
     """ツールバーのボタンを組み立てる。
 
-    記法を切り替えたときは、ブラウザ側（editor.js）が同じ形のHTMLで中身を
+    書きかたを切り替えたときは、ブラウザ側（editor.js）が同じ形のHTMLで中身を
     差し替える。作りを合わせておくことで、最初の表示と切り替え後の見た目が揃う。"""
     return "".join(
         '<button type="button" class="edit-tool" data-action="{name}" title="{label}" '
@@ -360,10 +378,10 @@ def build_toolbar_html(actions):
 
 
 def build_markup_choice_html(current):
-    """記法を選ぶラジオボタンを組み立てる。
+    """書きかたを選ぶラジオボタンを組み立てる。
 
-    ページの記法は拡張子で決まるので、ここでの選択は**保存先のファイル名**を
-    決めることでもある。選び直せば、プレビューもツールバーもその記法のものに
+    ページの書きかたは拡張子で決まるので、ここでの選択は**保存先のファイル名**を
+    決めることでもある。選び直せば、プレビューもツールバーもその書きかたのものに
     切り替わる（本文は書き換えない。書いたものはそのまま残る）。"""
     items = []
     for name, fmt in selectable_markups():
@@ -377,8 +395,8 @@ def build_markup_choice_html(current):
             "</label>"
         )
     return (
-        '<div class="edit-markup" role="radiogroup" aria-label="記法">'
-        '<span class="edit-markup-title">記法</span>' + "".join(items) + "</div>"
+        '<div class="edit-markup" role="radiogroup" aria-label="書きかた">'
+        '<span class="edit-markup-title">書きかた</span>' + "".join(items) + "</div>"
     )
 
 
@@ -452,7 +470,7 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
                   + "</script>")
     tools = build_toolbar_html(fmt["actions"])
     toolbar = (
-        '<div class="edit-toolbar" role="toolbar" aria-label="記法のボタン">'
+        '<div class="edit-toolbar" role="toolbar" aria-label="書きかたのボタン">'
         f'<span class="edit-tools">{tools}</span>{build_markup_choice_html(markup)}</div>'
     )
     note = ""
@@ -467,7 +485,7 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
     # 連続編集で保存・破棄したあと、画面に留まったことを知らせる
     saved = (f'<div class="edit-saved-note" role="status">{escape(saved_notice)}</div>'
              if saved_notice else "")
-    # 記法を切り替えたときにツールバーを組み直せるよう、全書式の定義を渡しておく
+    # 書きかたを切り替えたときにツールバーを組み直せるよう、全書式の定義を渡しておく
     formats_json = json.dumps(
         _formats_with_colors(config), ensure_ascii=False
     ).replace("<", "\\u003c")
@@ -555,7 +573,7 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
   </section>
 
   <div class="edit-buttons">
-    <!-- **送信するのはこのフォームだけ。** 本文・origin・記法は中に持たず、
+    <!-- **送信するのはこのフォームだけ。** 本文・origin・書きかたは中に持たず、
          押された瞬間にJavaScriptが集めて下の隠し項目へ詰める。
          囲む範囲をボタンだけにしてあるので、本文に <form> が混じっても
          入れ子にならない（Wiki設計者の指示、2026-09-01） -->
@@ -572,6 +590,20 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
       <button type="submit" name="cmd" value="pause" class="edit-pause">一時中断<span class="edit-key">(ESC)</span></button>
       <button type="submit" name="cmd" value="discard" class="edit-discard"{off}>内容破棄</button>
     </form>
+    <!-- 本文を空にして保存する（＝ページの削除）ときの確かめ。［はい］［いいえ］で尋ねる
+         （Wiki設計者の指示、2026-10-10。ファイル一覧の削除と揃える）。文は editor.js が入れる。
+         並びと、最初に［いいえ］が選ばれていることはファイル一覧（webFileDir）と同じ
+         （押し間違いで消さないため。クロコの実装例） -->
+    <dialog class="edit-delete-dialog" aria-labelledby="edit-delete-title">
+      <form method="dialog" class="edit-delete-form">
+        <div class="edit-delete-head"><strong id="edit-delete-title">ページの削除</strong></div>
+        <p class="edit-delete-message"></p>
+        <div class="edit-delete-foot">
+          <button type="submit" value="yes" class="edit-delete-yes">はい</button>
+          <button type="submit" value="no" class="edit-delete-no" autofocus>いいえ</button>
+        </div>
+      </form>
+    </dialog>
     {files_link}
     <!-- **連続編集**（Wiki設計者の指示、2026-09-19）。入っていれば、保存・内容破棄の
          あとに元のページへ戻らず、この編集画面に留まる。フォームの外に置いてあり、
@@ -657,6 +689,7 @@ def build_edit_page_html(title, site_title, home_url, cancel_url, editor_url, tr
 </div>
 <script src="{escape(treeview_url)}.js"></script>
 <script src="{escape(editor_url)}.js"></script>
+<script src="{escape(editor_url)}.link.js"></script>
 </body>
 </html>
 """
@@ -665,8 +698,11 @@ def build_edit_page_html(title, site_title, home_url, cancel_url, editor_url, tr
 def serve_editor_asset(name):
     """編集機能自身のCSS/JSを配信する（_sys/editor/editor.css, editor.js）。
     テーマの theme/ とは別に持つことで、どのテーマを選んでいても編集画面が
-    同じように動く（テーマがCSSを用意していなくても崩れない）。"""
-    return serve_asset(EDITOR_DIR, "editor", name)
+    同じように動く（テーマがCSSを用意していなくても崩れない）。
+
+    `editor.link.js`（`/.editor.link.js`）は外部エディタとの編集同期。2600行ある
+    editor.js に混ぜず、別のファイルにしてある（クロコの実装例）。"""
+    return serve_asset(EDITOR_DIR, "editor", name, kinds=("css", "js", "link.js"))
 
 def source_hash(text):
     """保存時の競合検出に使う。編集を始めた時点の中身と比べる。"""
@@ -694,17 +730,32 @@ def remove_empty_dirs(directory, stop_at):
         current = os.path.dirname(current)
 
 
-def delete_page(wiki_dir, config, ref):
+def delete_page(wiki_dir, config, ref, refuse_attachments=False):
     """ページのファイルごと削除する。(成否, 知らせる文言) を返す。
 
-    添付ファイルが残っているページは削除しない。ページだけ消すと参照元を失った
-    添付が宙に浮き、かといって一緒に消すと取り返しがつかないため、
-    先に添付を片付けてもらう。"""
+    **添付ファイルは、ページを消したあとで `/trashbox` へ移す**（`garbagecollect.
+    trash_attachments`。Wiki設計者が選んだ決まり、2026-10-04）。編集画面で本文を空に
+    して保存したときも、ファイル一覧で消したときも、ここを通るので同じになる。
+    それまでは添付が残っているページは消さずに断っていた。trashbox の権限かページを
+    用意できないときは、制限の無いところへ置かないよう、従来どおり断る。
+
+    refuse_attachments は、添付があれば断る従来の決まり。助手の操作の取り消し
+    （staffundo の「作ったページを消す」）だけが使う（取り消しで添付を動かさない。
+    クロコの実装例）。"""
+    from wikilib import garbagecollect
     if not ref.exists:
         return False, "このページはまだありません。"
-    if page_has_attachments(wiki_dir, ref.subpath):
+    has_attach = page_has_attachments(wiki_dir, ref.subpath)
+    if has_attach and refuse_attachments:
         return False, ("このページには添付ファイルがあるため削除できません。"
                        "「添付ファイル」タブで先に削除するか、別のページへ移してください。")
+    if has_attach:
+        # 先に trashbox を用意する。ページを消してから用意できないと、添付が宙に浮く
+        with stafflog.quiet():
+            ready = garbagecollect.ensure_trashbox(wiki_dir, config)
+        if not ready:
+            return False, (f"添付ファイルの移し先（/{garbagecollect.TRASHBOX_PAGE}）を用意"
+                           "できなかったため、削除しませんでした。")
 
     staff = stafflog.actor(wiki_dir)
     old_text = stafflog.read_text(ref.path) if staff is not None else None
@@ -712,8 +763,12 @@ def delete_page(wiki_dir, config, ref):
         os.remove(ref.path)
     except OSError:
         return False, "ページを削除できませんでした。"
+    trashed = garbagecollect.trash_attachments(wiki_dir, config, ref.subpath) if has_attach else []
     if staff is not None:
-        stafflog.record(wiki_dir, staff, "page.delete", ref.subpath, "削除した",
+        summary = "削除した"
+        if trashed:
+            summary += f"（添付{len(trashed)}件を /{garbagecollect.TRASHBOX_PAGE} へ移した）"
+        stafflog.record(wiki_dir, staff, "page.delete", ref.subpath, summary,
                         before={"ext": ref.ext, "text": old_text}, after=None)
 
     # 消す前の内容を「全文→空」の差分として残し、DBの行を消す（pagesave）。
@@ -727,6 +782,12 @@ def delete_page(wiki_dir, config, ref):
     folder = os.path.dirname(ref.subpath)
     if folder:
         convert_folder_to_page(wiki_dir, config, folder)
+    if trashed:
+        return True, (f"削除しました。添付ファイル {len(trashed)} 件は "
+                      f"/{garbagecollect.TRASHBOX_PAGE} へ移しました（管理者と助手が開けます）。")
+    if trashed is None:
+        return True, (f"削除しました。添付ファイルは /{garbagecollect.TRASHBOX_PAGE} へ"
+                      "移せなかったため、元の場所に残っています。")
     return True, "削除しました。"
 
 def handle_attach_post(wiki_dir, config, subpath):
@@ -908,8 +969,8 @@ def render_edit(wiki_dir, config, farm, pagepath, explicit_farm, _reopened=None)
         return render_no_edit(wiki_dir, config, farm, pagepath, explicit_farm,
                               logged_in=uid is not None)
 
-    # まだ無いページの拡張子は、そのWikiの既定の記法（edit.defaultwiki）で決まる。
-    # ここで決まった ext が、下の markup（ツールバーの記法の選択）の初期値になる
+    # まだ無いページの拡張子は、そのWikiの既定の書きかた（edit.defaultwiki）で決まる。
+    # ここで決まった ext が、下の markup（ツールバーの書きかたの選択）の初期値になる
     ref = resolve_page_ref(wiki_dir, pagepath, default_markup(config))
     if ref is None:
         return render_no_page(wiki_dir, config, farm, pagepath, explicit_farm)
@@ -1067,7 +1128,7 @@ def render_edit(wiki_dir, config, farm, pagepath, explicit_farm, _reopened=None)
             # ハッシュ）も一緒に残し、統合の結果を保存するときまで
             # 「何から分かれた変更なのか」を保つ。
             save_draft(wiki_dir, attach_subpath, source, sent_hash)
-            # 記法の選び直しも引き継ぐ。統合画面には記法を選ぶところが無いので、
+            # 書きかたの選び直しも引き継ぐ。統合画面には書きかたを選ぶところが無いので、
             # ここで渡さないと、選び直したことが黙って無かったことになる
             chosen = request.forms.getunicode("markup", "")
             return HTTPResponse(status=303, headers={
@@ -1102,6 +1163,12 @@ def render_edit(wiki_dir, config, farm, pagepath, explicit_farm, _reopened=None)
                 typed = source
             else:
                 delete_draft(wiki_dir, attach_subpath)
+                # 連続編集なら、消えたページ（まだ無いページ）の編集画面に留まる。
+                # 他のページの編集へ続けて移れるようにするため
+                if continuous:
+                    return render_edit(wiki_dir, config, farm, pagepath, explicit_farm,
+                                       _reopened="ページを削除しました（" + time.strftime("%H:%M:%S") + "）。"
+                                       + notice.removeprefix("削除しました。"))
                 # 消えたページへ戻す。「このページはまだありません」の画面になり、
                 # そこから作り直すこともできる
                 return HTTPResponse(status=303, headers={
@@ -1114,10 +1181,10 @@ def render_edit(wiki_dir, config, farm, pagepath, explicit_farm, _reopened=None)
             # （書きかけの段階で日付を確定させてしまわないようにするため）。
             source = save_time_replace(source, pagepath)
 
-            # 記法は画面のラジオボタンで選ばれる。ページの記法は拡張子で決まるので、
+            # 書きかたは画面のラジオボタンで選ばれる。ページの書きかたは拡張子で決まるので、
             # 選び直されていれば保存先のファイル名も変わる（本文はそのまま。
-            # 記法を移す＝書き直す作業なので、システムが勝手に変換はしない）。
-            # 置き場所の決まり（フォルダの階層・index）は記法によらず同じ。
+            # 書きかたを移す＝書き直す作業なので、システムが勝手に変換はしない）。
+            # 置き場所の決まり（フォルダの階層・index）は書きかたによらず同じ。
             new_ext = markup_ext_or(request.forms.getunicode("markup", ""), ext)
             # 保存先は attach_subpath（実際に解決されたファイル、拡張子抜き）を使う。
             # "/Tech" のようなフォルダ相当のURLは "Tech/index" に解決されているため、
@@ -1135,7 +1202,7 @@ def render_edit(wiki_dir, config, farm, pagepath, explicit_farm, _reopened=None)
             save_page(wiki_dir, config, attach_subpath, new_ext, source, engine=engine,
                       path=path, known=original if known is None else known)
             if not is_new and new_ext != ext:
-                # 記法を移した。前の拡張子のファイルは必ず消す。残しておくと
+                # 書きかたを移した。前の拡張子のファイルは必ず消す。残しておくと
                 # 同じページが2つある状態になり、どちらが開かれるかは
                 # PAGE_EXTS の順（.txt が先）で決まってしまう
                 old_path = page_file_path(wiki_dir, attach_subpath, ext)
@@ -1144,8 +1211,7 @@ def render_edit(wiki_dir, config, farm, pagepath, explicit_farm, _reopened=None)
             # 本保存できたので、預かっていた書きかけは役目を終える
             delete_draft(wiki_dir, attach_subpath)
             # 保存できたらページ本体へ戻す。**連続編集なら戻らず、保存した内容で
-            # 編集画面を開き直す**（削除は別。消えたページの案内を見せるため、
-            # 上でそのまま戻している）
+            # 編集画面を開き直す**（削除も同じ。上で開き直している）
             if continuous:
                 return render_edit(wiki_dir, config, farm, pagepath, explicit_farm,
                                    _reopened="保存しました（" + time.strftime("%H:%M:%S") + "）。")
@@ -1185,7 +1251,7 @@ def render_edit(wiki_dir, config, farm, pagepath, explicit_farm, _reopened=None)
             delete_draft(wiki_dir, attach_subpath)  # 中身が同じなら預かる意味がない
 
 
-    # 記法の選択は、保存されているファイルの拡張子が初期値。POSTで戻ってきた
+    # 書きかたの選択は、保存されているファイルの拡張子が初期値。POSTで戻ってきた
     # ときは選び直した内容を保つ（保存できずに画面へ戻す場合があるため）。
     markup = request.forms.getunicode("markup", "") if request.method == "POST" else ""
     if markup not in MARKUP_FORMATS:
@@ -1428,9 +1494,11 @@ def serve_section(wiki_dir, config, farm, pagepath, explicit_farm=False):
     繋いで送り返す。3つを繋ぐと元のページに戻るので、保存は編集画面からの
     保存とまったく同じ扱いになる。
 
-        {"before": …, "section": …, "after": …, "origin": …}
+        {"before": …, "section": …, "after": …, "origin": …,
+         "page": {path, markup, ext, url}, "attachments": [...]}
 
-    origin は**そのときのページ全体のハッシュ**で、保存のときに競合の判定に
+    page と attachments は、セクション編集を外部エディタとつなぐときに送るもの
+    （`_section_link_info`）。origin は**そのときのページ全体のハッシュ**で、保存のときに競合の判定に
     使う（editor.source_hash。編集画面の origin と同じもの）。
 
     ## 表示を止められているページでは受け付けない
@@ -1474,13 +1542,34 @@ def serve_section(wiki_dir, config, farm, pagepath, explicit_farm=False):
         if parts is None:
             return plain("no page", status=404)
         before, section, after = parts
+        page, attachments = _section_link_info(wiki_dir, config, farm, explicit_farm, pagepath)
         return _section_json({"before": before, "section": section,
-                              "after": after, "origin": source_hash(body)})
+                              "after": after, "origin": source_hash(body),
+                              "page": page, "attachments": attachments})
 
     text = extract_section_text(body, positions, heading_id, scope, intro_start)
     if text is None:
         return plain("no page", status=404)
     return plain(text)
+
+
+def _section_link_info(wiki_dir, config, farm, explicit_farm, pagepath):
+    """セクション編集を外部エディタとつなぐときに送る、ページの情報と添付ファイルの一覧。
+
+    編集画面では、書きかたは選択のラジオボタンから、添付は添付タブの行から
+    `editor.link.js` が集める。表示のページにはどちらも無いので、節と一緒に返す。
+    添付の `ref`（本文での書きかた）は添付タブと同じ `attach_ref_text` で作る。"""
+    ref = resolve_page_ref(wiki_dir, pagepath)
+    context = make_plugin_context(config, farm, wiki_dir, pagepath, explicit_farm, ext=ref.ext)
+    page = {"path": pagepath or "index", "markup": markup_name_for(ref.ext), "ext": ref.ext,
+            "url": context.base_url + "/" + pagepath}
+    attachments = [
+        {"name": it["name"], "kind": it["kind_label"],
+         "size": format_attach_size(it["size"], it["dimensions"], it["is_image"]),
+         "mtime": it["mtime"], "ref": attach_ref_text(it["name"], it["is_image"], ref.ext)}
+        for it in list_attachments(wiki_dir, ref.subpath, context.base_url)
+    ]
+    return page, attachments
 
 
 def save_section(wiki_dir, config, farm, pagepath, explicit_farm):
@@ -1642,10 +1731,10 @@ def render_preview(wiki_dir, config, farm, explicit_farm, pagepath):
     attach_subpath = ref.subpath
 
     text = request.body.read().decode("utf-8", errors="replace")
-    # 描く記法は、編集画面で選ばれているもの（?markup=…）。指定が無ければ
-    # 保存されているページの記法。**保存前に切り替えた記法で確かめられる**ように
-    # するためで、ここが保存済みの拡張子に固定だと、記法を移すときに
-    # プレビューだけ古い記法のままになる。
+    # 描く書きかたは、編集画面で選ばれているもの（?markup=…）。指定が無ければ
+    # 保存されているページの書きかた。**保存前に切り替えた書きかたで確かめられる**ように
+    # するためで、ここが保存済みの拡張子に固定だと、書きかたを移すときに
+    # プレビューだけ古い書きかたのままになる。
     ext = markup_ext_or(request.query.getunicode("markup", ""), ref.ext)
     # partial=True。ページ全体の情報が要るプラグインは、ここでは処理せず断り書きを出す
     context = make_plugin_context(config, farm, wiki_dir, pagepath, explicit_farm, partial=True,

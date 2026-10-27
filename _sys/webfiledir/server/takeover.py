@@ -43,12 +43,17 @@ def listening_pids(port: int) -> set[int]:
         if not d.name.isdigit():
             continue
         try:
-            for fd in (d / "fd").iterdir():
-                if os.readlink(fd) in inodes:
-                    pids.add(int(d.name))
-                    break
+            fds = list((d / "fd").iterdir())
         except OSError:
             continue  # 別のアカウントのプロセス、または調べているあいだに終わった
+        for fd in fds:
+            try:
+                link = os.readlink(fd)
+            except OSError:
+                continue  # 調べているあいだに閉じた fd。そのプロセスの残りの fd は続けて調べる
+            if link in inodes:
+                pids.add(int(d.name))
+                break
     return pids
 
 

@@ -30,6 +30,11 @@ PukiWikiの `ref` と同じ値が指定できます。`src`だけは常に1番�
  10. title … 表示する文字。どれにも当てはまらなかった残り (default: ファイル名をそのまま使う)
 
 画像かどうかは拡張子で自動判定します（`noimg`で強制的にファイル扱いにできます）。
+添付ファイルのリンクは、ブラウザで表示できる種類（画像・PDF・テキスト・HTML・
+JSON・XML・ブラウザで再生できる動画と音声）なら開いたときにブラウザで表示し、
+それ以外（Word・Excel・zip など）はダウンロードします。閲覧者が添付ファイルのリンクを
+右クリックすると、表示・ダウンロード・リンクのコピーなどを選べるメニューが出ます
+（ブラウザ標準のメニューは Shift+右クリック）。外部URLのリンクはブラウザに任せます。
 """
 
 """ 技術資料
@@ -95,8 +100,9 @@ $_title)`と同じくカンマ連結）。それ以外（`size`/`align`/`around`
 添付ファイルが実在しない場合は本家に合わせてエラーにする
 （`PluginArgumentError`。本家の「File not found」に相当）。
 
-`src`には`"link": True`を宣言している。値がリンク元データベースに
-記録される（`wikilib.links.plugin_arg_links`）。
+`src`には`"link": "attach"`を宣言している。値がリンク元データベースに
+添付ファイルとして記録される（`wikilib.links.plugin_arg_links`）。拡張子が添付の
+一覧（attach.link_exts）に無いファイルも、`::` を付けずに書ける。
 
 実際に埋め込む`src`/`href`の値そのものは、`img`と同じく自分で
 `/.attach/...`を組み立てず、`wikilib.render.rewrite_content_links`に
@@ -127,15 +133,76 @@ $_title)`と同じくカンマ連結）。それ以外（`size`/`align`/`around`
   分かり、見た目も自然なので賛成。ただし併記する場合も、大きさ・更新日時は読めない
   ページから取り出す情報なので出さない（画像も展開しない）ことにした
 - 外部URL（`keep`）は対象外。ページを指した場合（`page`）は従来どおり「見つかりません」
+
+## 表示できない種類の添付はダウンロード（2026-10-25、設計者の指示）
+
+経緯: 同じ日に `attachls` を「画像以外はダウンロード」にし、続いて `ref` の既定も
+そうした（そのとき本家の挙動へ戻す単語 `open` をクロコの案で足した）。その後、設計者の
+指示「アプリケーション対応があるものについては表示として、それ以外をダウンロードに」
+「ホットキー連動で強制ダウンロードができるようにできれば、それも追加」で今の形にした。
+本家の `attach` の open も PDF などをブラウザで開くので、本家の挙動に近づいた。賛成。
+`open` は、表示できる種類が既定で開くようになって意味を失ったので外した（足して
+すぐで、使っているページも無かった）。
+
+- **表示できるかは、配信で付く Content-Type で決める。** 添付の配信は
+  `bottle.static_file` が `mimetypes.guess_type` で Content-Type を決めるので、`ref` も
+  同じ関数で引く（`_browser_viewable`）。分からないものは配信側で
+  `application/octet-stream` になる（`guard_attach_response`）ので、ダウンロード側
+- 表示する種類（`VIEWABLE_*`）は、ブラウザが自前で表示・再生できるものに絞った
+  （クロコの実装例）: `text/*`（CSV・TSV は Chrome が保存に回すので除く）・`image/*`・
+  PDF・JSON・XML、動画は mp4・webm・ogg、音声は mp3・ogg・wav・flac・m4a・aac・webm。
+  Office 文書・zip などは、ブラウザで開いてもどうせ保存になるが、`download="名前"` を
+  付けておくと保存名が URL の末尾（日本語名が崩れうる）でなくファイル名になる。
+  添付の HTML・SVG は配信側の `Content-Security-Policy: sandbox` でスクリプトが
+  動かない形で表示される
+- リンクの `<a>` に `download="ファイル名"` を付けるだけで、配信側
+  （`serve_attach` / `guard_attach_response`）は変えない（配信で `attachment` にすると、
+  ホットキーで「開く／保存」を選び分けられなくなる）。添付は `/.attach/...` で Wiki と
+  同じオリジンから配られるので、`download` 属性が効く
+- 付けるのは**実在した添付**だけ（`info` があるのは実在した添付だけで、外部URLは
+  `None`）。別オリジンの URL ではブラウザが `download` を無視する。「閲覧できない
+  ファイル」の札はリンクではないので対象外
+
+### 右クリックメニューで表示・ダウンロードを選ぶ（`ref.js`）
+
+設計者の指示「右メニューを表示しダウンロードや表示を選択できるように」「右メニューには
+標準の右メニューにあるリンクのコピーなども」。最初は「ホットキー連動で強制ダウンロード」
+の指示で Alt+クリックにしたが、設計者の環境（Xfce の xfwm4、`easy_click` が `Alt`）では
+Alt+クリックがウィンドウの移動に取られてページまで届かず、設計者が「別の操作に置き換える」
+を選んで、この右クリックメニューになった（Alt+クリックの処理は外した。Chrome は JS と
+関係なく Alt+クリックで保存するので、届く環境ではそれは残る）。
+
+`ref.js`（`ref` を使ったページだけで読み込まれる。`attachls` から呼んだときも
+`used_plugins` に `ref` が載るので読み込まれる）が、`.plugin-ref-file`・`.plugin-ref-link`
+（画像のリンク。`image-link` は `img` も使うので、`ref` 固有のクラスを足して選ぶ）のうち
+`/.attach/` を指すリンクの `contextmenu` を横取りしてメニューを出す。
+
+- 項目（並びと名前はクロコの実装例）: 表示／新しいタブで表示／新しいウィンドウで表示／
+  ダウンロード／リンクのアドレスをコピー／リンクのテキストをコピー。最後に「標準の
+  メニューは Shift+右クリック」の案内。標準メニューの項目のうち、シークレット
+  ウィンドウ・ブックマーク・検証などはページの JS からできないので並べない
+- 標準のメニューを置き換えることへの条件（クロコの案）として、**Shift+右クリックは
+  奪わない**（「名前を付けてリンク先を保存」など標準の操作はそちらで使える）
+- `download` 属性のあるリンク（表示できない種類）は「表示」の3つを押せなくする
+- ダウンロードは `download` 付きの一時的な `<a>` を作ってクリックさせる。保存名は
+  リンクの `download` があればそれ、無ければ URL の末尾を `decodeURIComponent` したもの
+- コピーは `navigator.clipboard`、無ければ（http の画面）`execCommand("copy")`
+  （SPECIFICATIONS.md「クリップボードへのコピー」と同じ形）。テキストは画像なら `alt`、
+  ファイルなら `.ref-name`
+- 閉じるのは Esc・メニューの外のクリック・スクロール・ウィンドウの移動。上下の矢印と
+  Enter でも操作でき、キーボードのメニューキーで開いたときはリンクの下に出す
+- Chrome と Firefox のヘッドレスで、項目・押せない項目・ダウンロード（日本語名を含む）・
+  表示・コピー・Shift+右クリック・img のリンクを巻き込まないことを確かめた
 """
 
 import datetime
+import mimetypes
 import os
 from html import escape
 
 from wikilib.attach import ATTACH_IMAGE_EXTS, attach_dir_for, attach_kind, format_bytes
 from wikilib.auth import PAGE_NONE
-from wikilib.paths import pagepath_of_subpath, resolve_link, resolve_page_ref
+from wikilib.paths import as_attach_link, pagepath_of_subpath, resolve_link, resolve_page_ref
 from wikilib.plugins import PluginArgumentError
 
 SIZE_PATTERN = (
@@ -170,7 +237,7 @@ def _size_style(size):
 PLUGIN_INFO = {
     "help": "#ref(src,size,align,around,wrap,noicon,nolink,noimg,zoom,title)",
     "args": [
-        {"name": "src", "num_order": 1, "link": True},
+        {"name": "src", "num_order": 1, "link": "attach"},
         {"name": "size", "default": None, "candidate": [(SIZE_PATTERN, "re")], "label": "大きさ"},
         {"name": "align", "default": "LEFT", "candidate": ["LEFT", "CENTER", "RIGHT"], "label": "寄せ"},
         {"name": "around", "flag": True, "default": False, "label": "回り込み"},
@@ -184,6 +251,28 @@ PLUGIN_INFO = {
 }
 
 
+# ブラウザが自前で表示・再生できる Content-Type（技術資料「表示できない種類の添付はダウンロード」）
+VIEWABLE_TYPES = {"application/pdf", "application/json", "application/xml"}
+VIEWABLE_TEXT_EXCLUDED = {"text/csv", "text/tab-separated-values"}
+VIEWABLE_MEDIA = {
+    "video/mp4", "video/webm", "video/ogg",
+    "audio/mpeg", "audio/ogg", "audio/wav", "audio/x-wav", "audio/flac",
+    "audio/mp4", "audio/aac", "audio/webm",
+}
+
+
+def _browser_viewable(name):
+    """添付の配信（bottle.static_file）と同じ mimetypes の判定で、ブラウザが
+    そのまま表示できる種類かを返す。"""
+    content_type = mimetypes.guess_type(name)[0]
+    if not content_type:
+        return False  # 配信側で application/octet-stream になる
+    if content_type.startswith("text/"):
+        return content_type not in VIEWABLE_TEXT_EXCLUDED
+    return (content_type.startswith("image/") or content_type in VIEWABLE_TYPES
+            or content_type in VIEWABLE_MEDIA)
+
+
 DENIED = "denied"  # _resolve の1つ目: 持ち主のページを閲覧する権限が無い
 
 
@@ -191,7 +280,8 @@ def _resolve(src, context):
     """(実在するか, ファイル名, サイズ・更新日時の説明かNone) を返す。
     持ち主のページを閲覧できない添付なら1つ目が `DENIED`（技術資料「閲覧の権限」）。"""
     ref = resolve_page_ref(context.wiki_dir, context.page or "")
-    kind, target = resolve_link(ref.subpath, src, context.wiki_dir)
+    # src は添付ファイルかURLしか取らないので、拡張子の一覧によらず添付として読む
+    kind, target = resolve_link(ref.subpath, as_attach_link(src), context.wiki_dir)
 
     if kind == "keep":
         name = src.rsplit("/", 1)[-1].split("?", 1)[0].split("#", 1)[0] or src
@@ -238,7 +328,7 @@ def _build(resolved, context, is_block):
 
     is_image = not resolved["noimg"] and os.path.splitext(name)[1].lower() in ATTACH_IMAGE_EXTS
     label = resolved["title"] or name
-    h_src = escape(src, quote=True)
+    h_src = escape(as_attach_link(src), quote=True)  # 表示時の書き換えでも添付として読ませる
     style = _size_style(resolved["size"])
 
     if is_image:
@@ -246,17 +336,23 @@ def _build(resolved, context, is_block):
         style_attr = f' style="{escape(style, quote=True)}"' if style else ""
         css = "plugin-ref-image" + (" plugin-ref-block" if is_block else "")
         img = f'<img class="{css}" src="{h_src}" alt="{h_alt}"{style_attr}>'
-        body = img if resolved["nolink"] else f'<a href="{h_src}" class="image-link">{img}</a>'
+        body = img if resolved["nolink"] else f'<a href="{h_src}" class="image-link plugin-ref-link">{img}</a>'
     else:
         kind, kind_label = attach_kind(name)
         icon = "" if resolved["noicon"] else (
             f'<span class="ref-kind ref-kind-{escape(kind, quote=True)}">{escape(kind_label)}</span>'
         )
         title_attr = f' title="{escape(info, quote=True)}"' if info else ""
+        # ブラウザで表示できない種類の添付はダウンロードさせる（技術資料
+        # 「表示できない種類の添付はダウンロード」）。info があるのは実在した添付だけ
+        download_attr = (
+            f' download="{escape(name, quote=True)}"'
+            if info and not _browser_viewable(name) else ""
+        )
         info_html = f'<span class="ref-info">{escape(info)}</span>' if info else ""
         css = "plugin-ref-file" + (" plugin-ref-block" if is_block else "")
         body = (
-            f'<a href="{h_src}" class="{css}"{title_attr}>'
+            f'<a href="{h_src}" class="{css}"{title_attr}{download_attr}>'
             f'<span class="ref-name">{escape(label)}</span>'
             f'{icon}'
             f'{info_html}'

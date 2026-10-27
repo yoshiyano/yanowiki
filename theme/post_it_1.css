@@ -30,6 +30,7 @@
   --fg: var(--pi-text);
   --bg: var(--pi-base-bg);
   --border: #ccc;
+  --table-border: #aab5bb;
   /* common.cssの.content thead td（PukiWiki記法の|||h見出し行）が使う。
      .content th の背景（下の.content th参照）と揃えるため、--panel-bgとは
      別の値にしてある */
@@ -72,6 +73,12 @@ body {
 .pi-all {
   max-width: 1100px;
   margin: 0 auto;
+}
+/* 本文の幅の上限を外す（タイトル右端のボタン。common.js が <html> に
+   content-wide を付け外しする）。このテーマは --content-max を使わず、外枠の
+   固定幅（1100px）で決めているので、それを外す。pkwk もこの規則を引き継ぐ。 */
+html.content-wide .pi-all {
+  max-width: none;
 }
 
 .pi-container {
@@ -154,6 +161,11 @@ a:active {
 }
 #header h1.title a {
   color: inherit;
+}
+/* タイトル右端の info の場所（本体が渡す <a>）は、タイトルの文字とは別なので、
+   上の「タイトルのリンクは文字色のまま」を打ち消して、リンクの色に戻す */
+#header h1.title .page-info-slot a {
+  color: var(--pi-link);
 }
 
 /*
@@ -625,7 +637,7 @@ img {
 }
 .content th,
 .content td {
-  border: 1px solid #aab5bb;
+  border: 1px solid var(--table-border, #aab5bb);
   padding: .3em .6em;
 }
 .content th {

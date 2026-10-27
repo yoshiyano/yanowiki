@@ -7,10 +7,10 @@
 依存パッケージを import する前に _venv での再実行を済ませる必要があるため、
 起動時の下ごしらえだけはこのファイルの先頭に置いてある。
 """
-# ---- 版と改訂 ---------------------------------------------------------------
-VERSION = "1.1.1"
-VERSION_DATE = "2026-10-06"
-REVISION = "4"
+# ---- バージョンとリビジョン ---------------------------------------------------
+VERSION = "1.2.0"
+VERSION_DATE = "2026-10-27"
+REVISION = "9"
 
 import argparse
 import atexit
@@ -28,18 +28,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SYS_DIR = os.path.join(BASE_DIR, "_sys")
 sys.path.insert(0, SYS_DIR)
 
-# ---- 版と改訂の決まり -------------------------------------------------------
+# ---- バージョンとリビジョンの決まり -----------------------------------------------
 # 画面のフッタに "Ver.0.9 Rev.17" の形で出る。
 #
-#   VERSION       版。main で公開するときに上げる
-#   VERSION_DATE  その版に番号を付けた日。改訂の数えはじめの日
+#   VERSION       バージョン。main で公開するときに上げる
+#   VERSION_DATE  そのバージョンに番号を付けた日。リビジョンの数えはじめの日
 #   REVISION      VERSION_DATE の00:00:00から、いまのHEADまでの総コミット数
 #
 # 以前は「経過日数.その日のコミット回数」の2部構成だったが、単一の数値に
 # 変えた（2026-08-27）。**コミットするたびに1増やす**もので、
 # `_sys/_tools/get_revision.py --next` が次に入れるべき値を出す。
 #
-# VERSION_DATE は、いまの版を出した日。版を上げるたびに更新する
+# VERSION_DATE は、いまのバージョンを出した日。バージョンを上げるたびに更新する
 # （0.9 として GitHub の main へ初めて公開したのが 2026-08-27、
 #  1.0 が 2026-09-05）。
 
@@ -93,10 +93,10 @@ from wikilib.paths import (
     MARKERS_PANEL_URLPATH,
     MARKERS_URLPATH, PAGETREE_URLPATH, PASSWD_URLPATH, PWHASH_URLPATH,
     PID_DIR, NEWWIKI_URLPATH, PRIVILEGES_URLPATH, RESTART_URLPATH,
-    GARBAGECOLLECT_URLPATH, UPDATEPAGEAUTH_URLPATH,
+    GARBAGECOLLECT_URLPATH, SOLVEDUP_URLPATH, UPDATEPAGEAUTH_URLPATH,
     SYSTEM_PREFIX,
     TREEVIEW_URLPATH, PLUGIN_URLPATH, SEARCH_URLPATH, SECTION_URLPATH,
-    THEMESELECT_URLPATH, THEME_URLPATH, VENDOR_URLPATH,
+    SLOTTHEME_URLPATH, THEMEFILES_URLPATH, THEMESELECT_URLPATH, THEME_URLPATH, VENDOR_URLPATH,
     farm_wiki_dir, is_valid_pagepath, resolve_page_ref,
 )
 from wikilib.attach import serve_attach
@@ -121,7 +121,7 @@ from wikilib.restart import mark_standalone, serve_restart
 from wikilib.search import render_search, serve_search_asset
 from wikilib.themes import serve_theme_asset, serve_theme_select
 from wikilib.views import render_no_farm, render_no_page, render_page
-from wikilib.web import html_page
+from wikilib.web import cross_site_reason, html_page, reject_cross_site
 from wikilib.wikiconfig import (
     allwiki_command, ensure_root_config_files, farm_base_url,
     load_config, load_default_farm, load_wiki_config, set_force_debug,
@@ -129,7 +129,7 @@ from wikilib.wikiconfig import (
 )
 
 # テーマが {{ version }} で使えるように配っておく。ここで渡すのは、
-# 版と改訂の値をこのファイル1か所だけで持つため（wikilib 側は受け取るだけ）。
+# バージョンとリビジョンの値をこのファイル1か所だけで持つため（wikilib 側は受け取るだけ）。
 # gunicorn や mod_wsgi から読み込まれた場合もこの行を通る
 set_version_label(version_label())
 
@@ -139,7 +139,7 @@ set_version_label(version_label())
 # **フォームの送信は「1バイト＝最大3バイト」に膨らむ。** 日本語は UTF-8 で
 # 1文字3バイト、それが %E3%81%82 のように1バイトあたり3文字へ置き換わるため、
 # 4万バイトほどのページでも12万バイトを超えて既定の上限に届いてしまう
-# （PukiWiki の記法解説のような長いページがこれにあたる）。
+# （PukiWiki の書きかた解説のような長いページがこれにあたる）。
 #
 # ここを上げるとページの本文だけでなく添付もメモリに載る量が増えるので、
 # 添付1件の上限（20MB）より小さく取ってある。8MB あれば、すべて日本語の
@@ -167,6 +167,13 @@ def too_large(error):
 @app.route("/", method=["GET", "POST"])
 @app.route("/<urlpath:path>", method=["GET", "POST"])
 def dispatch(urlpath=""):
+    # 別のサイトから送られた POST は、どの画面・プラグインにも渡さない（wikilib.web の
+    # 「別のサイトから送られた POST を断る」）
+    if request.method == "POST":
+        reason = cross_site_reason()
+        if reason is not None:
+            print(f"[csrf] {request.path} を断った: {reason}", file=sys.stderr, flush=True)
+            return reject_cross_site()
     config = load_config()
     urlpath = strip_url_prefix(urlpath, url_prefix(config))
     farm, pagepath, explicit_farm = split_farm_and_page(urlpath, config)
@@ -186,6 +193,10 @@ def dispatch(urlpath=""):
     # のdocstring参照）
     config = load_wiki_config(wiki_dir)
 
+    if pagepath.startswith(SLOTTHEME_URLPATH + "/"):
+        # スロットHTML のテーマの資材（CSS・画像・フォントだけ。wikilib.slottheme）
+        from wikilib.slottheme import serve_slot_asset
+        return serve_slot_asset(wiki_dir, pagepath[len(SLOTTHEME_URLPATH) + 1:])
     if pagepath == THEME_URLPATH or pagepath.startswith(THEME_URLPATH + "/"):
         return serve_theme_asset(wiki_dir, config, pagepath[len(THEME_URLPATH):].strip("/"))
     if pagepath == THEMESELECT_URLPATH:
@@ -218,7 +229,7 @@ def dispatch(urlpath=""):
         return serve_section(wiki_dir, config, farm,
                              pagepath[len(SECTION_URLPATH):].strip("/"), explicit_farm)
     if pagepath == FILES_URLPATH or pagepath.startswith(FILES_URLPATH + "/"):
-        # ファイル一覧（webFileDir を組み込んだ画面。変更はできず、ページを開くまで）。
+        # ファイル一覧（webFileDir を組み込んだ画面。名前の変更・移動・コピー・削除・作成など）。
         # 見えるページは閲覧の権限で絞る（wikilib.filesui）
         from wikilib.filesui import serve_files
         return serve_files(wiki_dir, farm,
@@ -315,6 +326,12 @@ def dispatch(urlpath=""):
     if pagepath == GROUPS_URLPATH:
         from wikilib.groupsui import render_groups
         return render_groups(wiki_dir, config, farm, explicit_farm)
+    # テーマのファイル（管理者だけ）。**ADMIN_URLPATH の分岐より先に見る**（上と同じ理由）。
+    # 下に webFileDir の資材・APIが続くので、ファイル一覧と同じく基点のURLを渡す
+    if pagepath == THEMEFILES_URLPATH or pagepath.startswith(THEMEFILES_URLPATH + "/"):
+        from wikilib.themefilesui import serve_themefiles
+        return serve_themefiles(wiki_dir, config, farm, explicit_farm,
+                                farm_base_url(config, farm, explicit_farm) + "/" + THEMEFILES_URLPATH)
     # 管理の道具の窓口（/.admin）。**これから作る管理の道具はここへつなぐ**
     # （Wiki設計者の指示、2026-09-08）。助手グループの出し入れ（旧 /.admin/staff）は
     # /.groups?group=staff に一本化した（Wiki設計者の指示、2026-09-12）
@@ -346,6 +363,11 @@ def dispatch(urlpath=""):
         # 削除したページの添付を trashbox へ集める。管理者と助手（関門は中で見る）
         from wikilib.garbagecollect import serve_garbage_collect
         return serve_garbage_collect(wiki_dir, config, farm, explicit_farm)
+    if pagepath == SOLVEDUP_URLPATH or pagepath.startswith(SOLVEDUP_URLPATH + "/"):
+        # 同じ名前の .txt と .md の整理。ページの編集の権限は中で見る
+        from wikilib.solvedup import serve_solve_dup
+        return serve_solve_dup(wiki_dir, config, farm, explicit_farm,
+                               pagepath[len(SOLVEDUP_URLPATH):])
     if pagepath == UPDATEPAGEAUTH_URLPATH:
         # 機能していないページの権限の記録を消す。誰でも（回数の制限は中で見る）
         from wikilib.updatepageauth import serve_update_page_auth
@@ -538,14 +560,14 @@ def _write_pid_file(port):
 
 
 def run_version(argv):
-    """`./wiki.py version` … いまの版と改訂、次のコミットで入れるべき改訂を出す。
+    """`./wiki.py version` … いまのバージョンとリビジョン、次のコミットで入れるべきリビジョンを出す。
 
-    改訂は "VERSION_DATE の00:00:00から、いまのHEADまでの総コミット数"。
+    リビジョンは "VERSION_DATE の00:00:00から、いまのHEADまでの総コミット数"。
     次のコミットが何回目になるかは「いまの総コミット数 + 1」になる。"""
     parser = argparse.ArgumentParser(
-        prog="wiki.py version", description="版と改訂を表示する")
+        prog="wiki.py version", description="バージョンとリビジョンを表示する")
     parser.add_argument("--next", action="store_true",
-                        help="次のコミットで入れるべき改訂だけを出す")
+                        help="次のコミットで入れるべきリビジョンだけを出す")
     args = parser.parse_args(argv)
 
     origin = datetime.date.fromisoformat(VERSION_DATE)
@@ -563,7 +585,7 @@ def run_version(argv):
                   file=sys.stderr)
             return 1
         print(version_label())
-        print("  次の改訂: ??? （gitの記録を読めません）")
+        print("  次のリビジョン: ??? （gitの記録を読めません）")
         return 0
 
     nxt = count + 1
@@ -573,7 +595,7 @@ def run_version(argv):
     print(version_label())
     print(f"  数えはじめ: {VERSION_DATE} 00:00:00")
     print(f"  総コミット数: {count}")
-    print(f"  次のコミットで入れる改訂: {nxt}")
+    print(f"  次のコミットで入れるリビジョン: {nxt}")
     return 0
 
 
@@ -661,7 +683,7 @@ def run_initusers(argv):
         prog="wiki.py initusers",
         description="そのWikiのアカウントの記録（config/users.db）を用意する")
     parser.add_argument("farm", nargs="?", default="",
-                        help="対象のWiki（=Wiki名）。省略すると、いまいる場所か既定のWiki")
+                        help="対象のWiki（=Wiki名）。省略すると、いまいる場所か起点Wiki")
     parser.add_argument("--password", default="",
                         help="管理者の最初のパスワード（省略すると聞きます）")
     args = parser.parse_args(argv)
@@ -992,7 +1014,7 @@ def run_convwiki(argv):
 # （それぞれが自分のargparseを持つため。ここに書くのは一覧に出す一行だけ）。
 SUBCOMMANDS = [
     ("updatepage", run_updatepage, "平文ファイルの直接編集を取り込み、システム側の記録を揃える"),
-    ("version", run_version, "版と改訂を表示する"),
+    ("version", run_version, "バージョンとリビジョンを表示する"),
     ("initusers", run_initusers, "そのWikiのアカウントの記録（config/users.db）を用意する"),
     ("resetpw", run_resetpw, "そのWikiの管理者（admin）のパスワードを入れ直す"),
     ("convwiki", run_convwiki, "PukiWikiのデータを写して、新しいWikiを作る"),

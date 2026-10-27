@@ -9,6 +9,8 @@
     json_out()   JSONの応答               （3か所）
     json_body()  POSTのJSON本文の読み取り （2か所）
     require()    通してよい相手かの関門   （3種類に分かれていた）
+    require_perm()
+                 助手の権限（`wikilib.staffperms`）で通す関門
     require_on_default_farm()
                  サービス全体に効く操作（`/.restart`・`/.newwiki`・`/.allwiki`）
                  の関門
@@ -136,15 +138,34 @@ def require(wiki_dir, config, farm, explicit_farm, urlpath, principals):
     渡すだけでよい。"""
     if auth.allows(wiki_dir, farm, principals):
         return None
+    return _denied_page(wiki_dir, config, farm, explicit_farm, urlpath)
+
+
+def _denied_page(wiki_dir, config, farm, explicit_farm, urlpath):
+    """断りの画面（403）。`require`・`require_perm` が共有する。"""
     base_url = make_plugin_context(config, farm, wiki_dir, urlpath, explicit_farm).base_url
     return page(wiki_dir, config, farm, explicit_farm, urlpath,
                 "権限がある人だけの画面", _denied_html(base_url),
                 css_url=f"{ACCOUNTS_URLPATH}.css", status=403)
 
 
-def require_on_default_farm(config, farm, wiki_dir, explicit_farm, urlpath):
-    """**サービス全体に効く操作**（`/.restart`・`/.newwiki`・`/.allwiki`）の関門。
+def require_perm(wiki_dir, config, farm, explicit_farm, urlpath, *keys):
+    """助手の権限（`wikilib.staffperms.PERMS` のキー）の**どれか**を持たなければ、
+    断りの画面（403）を返す。通してよければ None。管理者は全部持つ。
+
+    断る画面と理由の伝えかた（分けて伝えない）は `require` と同じ。画面ごとに
+    必要な権限は、呼ぶ側が宣言する。"""
+    if auth.can(wiki_dir, farm, *keys):
+        return None
+    return _denied_page(wiki_dir, config, farm, explicit_farm, urlpath)
+
+
+def require_on_default_farm(config, farm, wiki_dir, explicit_farm, urlpath, perm=None):
+    """**サービス全体に効く操作**（`/.restart`・`/.newwiki`・`/.allwiki`・`/.delwiki`）の関門。
     通してよければ None、駄目なら断りの画面（403）を返す。
+
+    `perm` はその操作に必要な助手の権限（`site.restart` など）。管理者は常に通る。
+    **省略すると、助手なら誰でも通す**（権限の設定が入る前の関門）。
 
     判定に使うのは**既定Wikiの管理者と助手**（Wiki設計者の指示、2026-09-13。
     「`/.restart` と `/.newwiki` は default wiki の g:staff と admin による
@@ -176,7 +197,9 @@ def require_on_default_farm(config, farm, wiki_dir, explicit_farm, urlpath):
         return page(wiki_dir, config, farm, explicit_farm, urlpath,
                     "このURLでは開けません", _wrong_entrance_html(urlpath),
                     css_url=f"{ACCOUNTS_URLPATH}.css", status=403)
-    return require(wiki_dir, config, farm, explicit_farm, urlpath, auth.STAFF)
+    if perm is None:
+        return require(wiki_dir, config, farm, explicit_farm, urlpath, auth.STAFF)
+    return require_perm(wiki_dir, config, farm, explicit_farm, urlpath, perm)
 
 
 def _wrong_entrance_html(urlpath):
@@ -190,7 +213,7 @@ def _wrong_entrance_html(urlpath):
   <p class="acct-notice acct-notice-error" role="status">
     この操作は、Wiki名を含まないURL（<code>/{escape(urlpath)}</code>）から
     だけ行えます。</p>
-  <p class="acct-hint">サービス全体に効く操作なので、入口を既定のWikiの
+  <p class="acct-hint">サービス全体に効く操作なので、入口を起点Wikiの
     ひとつに絞ってあります。</p>
 </div>
 """

@@ -9,7 +9,7 @@
     コピー不要（そのWikiの theme/ に無ければ、共通の theme/ から読まれる）:
       common.css・common.js … 全テーマ共通
     ※ base.html をコピーしても、common/base.html を継承するテーマ（fresh・
-      pukiwiki_default・pkwk_wide）には効かない。base.css は @import で
+      pukiwiki_default）には効かない。base.css は @import で
       それらのテーマにも効く。
     ※ 依存ファイルもコピーすると、そのWikiではコピーしたほうが優先され、
       同じファイルを使うほかのテーマにも効く（共通のものを直したいときだけ）。
@@ -33,13 +33,21 @@
     menu1_mode  menu1の開閉モード（theme.menu1_mode、"ページ名,モード"の
                 リスト形式でページ単位指定。既定"auto"、常時表示は"fix"）
     menu2_mode  menu2の開閉モード（theme.menu2_mode。menu1_modeと同じ形式）
+    page_info   タイトル右端の info ボタン（<a ...>...</a> のHTML。Markup）。本体から読み手への
+                知らせで、案内や整理の画面へ移動するためのリンク。複数あれば <a> が並ぶ。
+                無ければ空（何を出すかは本体の wikilib.pagenotice。Tech/PageNotice）
+    default_zoom          標準の拡大率（%。theme.zoom。既定 100）。<html> の data-default-zoom へ
+    default_content_wide  本文の幅の上限を標準で外すか（theme.content_wide。既定 偽）。
+                          真のとき <html> の data-default-wide="1" へ
 #}
 <!doctype html>
 {# menu1_mode/menu2_mode: theme.menu1_mode/theme.menu2_mode
    （config/default.yaml、"ページ名,モード"のリスト）でページごとに指定する
    "auto"（既定・狭い画面で帯として折りたたむ）/ "fix"（常時表示、従来どおり）。
-   menu1_page/menu2_page（menu1/menu2の中身に使うページ名）とは別の設定。 #}
-<html lang="ja"{% if menu1_mode == "fix" %} data-menu1-mode="fix"{% endif %}{% if menu2_mode == "fix" %} data-menu2-mode="fix"{% endif %}>
+   menu1_page/menu2_page（menu1/menu2の中身に使うページ名）とは別の設定。
+   data-default-zoom / data-default-wide: 標準の拡大率と幅（theme.zoom・theme.content_wide）。
+   common.js が、読み手の保存値が無いときの初期値に使う。 #}
+<html lang="ja"{% if menu1_mode == "fix" %} data-menu1-mode="fix"{% endif %}{% if menu2_mode == "fix" %} data-menu2-mode="fix"{% endif %}{% if default_zoom %} data-default-zoom="{{ default_zoom }}"{% endif %}{% if default_content_wide %} data-default-wide="1"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -67,7 +75,8 @@
 {% block styles %}<link rel="stylesheet" href="{{ theme_url }}/{{ themefile }}.css">{% endblock %}
 {% block head %}{% endblock %}
 </head>
-<body>
+{# body のクラスにテーマ名を付ける。base.js が、base だけで menu1・menu2 の囲みを作るための目印 #}
+<body class="theme-{{ themefile }}">
 
 {% block header %}
 <header class="site-header">
@@ -168,7 +177,22 @@
 {# 本文1行目のh1はタイトルとして取り出されているので、本文の外のこの枠で描画する #}
 {% block page_header %}
 <div class="page-header">
-  {% block page_heading %}<h1 class="page-title">{{ page_title }}{{ title_note }}</h1>{% endblock %}
+  {#
+    .page-title-tools はタイトルの右端の道具置き場（common.css）。右へ浮かべる要素なので、
+    タイトルの文字より前に置く（後ろだと、折り返したとき最後の行の右端に来る）。
+    左から page_info ブロック（info の場所）、page_width_toggle ブロック（本文の幅の上限を
+    外す／戻すボタン。振る舞いは common.js、矢印は common.css）の順。
+    info の中身は、本体が変数 page_info に <a ...>...</a>（表示するアイコン・遷移先を
+    含むHTML。title_note と同じく Markup）で渡す。知らせが無ければ空のまま、幅を取らない。大きさ・文字の太さは common.css が
+    .page-info-slot の中を揃える。
+    道具置き場の全体は page_title_tools ブロック。page_heading を引き継ぐテーマ
+    （fresh・pukiwiki_default）にも付いてくる。ボタンも info も要らないテーマは、
+    内側の2つのブロック（page_info・page_width_toggle）を空に上書きすればよい。
+    pukiwiki_default は、見出しの中ではなく、ヘッダのコマンド群の2段目の末尾（検索の下・
+    「新規」の右）に置くので、page_title_tools を空に上書きし、そちらに同じ断片を置いている。
+    ブロックの内側に改行や空白を入れると「空」と見なされず、幅を取る。
+  #}
+  {% block page_heading %}<h1 class="page-title">{% block page_title_tools %}<span class="page-title-tools"><span class="page-info-slot">{% block page_info %}{{ page_info|default("", true) }}{% endblock %}</span>{% block page_width_toggle %}<button type="button" class="content-width-toggle"></button>{% endblock %}</span>{% endblock %}{{ page_title }}{{ title_note }}</h1>{% endblock %}
   {% block breadcrumb %}
   <div class="page-path">TopicPath :
     <a href="{{ base_url }}/">Top /</a>{% for item in topic_path %} {% if item.url %}<a href="{{ item.url }}">{{ item.label }} /</a>{% else %}{{ item.label }}{% endif %}{% endfor %}

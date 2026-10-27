@@ -1,16 +1,16 @@
-// 拡張子の切り出しと、拡張子 → アイコン・種類の対応。
-// **拡張子を切り出す関数はここの splitExt だけ。**アイコン・「種類」・F2 の選択範囲はすべてこれを使う
-// （Wiki「画面設計 > 拡張子の切り出し」）。
+// 拡張子 → アイコン・種類の対応と、名前の入力欄で選ぶ範囲。
+// **拡張子はサーバが決めて項目の ext に載せる。画面は名前から切り出さない**（2026-09-30 設計者の指示。
+// Wiki「画面設計 > 拡張子の切り出し」）。
 
-/** 名前を拡張子の手前と拡張子に分ける。拡張子が無ければ ext は ""。 */
-export function splitExt(name, kind = "file") {
-  if (kind === "dir") return { stem: name, ext: "" };
-  // 先頭の "."（いくつ続いても）は拡張子の区切りと見なさない（Python の os.path.splitext と同じ）
-  let lead = 0;
-  while (name[lead] === ".") lead++;
-  const i = name.lastIndexOf(".");
-  if (i < lead || i === name.length - 1) return { stem: name, ext: "" };
-  return { stem: name.slice(0, i), ext: name.slice(i + 1) };
+/**
+ * 名前の入力欄で「拡張子の手前まで」選ぶときの長さ。value が項目の拡張子（entry.ext）で終わっていれば、
+ * その手前まで。フォルダ・拡張子の無い項目・拡張子を打ち変えた名前は、全体。
+ */
+export function stemLength(value, entry) {
+  const ext = entry.kind === "dir" ? "" : entry.ext || "";
+  const tail = `.${ext}`.toLowerCase();
+  if (ext && value.toLowerCase().endsWith(tail) && value.length > tail.length) return value.length - tail.length;
+  return value.length;
 }
 
 const T = (icon, label) => ({ icon, label });
@@ -96,16 +96,13 @@ const TABLE = {
   rtf: T("doc", "リッチ テキスト"),
   pptx: T("doc", "pptx プレゼンテーション"),
   odp: T("doc", "odp プレゼンテーション"),
+  // 複合拡張子（サーバの server/exts.py の COMPOUND_EXTS）
+  "tar.gz": T("archive", "tar.gz 圧縮"),
+  "tar.bz2": T("archive", "tar.bz2 圧縮"),
+  "tar.xz": T("archive", "tar.xz 圧縮"),
+  "tar.zst": T("archive", "tar.zst 圧縮"),
 };
 
-// 最後の "." だけでは表せない組み合わせ。拡張子は "gz" のまま、「種類」だけまとめる
-// （ToDo「決めていないこと」の 9 の案）
-const COMPOUND = [
-  [".tar.gz", T("archive", "tar.gz 圧縮")],
-  [".tar.bz2", T("archive", "tar.bz2 圧縮")],
-  [".tar.xz", T("archive", "tar.xz 圧縮")],
-  [".tar.zst", T("archive", "tar.zst 圧縮")],
-];
 
 const FOLDER = T("folder", "フォルダ");
 const UNREACHABLE = T("link", "リンク（開けません）");
@@ -114,12 +111,7 @@ const UNREACHABLE = T("link", "リンク（開けません）");
 export function typeOf(entry) {
   if (entry.extra && entry.extra.unreachable) return UNREACHABLE;
   if (entry.kind === "dir") return FOLDER;
-  const lower = entry.name.toLowerCase();
-  for (const [suffix, t] of COMPOUND) {
-    // ".tar.gz" という名前そのもの（拡張子の手前が空）はまとめない
-    if (lower.endsWith(suffix) && lower.length > suffix.length) return t;
-  }
-  const { ext } = splitExt(entry.name, entry.kind);
+  const ext = entry.ext || "";
   if (!ext) return T("file", "ファイル");
   return TABLE[ext.toLowerCase()] || T("file", `${ext.toUpperCase()} ファイル`);
 }

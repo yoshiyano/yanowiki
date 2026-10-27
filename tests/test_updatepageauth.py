@@ -6,8 +6,8 @@
 呼ばれたかで決める（囲みコードの中の書きかたは機能していない、など）。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_updatepageauth.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_updatepageauth.py     （このファイルだけ）
 """
 import os
 import shutil

@@ -149,18 +149,33 @@
 
 /* ---- 一覧 ---- */
 
-.acct-table {
+/* `.acct-admin` 付きの書きかたは、ツールの一覧を**ふつうのページの中**へ差し込んだ
+   とき（#login の「管理者メニュー」）に、テーマが本文の表へ付ける規則（格子の罫線・
+   見出しの背景・display: block など）に負けないための、詳細度の持ち上げ。値は
+   同じ規則に並べて1か所にしてある（Wiki設計者の指示、2026-10-12。二重管理しない）。
+   `border: 0 solid` を先に置くのは、テーマの border（4辺）を打ち消すため。 */
+.acct-table,
+.acct-admin .acct-table {
+  display: table;
   width: 100%;
   border-collapse: collapse;
+  overflow: visible;
   font-size: 0.9rem;
 }
 
 .acct-table th,
-.acct-table td {
+.acct-table td,
+.acct-admin .acct-table th,
+.acct-admin .acct-table td {
   padding: 0.5em 0.4em;
-  border-bottom: 1px solid var(--border, #d0d7de);
+  border: 0 solid transparent;
+  border-bottom: 1px solid var(--table-border, var(--border, #d0d7de));
   text-align: left;
   vertical-align: middle;
+}
+
+.acct-admin .acct-table th {
+  background: none;
 }
 
 .acct-table th {
@@ -180,6 +195,12 @@
   background: var(--bg, #fff);
   color: var(--fg, #1f2328);
   font: inherit;
+}
+
+/* 書き換えられない欄（権限が無い項目・助手に見せる管理者の行。wikilib.accounts） */
+.acct-table input[readonly] {
+  background: var(--code-bg, #f6f8fa);
+  color: var(--muted, #57606a);
 }
 
 .acct-num {
@@ -259,9 +280,48 @@
 
 /* ---- 管理の窓口（/.admin）と助手管理 ---- */
 
+/* ツールの一覧（wikilib.adminui.admin_tools_html）の見た目は、**ここだけ**が持つ。
+   一覧が <link> ごと連れてくるので、/.admin の画面も、#login の「管理者メニュー」の
+   タブ（ふつうのページの中）も、同じこの規則で描かれる。差し込む側（plugin/login.css）
+   には書かない（書くと二重管理になる。Wiki設計者の指示、2026-10-12）。 */
+
+.acct-admin {
+  container-type: inline-size;
+}
+
 .acct-tools td:first-child {
-  white-space: nowrap;
   font-weight: 600;
+}
+
+/* 列の幅。「ツール・できること・URLの比率を25%,40%,35% とし、ツールとURL の
+   最大サイズを 155px, 235px にする」（Wiki設計者の指示、2026-10-12。最初は
+   140px, 230px で、同日に直した）。幅が広いときは上限で止まり、余りは
+   「できること」が受け取る。
+
+   **上限は min(25cqw, 155px) の形で書く**（max-width や min(25%, 155px) では
+   効かない）。表のセルでは、割合の width が max-width に勝ち、割合を含む
+   計算値も割合として扱われる（Chrome で確かめた）。cqw は .acct-admin の幅の
+   1% で、px の長さになるため min() が効く。cqw に対応しないブラウザでは、
+   上限なしの割合だけになる。列の幅は枠線・余白を含む値（border-box）。
+
+   URL は上限を超える長さのもの（例: /.groups?tab=edit&group=staff）があるので、
+   折り返す。ツールの名前も、上限を超えるときは折り返す（nowrap にしない）。 */
+.acct-tools th:nth-child(1),
+.acct-tools td:nth-child(1) {
+  box-sizing: border-box;
+  width: 25%;
+  width: min(25cqw, 155px);
+}
+
+.acct-tools th:nth-child(3),
+.acct-tools td:nth-child(3) {
+  box-sizing: border-box;
+  width: 35%;
+  width: min(35cqw, 235px);
+}
+
+.acct-tools td:nth-child(3) code {
+  overflow-wrap: anywhere;
 }
 
 /* 開けない道具は、隠さずに「開けない」と見せる */

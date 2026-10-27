@@ -232,13 +232,13 @@ def _evaluate_page(wiki_dir, page):
 
 
 def render_privileges(wiki_dir, config, farm, explicit_farm):
-    """画面。**管理者と助手だけ**が開ける。
+    """画面。**管理者と、`privileges.view` を与えられた助手だけ**が開ける。
 
-    確かめるのは**中身を組み立てる前**（`sysui.require`）。開けた場合は、テーマを
+    確かめるのは**中身を組み立てる前**（`sysui.require_perm`）。開けた場合は、テーマを
     使わない独自のページ（`build_privileges_page_html`）で返す——**断りの画面
     （403）はこれまでどおりテーマ側**（モジュール冒頭「テーマは使わない」参照）。"""
-    denied = sysui.require(wiki_dir, config, farm, explicit_farm,
-                           PRIVILEGES_URLPATH, auth.STAFF)
+    denied = sysui.require_perm(wiki_dir, config, farm, explicit_farm,
+                                PRIVILEGES_URLPATH, "privileges.view")
     if denied is not None:
         return denied
     base_url = make_plugin_context(config, farm, wiki_dir,
@@ -299,14 +299,15 @@ def render_privileges_api(wiki_dir, config, farm, explicit_farm):
 
     `version` は行を開いたときの値。開いたあとに変わっていれば断られる
     （モジュール冒頭「古い画面が、他の人の書き換えを踏まない」参照）。"""
-    denied = sysui.require(wiki_dir, config, farm, explicit_farm,
-                           PRIVILEGES_URLPATH, auth.STAFF)
-    if denied is not None:
-        # 画面ではなくJSONで断る（APIを叩いているのは画面のJSなので）
-        return sysui.json_out({"ok": False, "message": "権限がありません。"},
-                              status=403)
     data = sysui.json_body()
     op = _text(data.get("op"))
+    # 見るだけの操作（evaluate）は `privileges.view`、書き換える操作は `privileges.edit`
+    # （どちらも `wikilib.staffperms`）。画面ではなくJSONで断る（APIを叩いているのは
+    # 画面のJSなので）
+    needed = "privileges.edit" if op in ("add", "set", "delete") else "privileges.view"
+    if not auth.can(wiki_dir, farm, needed):
+        return sysui.json_out({"ok": False, "message": "権限がありません。"},
+                              status=403)
     page = _text(data.get("page"))
     version = data.get("version")
     version = version if isinstance(version, str) else None

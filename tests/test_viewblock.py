@@ -13,8 +13,8 @@
 秘密を守る用途に使えないことは `block_view` のdocstringに書いてある。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_viewblock.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_viewblock.py     （このファイルだけ）
 """
 import os
 import shutil

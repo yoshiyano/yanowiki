@@ -46,7 +46,7 @@ JavaScriptが無効な環境でも、少なくとも書いたとおりの原文�
 
 `expand_block`/`expand_inline`/`expand_plugin`はいずれも宣言しない
 （`code.py`と同じ理由。中身はLaTeXの生テキストであり、Markdown/PukiWiki
-記法・他のプラグインとして展開されては困る）。
+書きかた・他のプラグインとして展開されては困る）。
 
 ## ブロック/インラインの区別（`data-katex-display`）
 
@@ -122,7 +122,7 @@ Promiseを使い回す（プレビュー更新のたびに`<script>`を重複挿
 `Prism.highlightAllUnder(preview)`の呼び出しのすぐ近くに同様の1行を
 足す形になる**（両ファイルとも既にPrism向けに同じ理由のコメントが
 ある。「プレビューに数式が出ない」という報告を機に発見・対応した
-経緯は`Tech/ChangeLog/plugin/`参照）。
+経緯は`ChangeLog/Plugin/`参照）。
 
 編集画面自体は登録済み全プラグインの資材を無条件で読み込んでいる
 （`build_edit_page_html`）ため、`plugin/katex.js`（このファイル）は

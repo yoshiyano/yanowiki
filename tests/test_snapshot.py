@@ -5,7 +5,7 @@
 backup と pagedb を直接呼んで再現する（レンダラやプラグインを要らなくするため）。
 
 実行:
-    .venv/bin/python3 tests/test_snapshot.py
+    _venv/bin/python3 tests/test_snapshot.py
 """
 import datetime
 import os

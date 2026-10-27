@@ -2,7 +2,7 @@
 
 #code()
 
-呼び出しの記法と、引数の宣言（`args`）です。`args` 以外の項目は [PLUGIN_INFO](/Tech/dev_plugin/plugin_info) にあります。
+呼び出しの書きかたと、引数の宣言（`args`）です。`args` 以外の項目は [PLUGIN_INFO](/Tech/dev_plugin/plugin_info) にあります。
 
 ブロックは3つの形です。`#` の直後に空白を入れないので、見出し（`# 見出し`）とは衝突しません。
 

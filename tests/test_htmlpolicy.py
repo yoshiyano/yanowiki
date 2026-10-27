@@ -6,8 +6,8 @@
 危ないものを1つ増やすたびに、ここへ1件足す。
 
 実行:
-    .venv/bin/python3 -m unittest discover -s tests
-    .venv/bin/python3 tests/test_htmlpolicy.py     （このファイルだけ）
+    _venv/bin/python3 -m unittest discover -s tests
+    _venv/bin/python3 tests/test_htmlpolicy.py     （このファイルだけ）
 """
 import os
 import sys
@@ -48,7 +48,7 @@ class TestPolicyValue(unittest.TestCase):
 
 
 class TestPolicySection(unittest.TestCase):
-    """記法ごとに別の設定を見る。"""
+    """書きかたごとに別の設定を見る。"""
 
     CONFIG = {"markdown": {"allow_html": "all"}, "pukiwiki": {"allow_html": False}}
 

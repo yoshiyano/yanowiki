@@ -63,6 +63,7 @@
 | [`&br`](/Syntax/Plugin/br) | 強制的に1行分の空白（改行）を入れる |
 | [`&color`](/Syntax/Plugin/color) | 文字色・背景色を指定する |
 | [`&html`](/Syntax/Plugin/html) | 中身をそのままHTMLとして表示する |
+| [`&icd`](/Syntax/Plugin/icd) | 文の中にコードを書く |
 | [`&img`](/Syntax/Plugin/img) | 画像を差し込む |
 | [`&katex`](/Syntax/Plugin/katex) | LaTeX数式をKaTeXで表示する |
 | [`&login`](/Syntax/Plugin/login) | いま入っている人の表示名・IDを差し込む |

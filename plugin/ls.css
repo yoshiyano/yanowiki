@@ -46,6 +46,59 @@
 
 .ls-empty { color: var(--muted, #656d76); }
 
+/* ---- 複数列の表示（recursive も ajaxview も無い一覧） ---- */
+.ls-columns > .ls-list {
+  columns: 12em;
+  column-gap: 1.5em;
+  list-style: none;
+  padding-left: 0;
+}
+/* 省略の overflow: hidden で切れないよう、マーカーは <li> の内側に描く */
+.ls-columns .ls-page {
+  position: relative;
+  padding-left: 1.2em;
+  break-inside: avoid;
+  overflow-wrap: anywhere;
+}
+.ls-columns .ls-page::before {
+  content: "•";
+  position: absolute;
+  left: 0.3em;
+  color: var(--muted, #656d76);
+}
+/* JS が動かないと全体を読む手段が無いので、省略は JS が動くときだけ */
+@media (scripting: enabled) {
+  .ls-columns.ls-clip .ls-page {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+/* スイッチは最後の列の先頭、1項目分の場所に置く（plugin/ls.js） */
+.ls-clip-slot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0.12rem 0;
+  break-inside: avoid;
+}
+/* 見えない文字で、行の高さを項目（.ls-page）と同じにする */
+.ls-clip-slot::before { content: "\200b"; }
+.ls-clip-slot[hidden] { display: none; }
+.ls-clip-slot-placed { break-before: column; }
+.ls-clip-toggle input { width: 1em; height: 1em; margin: 0; }
+.ls-clip-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  width: fit-content;
+  margin-left: auto;
+  font-size: 0.85em;
+  line-height: 1;
+  color: var(--muted, #656d76);
+  cursor: pointer;
+}
+
 /* ---- その場で開く（ajaxview=true） ---- */
 .ls-openable { position: relative; }
 .ls-open {

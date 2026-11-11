@@ -74,6 +74,9 @@ def render(context, page, ref, st, sub_attrs=None):
     sub = PluginContext(config=context.config, farm=context.farm, wiki_dir=context.wiki_dir,
                         page=page, base_url=context.base_url, ext=ref.ext)
     sub._include_state = st
+    # 読むだけの描画（`_polling` の ID を書き足さない）は、入れ子の差し込みにも引き継ぐ
+    if getattr(context, "_callid_readonly", False):
+        sub._callid_readonly = True
     for key, value in (sub_attrs or {}).items():
         setattr(sub, key, value)
     engine = build_markdown_renderer(context.config, farm_plugin_dir(context.wiki_dir), sub)

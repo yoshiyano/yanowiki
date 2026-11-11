@@ -83,13 +83,14 @@
 
 ## 画面の確認を経てPOSTで実行するもの
 
-GETで確認の画面を出し、POSTで実行する操作です（全Wikiの一覧 `/.allwiki` はGETだけで、URLの名前は設定 `farm.allwiki` で決まり、空なら出しません）。
+GETで確認の画面を出し、POSTで実行する操作です（全Wikiの一覧 `/.allwiki` のURLの名前は設定 `farm.allwiki` で決まり、空なら出しません）。
 
 | URL | 動き | 権限 |
 |---|---|---|
 | `/.restart` | サービスの再起動。`POST /.restart?now=1` で、画面を介さずその場で再起動する（スクリプトから呼ぶ用。cookie が要る。GET では確認の画面だけ） | 起点Wikiの管理者・助手 |
 | `/.newwiki` | 新しいWikiを作る | 起点Wikiの管理者・助手 |
 | `/.delwiki` | Wikiを消す。段ごとに署名付きの合札を持ち回る | 起点Wikiの管理者・助手 |
+| `/.allwiki` | GETで一覧。POSTで起点Wikiを切り替える。フォームの `name`（切り替え先）と `step`（`choose` で確認の画面、`password` で実行）、`admin_pw`（切り替え先の管理者のパスワード） | GETは起点Wikiの管理者・助手、POSTは起点Wikiの管理者 |
 | `/.garbagecollect` | 持ち主のページが無い添付を `/trashbox` へ集める | 管理者・助手 |
 | `/.admin/operations` | 中断した名前の変更・移動を続ける（POSTのフォームの `id`） | 管理者・助手 |
 | `/.solveDupPage/<ページ名>` | 同じ名前の `.txt` と `.md` の整理。GETで2つのプレビューと添付・アクセス制限の状態、POSTでフォームの `keep`（採用する拡張子 `.txt`／`.md`）・`hash.txt`／`hash.md`（開いたときの本文のハッシュ）・`dest:<ファイル名>`（添付ごとの移動先）を受けて整理する。整理できなかったとき（開いてから本文が変わっていた、など）は、理由を添えた画面を409で返す | そのページの編集の権限（`W`） |

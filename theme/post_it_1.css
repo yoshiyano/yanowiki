@@ -143,6 +143,12 @@ a:active {
   z-index: 120;
   background: var(--pi-base-bg);
 }
+/* common.js がヘッダの左端に差し込む QR コードの帯（幅 7px、透明。common.css の .qr-strip）が
+   サイト名・タイトルの頭の文字に重なり、文字にマウスを乗せただけで QR が出ないよう、
+   帯があるときだけ左を空ける */
+#header.qr-strip-host {
+  padding-left: 8px;
+}
 #header .site-title {
   font-size: 85%;
 }

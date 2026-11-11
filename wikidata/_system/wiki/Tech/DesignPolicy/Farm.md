@@ -49,7 +49,7 @@ URLは原則として起点Wikiのページパスとして解決し、別のWiki
 | サービス全体の操作は起点Wikiの管理者と助手だけ | 再起動（`/.restart`）・Wikiの作成（`/.newwiki`）・削除（`/.delwiki`）・一覧（`/.allwiki`）。判定はいま開いているWikiではなく、起点Wikiの `admin` と `g:staff` で行う（`sysui.require_on_default_farm`）。ほかのWikiの管理者が管理できるのは、自分のWikiの中だけ | [ページごとの権限](/Tech/PagePermissions#restartnewwikiallwiki-は起点wikiの-admin-と-gstaff-だけ) |
 | Wiki名を含むURLでは受け付けない | `/=<Wiki名>/.newwiki` などは、起点Wikiの名前でも403。ログインのcookieはWikiごとの `Path` にあり、起点Wikiのものだけが `Path=/` なので、素のURLに絞れば判定に使うcookieが起点Wikiのものひとつに決まる | [再起動の仕組み](/Tech/Restart#誰が実行できるか)・[アカウントの仕組み](/Tech/Accounts) |
 | Wikiを消すときは、消される側の管理者のパスワードも要る | 起点Wikiの管理者であることは画面を開いてよい証しで、ほかのWikiを消してよい証しではない。起点Wikiそのものは消せない | [Wikiを消す仕組み](/Tech/DelWiki#誰が消せるか) |
-| 起点Wikiを移すと、権限も移る | `/.newwiki` の「起点Wikiにする」や `farm.default` の書き換えで起点Wikiが替わると、元のWikiの管理者は上の操作ができなくなる | [新しいWikiを作る仕組み](/Tech/NewWiki) |
+| 起点Wikiを移すと、権限も移る | `/.newwiki` や `/.allwiki` の「起点Wikiにする」、`farm.default` の書き換えで起点Wikiが替わると、元のWikiの管理者は上の操作ができなくなる | [新しいWikiを作る仕組み](/Tech/NewWiki) |
 
 ## ページ解決とindex規約
 

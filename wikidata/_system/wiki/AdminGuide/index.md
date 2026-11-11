@@ -44,6 +44,7 @@
 | Wikiを新しく作る | 新しいWikiを作る | 起点Wikiの管理者・助手 | [Wikiの新規作成](/AdminGuide/NewWiki) |
 | Wikiを消す | Wikiを消す | 起点Wikiの管理者・助手 | [Wikiの削除](/AdminGuide/DelWiki) |
 | どんなWikiがあるかを見る | Wikiの一覧 | 起点Wikiの管理者・助手 | [Wiki Farm](/FarmGuide#どんなwikiがあるか) |
+| 起点Wikiを切り替える | Wikiの一覧 | 起点Wikiの管理者 | [Wiki Farm](/FarmGuide#起点wikiを切り替える) |
 | サービスを再起動する | サービスの再起動 | 起点Wikiの管理者・助手 | [保守と運用](/AdminGuide/Maintenance#サービスを再起動する) |
 
 **起点Wikiの管理者・助手**とあるものは、いま開いているWikiではなく、起点Wiki

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """pagediv の cols・cols=N（行の高さを揃えず、列ごとに上から詰める。2026-09-27）のテスト。
 
-- cols: 列＝表の列。`>` でつないだセルは始まりの列、`^` は無視、空のセルは飛ばす
+- cols: 列＝表の列。`>` は列をまたいで広げ、ほかの列の詰めは止めない
+  （2026-11-06）。`^`・`~` は無視、空のセルは飛ばす
 - cols=N: 書いた順に左の列から1つずつ振り分け、幅は等分
 - 単語の cols は、ページの並びの受け皿から拾う（cols=N は名前付きのみ）
 
@@ -68,9 +69,54 @@ class TestPagedivCols(unittest.TestCase):
         self.assertEqual(self.columns(html), [["A", "C"], ["B", "D", "E"]])
         self.assertNotIn("--pd-area", html)
 
-    def test_つないだセルは始まりの列に置く(self):
+    def test_つないだセルは列をまたぐ(self):
         html = self.render("#pagediv(cols){{\n|>|A|\n|B|C|\n}}")
-        self.assertEqual(self.columns(html), [["A", "B"], ["C"]])
+        self.assertIn('<div class="pagediv-col" style="--pd-span: span 2;">', html)
+        self.assertIn('pagediv-nested', html)
+        self.assertLess(html.index(">Aの本文"), html.index("pagediv-nested"))
+        self.assertLess(html.index("pagediv-nested"), html.index(">Bの本文"))
+        self.assertLess(html.index(">Bの本文"), html.index(">Cの本文"))
+
+    def test_つないでいない列は横長のセルの下へ詰まらず独立する(self):
+        # yoshiwiki の index の形。3列目は1〜2列目のまとまりの外で詰める
+        html = self.render("#pagediv(cols){{\n|>|A|B;30%|\n|C|D;30%|~|\n|E;40%|~|F|\n|~|G|2026|\n}}")
+        widths = "minmax(0, 40fr) minmax(0, 30fr) minmax(0, 30fr)"
+        self.assertIn(f'<div class="pagediv pagediv-cols" style="--pd-cols: {widths};">', html)
+        self.assertIn('<div class="pagediv pagediv-cols pagediv-nested" '
+                      'style="--pd-cols: minmax(0, 40fr) minmax(0, 30fr);">', html)
+        self.assertLess(html.index(">Aの本文"), html.index("pagediv-nested"))
+        # 入れ子の外の3列目に B・F・2026、入れ子の中の列に C・E と D・G
+        nested = html[html.index("pagediv-nested"):]
+        parts = nested.split('<div class="pagediv-col">')[1:]
+        self.assertEqual([re.findall(r">(\w+)の本文", p) for p in parts],
+                         [["C", "E"], ["D", "G"], ["B", "F", "2026"]])
+        self.assertNotIn("~", re.sub(r"<[^>]*>", "", html))
+
+    def test_交互にずれたらその行で上下に分ける(self):
+        html = self.render("#pagediv(cols){{\n|>|A|B|\n|C|>|D|\n}}")
+        self.assertEqual(html.count("--pd-span"), 3)
+        for earlier, later in (("A", "B"), ("B", "C"), ("C", "D")):
+            self.assertLess(html.index(f">{earlier}の本文"), html.index(f">{later}の本文"))
+
+    def test_nostackは入れ子にも付く(self):
+        html = self.render("#pagediv(cols,nostack){{\n|>|A|\n|B|C|\n}}")
+        self.assertIn('pagediv-nested pagediv-nostack"', html)
+
+    def test_列全部をつないでも入れ子にしない(self):
+        html = self.render("#pagediv(cols){{\n|>|A|\n}}")
+        self.assertIn(">Aの本文", html)
+        self.assertNotIn("pagediv-nested", html)
+
+    def test_cols_Nではつないでも広げない(self):
+        html = self.render("#pagediv(cols=2){{\n|>|A|B|C|\n}}")
+        self.assertEqual(self.columns(html), [["A", "C"], ["B"]])
+        self.assertNotIn("--pd-span", html)
+
+    def test_チルダは上とつなぐ(self):
+        for mark in ("^", "~"):
+            html = self.render("#pagediv{{\n|A|B|\n|%s|C|\n}}" % mark)
+            self.assertIn("--pd-area: 1 / 1 / span 2 / span 1;", html)
+            self.assertNotIn("まだありません", html)
 
     def test_cols_Nは順に振り分ける(self):
         html = self.render("#pagediv(cols=3){{\n|A|B|C|D|E|F|G|\n}}")

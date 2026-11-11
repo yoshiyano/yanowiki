@@ -49,16 +49,24 @@
 }
 
 /* cols・cols=N: 列（.pagediv-col）ごとに上から詰める。行の高さを揃えないので、
-   短いページの下に空きができない。列どうしの幅は上と同じ --pd-cols */
+   短いページの下に空きができない。列どうしの幅は上と同じ --pd-cols。
+
+   `>` で列をまたぐときは、その範囲を --pd-span 分の広い列にし、中に横長のセルと
+   入れ子のグリッド（.pagediv-nested）を積む。--pd-span は継承されるので、
+   中の列へ届かないよう子で打ち消す */
 .pagediv-cols { align-items: start; }
 .pagediv-col {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  grid-column: var(--pd-span, auto);
 }
+.pagediv-col > * { --pd-span: initial; }
+.pagediv-nested { margin: 0; }
 
 @media (max-width: 40em) {
   .pagediv:not(.pagediv-nostack) { grid-template-columns: minmax(0, 1fr); }
   .pagediv:not(.pagediv-nostack) > .pagediv-cell { grid-area: auto; }
+  .pagediv:not(.pagediv-nostack) > .pagediv-col { grid-column: auto; }
 }

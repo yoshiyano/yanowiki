@@ -320,8 +320,7 @@ html.content-wide .content-width-toggle::before {
    (3) 直後の menu1 と地続きに見える、の3点が目立ったため
    （2026-09-04、実装直後に base で確認）。
 
-   `<select>` は既定だといちばん長い項目名（tdiary系は
-   `tdiary_cafe-mint-julep-soda` のように長い）に合わせて広がり、
+   `<select>` は既定だといちばん長い項目名に合わせて広がり、
    17rem のサイドバーをはみ出す。**flex で伸ばして min-width: 0 を
    与え、幅は親に従わせる**のが要点。
 
@@ -347,8 +346,7 @@ html.content-wide .content-width-toggle::before {
 .theme-selector-form,
 .theme-selector-reset { display: contents; }
 /* ラベル（「テーマ:」＋<select>）で1行を占有し、2つのボタンを次の行へ送る。
-   幅の狭いサイドバー（tdiary系は div.sidebar { width: 20% } のように
-   200px 前後になるものが多い）でも、行が溢れて欠けることがないようにする。 */
+   幅の狭いサイドバー（200px 前後）でも、行が溢れて欠けることがないようにする。 */
 .theme-selector-label {
   display: flex;
   flex: 1 1 100%;
@@ -356,10 +354,10 @@ html.content-wide .content-width-toggle::before {
   align-items: center;
   gap: 0.35rem;
   font-size: 0.8rem;
-  /* 色は var(--muted) ではなく inherit。tdiary系342種のような
-     「カスタムプロパティを一切定義しない他所のCSS」では var() が
-     フォールバック（明色前提の #656d76）に落ちるため、黒背景テーマだと
-     背景に沈んで読めなくなる（tdiary_bill で実際に確認）。
+  /* 色は var(--muted) ではなく inherit。カスタムプロパティを一切定義
+     しない他所のCSSでは var() がフォールバック（明色前提の #656d76）に
+     落ちるため、黒背景テーマだと背景に沈んで読めなくなる（2026-09 に
+     tDiary 由来の黒背景テーマで確認。そのテーマ群は 2026-11-12 に削除）。
      inherit なら、そのテーマがサイドバーに与えている文字色に従うので、
      明るいテーマでも暗いテーマでも自動的に読める。 */
   color: inherit;
@@ -1254,4 +1252,37 @@ li.menu-fold > details > summary {
   display: list-item;
   list-style-position: outside;
   cursor: pointer;
+}
+
+/* ---- ヘッダ左端の QR コードの帯（common.js） ----
+   .qr-strip は common.js がヘッダ（.site-header / #header。bloom は .page-header）の
+   一番左に差し込む幅 7px の帯。親を基準に上下いっぱいに置く。親が static のときだけ
+   common.js が .qr-strip-host-rel を付ける。.qr-popup は body 直下に fixed で出す QR
+   （白地・黒セルに固定。大きさは common.js が 1 セル 4px で決める）。
+   hover できない環境と印刷では帯を出さない。 */
+.qr-strip-host-rel { position: relative !important; }  /* テーマの #header { position: static } にも勝つように */
+.qr-strip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  /* 色は付けず、ヘッダの背景に溶け込ませる（マウスを乗せる場所としてだけある） */
+  background: transparent;
+  z-index: 1;
+}
+.qr-popup {
+  position: fixed;
+  z-index: 1000;
+  line-height: 0;
+  background: #fff;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 30%);
+  cursor: pointer;
+}
+.qr-popup svg { display: block; }
+@media (hover: none) {
+  .qr-strip { display: none; }
+}
+@media print {
+  .qr-strip, .qr-popup { display: none; }
 }

@@ -127,6 +127,21 @@ class TestSanitize(SlotThemeTestBase):
         self.assertIn('<main class="content" data-editable data-base-url="/=testwiki" '
                       'data-page="Foo"><p>本物の本文</p></main>', html)
 
+    def test_本文の入れ物にcontentのclassを本体が付ける(self):
+        # 決まりでは任意なので、付けていないテーマでもセクション編集が開くように
+        # （common.js は `.content[data-editable]` を探す）
+        theme = '<html><body><div class="section" data-slot="content">見本</div></body></html>'
+        html, _ = self.render(theme)
+        self.assertIn('<div class="section content" data-editable data-base-url="/=testwiki" '
+                      'data-page="Foo"><p>本物の本文</p></div>', html)
+        html, _ = self.render(theme, editable=False)
+        self.assertIn('<div class="section content"><p>本物の本文</p></div>', html)
+        html, _ = self.render('<html><body><main data-slot="content"></main></body></html>')
+        self.assertIn('<main class="content" data-editable', html)
+        # すでに付けているテーマでは二重にしない（上の THEME の <main class="content">）
+        html, _ = self.render()
+        self.assertNotIn("content content", html)
+
     def test_チェックで取り除くものが分かる(self):
         report = slottheme.check("<p onclick='x'>a</p><script></script>")
         self.assertTrue(any("onclick" in r for r in report))

@@ -1,4 +1,4 @@
-"""calendar — 1か月のカレンダーを表示し、日ごとのページ（`ページ名/YYYYMMDD`）へ案内する。
+"""calendar — 1か月のカレンダーを表示し、日ごとのページ（`ページ名/YYYY/MM/YYYY-MM-DD`）へ案内する。
 
     #calendar                   今月。日ごとのページはこのページの下
     #calendar(日記)              日ごとのページを「日記」の下に置く
@@ -8,12 +8,13 @@
  1. date … 表示する年月（6桁の `yyyymm`） (default: 今月)
  2. page … 日ごとのページを置く場所のページ名 (default: このページ)
 
-日付の数字は、そのページ（`日記/20260925` のように、区切りの無い8桁）が
+日付の数字は、その日のページ（`日記/2026/09/2026-09-25` のように、年・月のフォルダの中）が
 あるときだけリンクになります。ページを作りながら使うときは
 [calendar_edit](/Syntax/Plugin/calendar_edit) を使います。
 
-日ごとのページの名前を `YYYY-MM-DD` にしたいときは
-[calendar2](/Syntax/Plugin/calendar2) を使います。
+以前の形（`日記/20260925` のように、区切りの無い8桁を直下に置く）のページがあれば、
+編集の権限がある人が表示したときに、新しい形へまとめて移します（移している間は
+「ファイル構成を更新中」と進み具合が出ます）。
 """
 
 """ 技術資料
@@ -47,14 +48,23 @@
   指示）で新規編集の画面を直接開く。ある日と、編集の権限が無い人のまだ無い日は、
   ページのURLへのリンク（本家どおり全部の日を押せる形を残す）
 
+## 日ごとのページの名前（Wiki設計者の指示、2026-10-27）
+
+本家は `基準/20260925`（区切り無し）だった。いまは `calendar2` と同じ
+`基準/2026/09/2026-09-25` にそろえ、古い形は組み替える（`calendar_.py`
+「日ごとのページは `年/月/` のフォルダに置く」）。
+
 ## 出力
 
 表の組み立ては本家どおり（日曜始まり、前後の空きは `style_td_blank`）。
 `width="200"` などの属性はやめて `calendar.css` に移した。
 """
+import datetime
 import importlib.util
 import os
 from html import escape
+
+from bottle import HTTPResponse
 
 from wikilib.paths import full_pagepath, is_valid_pagepath
 from wikilib.plugins import PluginArgumentError
@@ -96,8 +106,11 @@ def render(resolved, context, cmd):
         year, month = now.year, now.month
     other_month = (year, month) != (now.year, now.month)
 
+    migrating = cal.migration_html(context, "calendar", page)
+    if migrating is not None:
+        return migrating
     prefix = page + "/" if page else ""
-    readable = cal.readable_pages(context, page)
+    days = cal.day_pages(context, page)
 
     out = [
         '<table class="calendar style_calendar">',
@@ -117,12 +130,15 @@ def render(resolved, context, cmd):
             if day is None:
                 cells.append('<td class="style_td_blank"></td>')
                 continue
-            day_page = f"{prefix}{year:04d}{month:02d}{day:02d}"
+            day_page = days.get(datetime.date(year, month, day))
+            exists = day_page is not None
+            if not exists:
+                day_page = cal.day_page_name(prefix, year, month, day)
             label = f"<strong>{day}</strong>"
-            if cmd == "edit" and day_page not in readable and cal.can_write(context, day_page):
+            if cmd == "edit" and not exists and cal.can_write(context, day_page):
                 # まだ無い日は、新規編集の画面を直接開く（calendar_.py「まだ無い日は」）
                 label = cal.new_page_button(context, day_page, label)
-            elif cmd == "edit" or day_page in readable:
+            elif cmd == "edit" or exists:
                 label = (f'<a href="{escape(cal.page_url(context, day_page))}"'
                          f' title="{escape(day_page)}">{label}</a>')
             klass = cal.day_class(year, month, day, wday, now, other_month)
@@ -134,3 +150,11 @@ def render(resolved, context, cmd):
 
 def _convert(resolved, body, context):
     return render(resolved, context, "read")
+
+
+def _action(context):
+    """ファイル構成の組み替えの開始と進み具合（`calendar_.migration_action`）。"""
+    handled = _load_common().migration_action(context)
+    if handled is None:
+        return HTTPResponse(status=404)
+    return handled

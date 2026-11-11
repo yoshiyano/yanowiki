@@ -12,11 +12,14 @@ calendar3・calendar_viewer）のテスト。
 """
 import datetime
 import importlib.util
+import io
+import json
 import os
 import re
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -106,7 +109,8 @@ def linked_days(html):
 
 
 class TestCalendar(CalendarTestBase):
-    PAGES = {"日記/20260903": "3日", "日記/20260925": "25日", "秘密/20260910": "秘密"}
+    PAGES = {"日記/2026/09/2026-09-03": "3日", "日記/2026/09/2026-09-25": "25日",
+             "秘密/2026/09/2026-09-10": "秘密"}
 
     def test_年月とページ名はどちらの順でもよい(self):
         for text in ("#calendar(日記,202609)", "#calendar(202609,日記)"):
@@ -131,9 +135,9 @@ class TestCalendar(CalendarTestBase):
         html = self.render("#calendar_edit(日記,202609)")
         self.assertIn("2026.9 (edit)", html)
         self.assertEqual(linked_days(html), [3, 25])
-        self.assertIn('<form class="calendar-new" method="post" action="/%E6%97%A5%E8%A8%98/20260901">'
+        self.assertIn('<form class="calendar-new" method="post" action="/%E6%97%A5%E8%A8%98/2026/09/2026-09-01">'
                       '<input type="hidden" name="cmd" value="edit">'
-                      '<button type="submit" title="日記/20260901"><strong>1</strong></button></form>',
+                      '<button type="submit" title="日記/2026/09/2026-09-01"><strong>1</strong></button></form>',
                       html)
         self.assertEqual(html.count('class="calendar-new"'), 28)
 
@@ -149,7 +153,7 @@ class TestCalendar(CalendarTestBase):
         self.assertEqual(linked_days(html), [3, 25])
 
     def test_閲覧できないページは無いページと同じ(self):
-        self.restrict("秘密/20260910", "R", "alice")
+        self.restrict("秘密/2026/09/2026-09-10", "R", "alice")
         self.assertEqual(linked_days(self.render("#calendar(秘密,202609)")), [])
         self.assertEqual(linked_days(self.render("#calendar(秘密,202609)", uid="alice")), [10])
 
@@ -161,19 +165,19 @@ class TestCalendar(CalendarTestBase):
 
     def test_既定はこのページの下(self):
         html = self.render("#calendar_edit(202609)", page="日記")
-        self.assertIn('title="日記/20260901"', html)
+        self.assertIn('title="日記/2026/09/2026-09-01"', html)
 
 
 class TestCalendar2(CalendarTestBase):
-    PAGES = {"日記/2026-09-03": "3日の本文", "日記/2026-09-25": "今日の本文",
-             "日記/2026-08-01": "8月1日の本文", "2026-09-10": "頭なし"}
+    PAGES = {"日記/2026/09/2026-09-03": "3日の本文", "日記/2026/09/2026-09-25": "今日の本文",
+             "日記/2026/08/2026-08-01": "8月1日の本文", "2026/09/2026-09-10": "頭なし"}
 
     def test_ページがある日はリンク_無い日は作るためのリンク(self):
         html = self.render("#calendar2(日記,202609,off)")
         self.assertEqual(linked_days(html), [3, 25])
         self.assertIn('<form class="calendar-new small" method="post"'
-                      ' action="/%E6%97%A5%E8%A8%98/2026-09-01"><input type="hidden" name="cmd"'
-                      ' value="edit"><button type="submit" title="日記/2026-09-01">1</button></form>',
+                      ' action="/%E6%97%A5%E8%A8%98/2026/09/2026-09-01"><input type="hidden" name="cmd"'
+                      ' value="edit"><button type="submit" title="日記/2026/09/2026-09-01">1</button></form>',
                       html)
 
     def test_編集の権限が無ければ無い日は数字だけ(self):
@@ -196,15 +200,15 @@ class TestCalendar2(CalendarTestBase):
     def test_今日のページが無ければ空と出す_名前は新規編集を直接開く(self):
         html = self.render("#calendar2(日記,202607)")
         self.assertIn('<div class="calendar2-empty"><form class="calendar-new calendar2-new" method="post"'
-                      ' action="/%E6%97%A5%E8%A8%98/2026-07-01">'
+                      ' action="/%E6%97%A5%E8%A8%98/2026/07/2026-07-01">'
                       '<input type="hidden" name="cmd" value="edit">'
-                      '<button type="submit" title="日記/2026-07-01">日記/2026-07-01</button></form>'
+                      '<button type="submit" title="日記/2026/07/2026-07-01">日記/2026/07/2026-07-01</button></form>'
                       'は空です。</div>', html)
 
     def test_編集の権限が無ければ空の案内は文字だけ(self):
         self.restrict("日記/*", "W", "alice")
         html = self.render("#calendar2(日記,202607)")
-        self.assertIn('<div class="calendar2-empty">日記/2026-07-01は空です。</div>', html)
+        self.assertIn('<div class="calendar2-empty">日記/2026/07/2026-07-01は空です。</div>', html)
 
     def test_星は頭に何も付けない(self):
         html = self.render("#calendar2(*,202609,off)")
@@ -240,7 +244,7 @@ class TestCalendar2(CalendarTestBase):
         self.assertEqual(linked_days(inner), [10])
 
     def test_今日のページが閲覧できなければ空と同じ(self):
-        self.restrict("日記/2026-09-25", "R", "alice")
+        self.restrict("日記/2026/09/2026-09-25", "R", "alice")
         html = self.render("#calendar2(日記)")
         self.assertNotIn("今日の本文", html)
         self.assertIn("は空です。", html)
@@ -330,9 +334,9 @@ class TestCalendar3(CalendarTestBase):
 
 
 class TestCalendarViewer(CalendarTestBase):
-    PAGES = {f"日記/{d}": f"{d}の本文" for d in (
+    PAGES = {f"日記/{d[:4]}/{d[5:7]}/{d}": f"{d}の本文" for d in (
         "2026-08-16", "2026-09-22", "2026-09-24", "2026-09-25", "2026-09-27", "2026-10-25")}
-    PAGES.update({"日記/メモ": "日付でない", "旧日記/20260925": "区切り無しの本文"})
+    PAGES.update({"日記/メモ": "日付でない", "別日記/2026/09/2026-09-25": "区切り無しの本文"})
 
     def shown(self, html):
         return re.findall(r"(\d{4}-\d{2}-\d{2})の本文", html)
@@ -365,11 +369,11 @@ class TestCalendarViewer(CalendarTestBase):
         self.assertIn("calendar_viewer", self.context.used_plugins)
 
     def test_区切り無し(self):
-        html = self.render("#calendar_viewer(旧日記,this,past,none)")
+        html = self.render("#calendar_viewer(別日記,this,past,none)")
         self.assertIn("区切り無しの本文", html)
 
     def test_閲覧できないページは並ばない(self):
-        self.restrict("日記/2026-09-24", "R", "alice")
+        self.restrict("日記/2026/09/2026-09-24", "R", "alice")
         self.assertEqual(self.shown(self.render("#calendar_viewer(日記,this)")),
                          ["2026-09-25", "2026-09-22"])
 
@@ -378,7 +382,7 @@ class TestCalendarViewer(CalendarTestBase):
         self.assertEqual(self.shown(html).count("2026-09-25"), 2)
 
     def test_置いたページ自身は差し込まない(self):
-        html = self.render("#calendar_viewer(日記,this)", page="日記/2026-09-25")
+        html = self.render("#calendar_viewer(日記,this)", page="日記/2026/09/2026-09-25")
         self.assertIn("このページ自身は差し込めません", html)
 
     def test_同じ基準は4つまで(self):
@@ -387,8 +391,8 @@ class TestCalendarViewer(CalendarTestBase):
         self.assertIn("plugin-error", html)
 
     def test_互いに差し込み合っても止まる(self):
-        self.put("日記/2026-09-24", "#calendar_viewer(日記,this)")
-        self.put("日記/2026-09-25", "#calendar_viewer(日記,this)")
+        self.put("日記/2026/09/2026-09-24", "#calendar_viewer(日記,this)")
+        self.put("日記/2026/09/2026-09-25", "#calendar_viewer(日記,this)")
         sync_wiki(self.wiki_dir, {})
         html = self.render("#calendar_viewer(日記,this)")
         self.assertIn("plugin-error", html)
@@ -401,6 +405,98 @@ class TestCalendarViewer(CalendarTestBase):
 
     def test_2つ目の引数が読めなければエラー(self):
         self.assertIn("plugin-error", self.render("#calendar_viewer(日記,きのう)"))
+
+
+class TestMigrate(CalendarTestBase):
+    """古い置きかた（基準の直下）から `年/月/` のフォルダへの組み替え。"""
+    PAGES = {"日記/2026-09-03": "3日の本文", "日記/20260925": "25日の本文",
+             "日記/2026-08-01": "8月1日の本文", "日記/index": "#calendar2(日記)",
+             "リンク元": "[[日記/2026-09-03]] を見る",
+             "ChangeLog/2026-09-01": "カレンダーを置いていない日付のページ"}
+
+    def action(self, plugin, method, query="", body="", fetch=True):
+        environ = {"REQUEST_METHOD": method, "QUERY_STRING": query, "REMOTE_ADDR": "192.0.2.1"}
+        if body:
+            data = body.encode("utf-8")
+            environ.update({"CONTENT_TYPE": "application/x-www-form-urlencoded",
+                            "CONTENT_LENGTH": str(len(data)), "wsgi.input": io.BytesIO(data)})
+        if fetch:
+            environ["HTTP_X_REQUESTED_WITH"] = "fetch"
+        bottle.request.bind(environ)
+        context = PluginContext(config={}, farm=FARM, wiki_dir=self.wiki_dir, page="",
+                                base_url="")
+        res = load_plugin(plugin)._action(context)
+        return res.status_code, json.loads(res.body)
+
+    def run_migration(self, plugin="calendar2", base="日記"):
+        status, data = self.action(plugin, "POST", body="migrate=start&base=" + base)
+        self.assertEqual(status, 200, data)
+        for worker in threading.enumerate():
+            if worker.name == "calendar-migrate":
+                worker.join(60)
+        return data
+
+    def exists(self, name, ext=".txt"):
+        return os.path.exists(os.path.join(self.wiki_dir, name + ext))
+
+    def test_編集できる人には組み替えの枠を出す(self):
+        html = self.render("#calendar2(日記)")
+        self.assertIn('class="calendar-migrate"', html)
+        self.assertIn('data-calendar-migrate-start="1"', html)
+        self.assertIn("ファイル構成を更新中", html)
+        self.assertIn('max="3" value="0"', html)
+        self.assertNotIn("calendar2-frame", html)
+
+    def test_編集できない人には古い形のままカレンダーを出す(self):
+        self.restrict("日記/*", "W", "alice")
+        html = self.render("#calendar2(日記,202609,off)")
+        self.assertNotIn("calendar-migrate", html)
+        self.assertEqual(linked_days(html), [3, 25])     # 区切りの無い日も読む
+
+    def test_組み替えると年月のフォルダに移り_リンクも追従する(self):
+        data = self.run_migration()
+        self.assertEqual(data["state"], "running")
+        for name in ("日記/2026/09/2026-09-03", "日記/2026/09/2026-09-25", "日記/2026/08/2026-08-01"):
+            self.assertTrue(self.exists(name), name)
+        for name in ("日記/2026-09-03", "日記/20260925", "日記/2026-08-01"):
+            self.assertFalse(self.exists(name), name)
+        for folder in ("日記/2026", "日記/2026/09", "日記/2026/08"):
+            with open(os.path.join(self.wiki_dir, folder, "index.md"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), "#ls(./)\n")
+        with open(os.path.join(self.wiki_dir, "リンク元.txt"), encoding="utf-8") as f:
+            self.assertIn("日記/2026/09/2026-09-03", f.read())
+        self.assertTrue(self.exists("ChangeLog/2026-09-01"))   # カレンダーの外は動かさない
+        status, data = self.action("calendar2", "GET", "migrate=status&base=%E6%97%A5%E8%A8%98")
+        self.assertEqual((data["state"], data["done"], data["remaining"], data["errors"]),
+                         ("idle", 3, 0, []))
+        html = self.render("#calendar2(日記,202609,off)")
+        self.assertNotIn("calendar-migrate", html)
+        self.assertEqual(linked_days(html), [3, 25])
+
+    def test_calendarとcalendar_viewerからも始められる(self):
+        self.assertIn("calendar-migrate", self.render("#calendar(日記)"))
+        self.assertIn("calendar-migrate", self.render("#calendar_viewer(日記,this)"))
+        self.run_migration("calendar_viewer")
+        self.assertIn("25日の本文", self.render("#calendar_viewer(日記,this)"))
+
+    def test_最中は誰にでも進み具合を出す(self):
+        self.restrict("日記/*", "W", "alice")
+        cal = load_plugin("calendar_")
+        path = cal._status_path(self.wiki_dir, "日記")
+        os.makedirs(os.path.dirname(path))
+        cal._write_status(path, {"state": "running", "total": 3, "done": 1,
+                                 "current": "2026/09", "errors": []})
+        html = self.render("#calendar2(日記)")
+        self.assertIn('data-calendar-migrate-start="0"', html)
+        self.assertIn("2026/09", html)
+
+    def test_JSからでない開始と_編集できない人の開始は断る(self):
+        status, _ = self.action("calendar2", "POST", body="migrate=start&base=日記", fetch=False)
+        self.assertEqual(status, 400)
+        self.restrict("日記/2026-09-03", "W", "alice")
+        status, data = self.action("calendar2", "POST", body="migrate=start&base=日記")
+        self.assertEqual(status, 403)
+        self.assertTrue(self.exists("日記/2026-09-03"))
 
 
 if __name__ == "__main__":

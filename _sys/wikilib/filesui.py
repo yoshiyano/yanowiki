@@ -1017,6 +1017,13 @@ def call_app(app, prefix_len):
     env = request.environ
     path_info = env.get("PATH_INFO", "")
     inner = {k: v for k, v in env.items() if k not in _ROUTE_KEYS}
+    # Origin は渡さない。別のサイトからの POST は入口（wiki.py の dispatch）で Wiki の
+    # 照合（wikilib.web.cross_site_reason）が既に断っている。webFileDir の照合は
+    # `スキーム://Host` との完全一致なので、HTTPS を終えるプロキシの後ろや、Host を
+    # 書き換えて X-Forwarded-Host を付けるプロキシの後ろでは、同じサイトからの操作まで
+    # 「許されていないページからの要求」として断っていた。webFileDir は Origin の無い
+    # 要求を通し、X-WebFileDir ヘッダと Content-Type の確かめは残る
+    inner.pop("HTTP_ORIGIN", None)
     inner["SCRIPT_NAME"] = env.get("SCRIPT_NAME", "") + path_info[:prefix_len]
     inner["PATH_INFO"] = path_info[prefix_len:]
 

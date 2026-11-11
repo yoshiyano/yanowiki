@@ -71,6 +71,64 @@
   font-size: 0.92rem;
 }
 
+/* 起点Wikiの切り替え（wikilib.defaultswitch） */
+.allwiki-switch { margin: 0; }
+
+.allwiki-switch button {
+  padding: 0.15em 0.7em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.allwiki-notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #2e7d32;
+  border-radius: 4px;
+}
+
+.allwiki-notice-error { border-color: #c62828; }
+
+.allwiki-target { font-size: 1.1em; }
+
+.allwiki-effects { margin: 0 0 1.2rem; padding-left: 1.4em; }
+
+.allwiki-effects li { margin: 0.4em 0; }
+
+.allwiki-form label { display: block; margin-bottom: 0.3em; font-weight: 600; }
+
+.allwiki-form input[type="password"] {
+  width: 100%;
+  max-width: 24rem;
+  padding: 0.4em 0.5em;
+  box-sizing: border-box;
+}
+
+.allwiki-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8em;
+  margin-top: 1.2rem;
+}
+
+/* `.allwiki` を重ねるのは、共通の枠の `.sys-body button { color: inherit }` より強くするため */
+.allwiki .allwiki-go {
+  display: inline-block;
+  padding: 0.4em 1em;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent, #3178c6);
+  color: #fff;
+  font-size: 1rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 @media (max-width: 32rem) {
   .allwiki-count { flex-basis: 100%; }
 }

@@ -17,10 +17,14 @@
        past     今日と過去を、新しい順に（日記・記録向け）
        future   今日と未来を、古い順に（予定向け）
        view     過去から未来まで全部を、古い順に
- 4. date_sep … 日付の区切り文字 (default: `-`。calendar2 のページ `2026-09-25`)
-       calendar のページ（`20260925`）を出すときは `none` と書く
+ 4. date_sep … 年月（2つ目の引数の `yyyy-mm`）の区切り文字 (default: `-`)
+       区切らないときは `none` と書く（`202609`）。以前の形のページ（`日記/2026.09.25`
+       のように、この区切りで直下に置いたもの）を見分けるのにも使います
 
-- 日ごとのページは `ページ名/2026-09-25` の形の名前のものだけが並びます
+- 日ごとのページは `ページ名/2026/09/2026-09-25` の形（年・月のフォルダの中）のものが並びます
+- 以前の形（`ページ名/2026-09-25`・`ページ名/20260925` を直下に置く）のページがあれば、
+  編集の権限がある人が表示したときに、新しい形へまとめて移します（移している間は
+  「ファイル構成を更新中」と進み具合が出ます）
 - ページごとに日付の見出し（`2026/9/25 (金)`）を付けます。見出しは、編集の権限が
   あればそのページの編集画面を開くボタン、無ければページへのリンクです
 - 最後に、前後の月・前後の件へのリンクを出します
@@ -49,6 +53,9 @@
 本家は4つ目を空（`#calendar_viewer(日記,this,past,)`）にすると区切り無し
 （`calendar` の `20260925`）になった。wikiSystemでは空の引数は省略と同じに
 扱われ、既定の `-` になってしまうので、`none` と書く形を足した。
+日ごとのページを `年/月/` のフォルダにまとめてから（2026-10-27）は、ページの名前は
+区切りによらず `2026-09-25` なので、区切りが効くのは年月の指定（`202609`）と、
+組み替える前の古い形のページを見分けるところだけになった。
 
 ## 並べるページ
 
@@ -57,9 +64,13 @@
 `#ls`・`#recent` と同じく**並べない**（見えないページの存在を知らせない）。
 件数・前後のリンクも、見えるページだけで数える。
 
-日付の部分は `^([0-9]{2,4})<区切り>([0-9]{1,2})<区切り>([0-9]{1,2})$`（区切り無しなら
-8桁）で、暦の上であり得る日付のものだけ。`past` は今日より後を、`future` は今日より
-前を外す（本家と同じく**文字列で**比べる）。
+日ごとのページは `calendar_.day_pages` で集める（新しい形 `基準/2026/09/2026-09-25` と、
+組み替える前の古い形の両方。2026-10-27、Wiki設計者の指示で `年/月/` のフォルダに
+まとめた。`calendar_.py`「日ごとのページは `年/月/` のフォルダに置く」）。暦の上で
+あり得る日付のものだけ。古い形は、区切り `-`・無し・`date_sep` のどれでもよく、
+年は4桁だけ（本家は2桁も読んだ）。`past` は今日より後を、`future` は今日より前を外す。
+本家はページ名の文字列で比べ、年月の指定もページ名の頭の一致で選んだが、置き場所が
+変わったので**日付で**比べる。
 
 ## 本文の差し込み
 
@@ -166,28 +177,9 @@ def parse_range(text, sep, today):
     return None
 
 
-def parse_date(text, sep):
-    """日付の部分を date にする。日付でなければ None。"""
-    if sep == "":
-        m = re.fullmatch(r"(\d{4})(\d{2})(\d{2})", text)
-    else:
-        s = re.escape(sep)
-        m = re.fullmatch(r"(\d{2,4})" + s + r"(\d{1,2})" + s + r"(\d{1,2})", text)
-    if not m:
-        return None
-    try:
-        return datetime.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    except ValueError:
-        return None
-
-
-def _title_html(cal, context, page, sep):
-    date = parse_date(page.rsplit("/", 1)[-1], sep)
-    if date is None:
-        label = escape(page)
-    else:
-        week = cal.WEEK_LABELS[(date.weekday() + 1) % 7]
-        label = escape(f"{date.year}/{date.month}/{date.day} ({week})")
+def _title_html(cal, context, page, date):
+    week = cal.WEEK_LABELS[(date.weekday() + 1) % 7]
+    label = escape(f"{date.year}/{date.month}/{date.day} ({week})")
     url = escape(cal.page_url(context, page))
     if context.privilege.check(page) == PAGE_WRITE:
         return (f'<form class="calendar_viewer-edit" method="post" action="{url}">'
@@ -233,25 +225,26 @@ def _convert(resolved, body, context):
         raise PluginArgumentError(
             f"同じページ名（{pagename}）の calendar_viewer は{MAX_SHOW_COUNT}つまでです。")
 
-    head = pagename + "/" if pagename else ""
-    pattern = head + page_ym
-    today_text = f"{now.year:04d}{sep}{now.month:02d}{sep}{now.day:02d}"
+    seps = tuple(dict.fromkeys(cal.DEFAULT_SEPS + (sep,)))
+    migrating = cal.migration_html(context, "calendar_viewer", pagename, seps,
+                                   extra_sep=sep if sep not in cal.DEFAULT_SEPS else None)
+    if migrating is not None:
+        return migrating
+    ym = None
+    if page_ym:
+        ym = (int(page_ym[:4]), int(page_ym[4 + len(sep):6 + len(sep)]))
     pages = []
-    for page in cal.readable_pages(context, pagename):
-        if not page.startswith(pattern):
+    for date, page in cal.day_pages(context, pagename, seps).items():
+        if ym is not None and (date.year, date.month) != ym:
             continue
-        date_text = page[len(head):]
-        if parse_date(date_text, sep) is None:
+        if (mode == "past" and date > now) or (mode == "future" and date < now):
             continue
-        if (mode == "past" and date_text > today_text) or \
-                (mode == "future" and date_text < today_text):
-            continue
-        pages.append(page)
+        pages.append((date, page))
     pages.sort(reverse=(mode == "past"))
 
     out = []
-    for page in pages[max(limit_base, 0):limit_page]:
-        out.append(f'<h1 class="calendar_viewer-title">{_title_html(cal, context, page, sep)}</h1>')
+    for date, page in pages[max(limit_base, 0):limit_page]:
+        out.append(f'<h1 class="calendar_viewer-title">{_title_html(cal, context, page, date)}</h1>')
         if page == here:
             out.append(f'<div class="include-notice">このページ自身は差し込めません: {embed.read_link(page)}</div>')
             continue
@@ -297,3 +290,12 @@ def _nav_html(cal, context, pagename, mode, sep, page_ym, limit_base, limit_pitc
             f'<span class="calendar_viewer_left">{link(left)}</span>'
             f'<span class="calendar_viewer_right">{link(right)}</span>'
             '</div>')
+
+
+def _action(context):
+    """ファイル構成の組み替えの開始と進み具合（`calendar_.migration_action`）。"""
+    from bottle import HTTPResponse
+    handled = _load("calendar_").migration_action(context)
+    if handled is None:
+        return HTTPResponse(status=404)
+    return handled

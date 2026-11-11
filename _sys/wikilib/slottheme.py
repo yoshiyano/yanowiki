@@ -491,6 +491,12 @@ def _fill(el, wiki_dir, theme, ctx, values, slots, report):
                 report.append(f"知らないスロット: {name}")
             ch.children = [Raw(slots.get(name, ""))]
             if name == "content":
+                # `content` の class は決まりでは任意だが、common.js（セクション編集の
+                # `.content[data-editable]` など）と common.css が頼るので、本体が付ける。
+                # テーマが付け忘れても、セクション編集が黙って動かなくならないように
+                tokens = a.get("class", "").split()
+                if "content" not in tokens:
+                    a["class"] = " ".join(tokens + ["content"])
                 # セクション編集が使うページ情報（base.html の <main> と同じ）
                 if ctx.get("editable"):
                     a["data-editable"] = None

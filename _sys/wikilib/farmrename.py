@@ -47,7 +47,7 @@ URLが変わるので、次のものは切れる。画面でも同じことを�
 import os
 
 from wikilib import paths, userdb
-from wikilib.newwiki import WIKI_NAME_RE
+from wikilib.newwiki import NUMERIC_LIKE_MESSAGE, WIKI_NAME_RE, reads_back_as_name
 from wikilib.paths import FARM_PREFIX, SYSTEM_PREFIX, farm_config_path, farm_wiki_dir, safe_join
 from wikilib.wikiconfig import (
     account_pw_salt, load_default_farm, load_wiki_config, read_yaml, save_farm_config,
@@ -101,6 +101,8 @@ def rename_problem(old, new):
                 "（URLの一部になり、フォルダ名にもなるためです）。")
     if new.startswith((FARM_PREFIX, SYSTEM_PREFIX)):
         return f"「{FARM_PREFIX}」「{SYSTEM_PREFIX}」で始まる名前は使えません。"
+    if not reads_back_as_name(new):
+        return NUMERIC_LIKE_MESSAGE.format(new)
     if wiki_exists(new):
         return f"「{new}」はすでにあります。"
     if safe_join(wikidata_dir(), new) is None:

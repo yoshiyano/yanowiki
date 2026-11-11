@@ -11,6 +11,7 @@
     handle(context)                    → 問い合わせ（`/.plugin/<name>?poll=1`）に答える
     fetch_only()                       → JS（fetch）からでない投稿を断る応答
     NEEDS_JS                           → 送信ボタンに付ける属性（JS が動くまで押せない）
+    freeze(html)                       → 描いた HTML の描画範囲を、読むだけの形にする
 
 ## 呼び出しごとの ID の決まり（Wiki設計者の指示）
 
@@ -131,6 +132,7 @@ ID_LEN = 5
 ID_ARG_RE = r"[0-9A-Za-z_-]+"  # 引数 id の candidate（手で書いた ID・古い形も受け取る）
 GONE = "該当フォームがなくなりました（ページが編集された可能性があります）。"
 NEEDS_JS = " disabled data-needs-js"
+FROZEN = "ここからは書き込めません（ページを開いてください）。"
 NOJS = "この環境では投稿ができません（JavaScript が必要です）。"
 _MAX_DEPTH = 8
 # `#table` のセルの区切り（`\|` は区切らない）と、セルの頭の目印（`table.py` と同じ）
@@ -392,6 +394,16 @@ def wrap(html, context, name, pid):
              f'data-poll-version="{_page_version(context)}"')
     return (f'<div class="poll-box" {attrs}>{html}'
             f'<noscript><p class="poll-message">{NOJS}</p></noscript></div>')
+
+
+def freeze(html):
+    """描いた `html` の中の描画範囲を、読むだけの形にする（`ls` の `ajaxview` が使う）。
+
+    `.poll-box` をやめて問い合わせ・差し替えの対象から外し、`data-needs-js` を外して送信
+    ボタンを押せないままにする。ID の無い呼び出しの注意書きと同じ趣旨の案内を足す。"""
+    note = f'<p class="poll-message">{FROZEN}</p>'
+    html = re.sub(r'<div class="poll-box"([^>]*)>', rf'<div class="poll-frozen"\1>{note}', html)
+    return html.replace(NEEDS_JS, " disabled")
 
 
 # ---- 投稿・問い合わせを受けたとき ----

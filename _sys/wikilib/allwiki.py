@@ -41,12 +41,19 @@ Wikiの数が増えてもファイルを開いて回らずに済む。
 まだ取り込まれていない（DBが無い）Wikiもあり得るので、その場合は数を出さずに
 名前とリンクだけを出す。**開けること**のほうが大事なので、数が分からなくても
 一覧から外さない。
+
+## 起点Wikiの切り替え
+
+管理者には、各行に「起点Wikiにする」を出す（助手には出さない）。POSTの受け持ちは
+`wikilib.defaultswitch`。
 """
 import os
 from html import escape
 from urllib.parse import quote as urlquote
 
-from wikilib import pagedb, sysui
+from bottle import request
+
+from wikilib import auth, pagedb, sysui
 from wikilib.paths import (
     ALLWIKI_DIR, FARM_PREFIX, INDEX_NAME, WIKIDATA_DIR,
     farm_wiki_dir,
@@ -114,9 +121,27 @@ def render_allwiki(wiki_dir, config, farm, explicit_farm):
     if denied is not None:
         return denied
 
+    if request.method == "POST":
+        from wikilib import defaultswitch  # defaultswitch がこのモジュールを読むので呼び出し時に
+        return defaultswitch.handle_post(wiki_dir, config, farm, explicit_farm, urlpath)
+    return list_page(wiki_dir, config, farm, explicit_farm, urlpath)
+
+
+def _switch_button(base_url, urlpath, name):
+    """「起点Wikiにする」。押しても確認の画面が出るだけで、まだ何も変わらない。"""
+    return (f'<form class="allwiki-switch" method="post" '
+            f'action="{escape(base_url)}/{escape(urlpath)}">'
+            '<input type="hidden" name="step" value="choose">'
+            f'<input type="hidden" name="name" value="{escape(name)}">'
+            '<button type="submit">起点Wikiにする</button></form>')
+
+
+def list_page(wiki_dir, config, farm, explicit_farm, urlpath, problem=""):
+    """一覧の画面。関門を通ったあとで呼ぶこと。`problem` は上に出す断りの文言。"""
     context = make_plugin_context(config, farm, wiki_dir, urlpath, explicit_farm)
     root = site_root_of(context.base_url)
     default_farm = load_default_farm(config)
+    can_switch = auth.allows(wiki_dir, farm, auth.ADMIN_ONLY)
 
     rows = []
     for entry in wiki_entries():
@@ -136,12 +161,15 @@ def render_allwiki(wiki_dir, config, farm, explicit_farm):
             + "".join(marks) +
             f'<span class="allwiki-title">{escape(entry["title"])}</span>'
             f'<span class="allwiki-count">{count}</span>'
+            + (_switch_button(context.base_url, urlpath, name)
+               if can_switch and name != default_farm else "") +
             "</li>"
         )
 
     listing = ('<ul class="allwiki-list">' + "".join(rows) + "</ul>" if rows else
                '<p class="allwiki-empty">Wikiがまだありません。</p>')
-    body = f"""<div class="allwiki">
+    body = f"""{sysui.notice(problem, bad=True, prefix="allwiki")}
+<div class="allwiki">
   <p class="allwiki-lead">このサーバーで動いているWikiの一覧です。
     名前を押すと、そのWikiのトップページへ移ります。</p>
   {listing}

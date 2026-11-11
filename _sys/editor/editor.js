@@ -1219,6 +1219,9 @@ var wikiSend = (function () {
   try {
     treeData = JSON.parse(dataEl.textContent);
     tree.render(treeData);
+    // 書きかけのページは、畳んだフォルダの中に隠れると見落とすので、
+    // そこまでのフォルダを開いておく
+    [].forEach.call(box.querySelectorAll(".ep-draft"), function (row) { tree.reveal(row); });
     tree.selectSubpath(currentSubpath, false);
     showListMode();
     // 開いた直後から矢印キーで一覧をたどれるよう、選んだ行にフォーカスして

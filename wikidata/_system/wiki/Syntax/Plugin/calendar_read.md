@@ -8,7 +8,7 @@
 呼びかたのルールは [共通の書きかた](/Syntax/Common#プラグインの呼びかた) をご覧ください。
 
 [calendar](/Syntax/Plugin/calendar) を「read」のモードで表示します。PukiWikiの `calendar_read` の移植です。
-引数・日ごとのページの名前（`日記/20260925`）・見た目は calendar と同じです。
+引数・日ごとのページの名前（`日記/2026/09/2026-09-25`）・見た目は calendar と同じです。
 
 その日のページが**閲覧できるときだけ**、日付がリンクになります。表題には `(read)` と出ます。
 [calendar](/Syntax/Plugin/calendar) の既定と同じ表示です。

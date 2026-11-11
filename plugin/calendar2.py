@@ -1,8 +1,8 @@
 """calendar2 — 前後の月へ移れるカレンダーと、今日のページの中身を並べて表示する。
 
-    #calendar2                   今月。日ごとのページはこのページの下（`このページ/2026-09-25`）
+    #calendar2                   今月。日ごとのページはこのページの下（`このページ/2026/09/2026-09-25`）
     #calendar2(日記)              日ごとのページを「日記」の下に置く
-    #calendar2(*)                 日ごとのページを、ページ名の頭に何も付けずに置く（`2026-09-25`）
+    #calendar2(*)                 日ごとのページを、ページ名の頭に何も付けずに置く（`2026/09/2026-09-25`）
     #calendar2(日記, 202609, off)  2026年9月。今日のページの中身は出さない
 
  1. page … 日ごとのページを置く場所のページ名。`*` なら頭に何も付けない (default: このページ)
@@ -12,7 +12,10 @@
 
 引数はどの順で書いてもかまいません。
 
-- 日ごとのページの名前は `日記/2026-09-25` の形です
+- 日ごとのページの名前は `日記/2026/09/2026-09-25` の形です（年・月のフォルダの中）
+- 以前の形（`日記/2026-09-25` のように直下に置く）のページがあれば、編集の権限がある人が
+  表示したときに、新しい形へまとめて移します（移している間は「ファイル構成を更新中」と
+  進み具合が出ます。ほかのページからのリンクも書き換わります）
 - ページがある日は、日付がそのページへのリンクになります。まだ無い日は、
   そのページを作る画面へのリンクになります（編集の権限がある人だけ）
 - `<<`・`>>` で前後の月へ移れます
@@ -76,11 +79,18 @@
 その日のページを差し込んだ（`$now_day = 1`）。見た目に分かりにくいが、書き手から
 見える挙動なのでそのまま残した。
 
+## 日ごとのページの名前（Wiki設計者の指示、2026-10-27）
+
+本家は `基準/2026-09-25`。いまは `基準/2026/09/2026-09-25` で、古い形は組み替える
+（`calendar_.py`「日ごとのページは `年/月/` のフォルダに置く」）。前後の月の
+問い合わせ（`_action`）では組み替えの枠を出さない（ページを開いたときに出ているため）。
+
 ## 出力
 
 本家の外枠の `<table>`（カレンダーと中身を横に並べる）は `div` のflexにした
 （`calendar.css` の `.calendar2`。狭い画面では縦に積む）。
 """
+import datetime
 import importlib.util
 import os
 from html import escape
@@ -171,7 +181,11 @@ def render_inner(cal, context, base, prefix, file, year, month, off):
     # 本家: 別の月なら「今日」はその月の1日
     focus_day = 1 if other_month else now.day
 
-    readable = cal.readable_pages(context, base)
+    days = cal.day_pages(context, base)
+    readable = set(days.values())
+
+    def day_page(day):
+        return days.get(datetime.date(year, month, day)) or cal.day_page_name(prefix, year, month, day)
 
     def nav(y, m, text):
         date = f"{y:04d}{m:02d}"
@@ -199,7 +213,7 @@ def render_inner(cal, context, base, prefix, file, year, month, off):
             if day is None:
                 cells.append('<td class="style_td_blank"></td>')
                 continue
-            page = f"{prefix}{year:04d}-{month:02d}-{day:02d}"
+            page = day_page(day)
             klass = cal.day_class(year, month, day, wday, now, other_month)
             cells.append(f'<td class="{klass}">{_day_link(cal, context, page, day, readable)}</td>')
         out.append("  <tr>" + "".join(cells) + "</tr>")
@@ -208,7 +222,7 @@ def render_inner(cal, context, base, prefix, file, year, month, off):
 
     if off:
         return table + "\n"
-    today_page = f"{prefix}{year:04d}-{month:02d}-{focus_day:02d}"
+    today_page = day_page(focus_day)
     return (
         '<div class="calendar2">\n'
         f'<div class="calendar2-month">\n{table}\n</div>\n'
@@ -235,6 +249,9 @@ def _convert(resolved, body, context):
         date = asked
     year, month = _year_month(cal, date)
     off = bool(resolved.get("off"))
+    migrating = cal.migration_html(context, "calendar2", base)
+    if migrating is not None:
+        return migrating
     api = escape(f"{context.base_url}/{PLUGIN_URLPATH}/calendar2", quote=True)
     return (f'<div class="calendar2-frame" data-calendar2-api="{api}"'
             f' data-calendar2-page="{escape(context.page or "", quote=True)}"'
@@ -247,6 +264,9 @@ def _action(context):
     """`/.plugin/calendar2?file=<基準のページ|*>&date=<yyyymm>&page=<置いたページ>&off=<0|1>`
     で、枠の中身（カレンダーと今日のページの中身）だけを返す（`calendar2.js`）。"""
     cal = _load("calendar_")
+    handled = cal.migration_action(context)
+    if handled is not None:
+        return handled
     file = (request.query.getunicode("file", "") or "").strip("/")
     page = (request.query.getunicode("page", "") or "").strip("/")
     if page and is_valid_pagepath(page):

@@ -48,6 +48,13 @@ folderより後ろなら書きたいものだけ好きな順で書けます。`e
 入口ページの書きかたに対応する`format_md`/`format_pk`で決まります）。
 
 階層表示（recursive）のフォルダは <details> で畳めます。ここはJavaScript不要です。
+
+recursive も ajaxview も書かない一覧は、表示幅に合わせて複数の列に並びます
+（縦に並べて、次の列へ続きます）。列に収まらない名前があるときは、一覧の右上に
+「ファイル名の部分省略」のチェックボックスが出ます。最初はオンで、名前を「…」で省略し、
+マウスを載せると全体が見えます。オフにすると折り返して全体を見せます。
+
+下にページを持つフォルダは、名前の最後に "/" が付きます（recursive の <details> を除く）。
 """
 
 """ 技術資料
@@ -419,16 +426,73 @@ PukiWiki記法の`RightBar`は本文の見出し「演習やポイント」と�
 （`editor._apply_listnames`・`treeview.js`の`listname`）。あちらは
 ファイル名・タイトルのどちらか一方しか出せない幅の狭い一覧なので、
 `ls`の`BOTH`に相当する選択肢は無い。
+
+## 複数列の表示（2026-10-30）
+
+ページ数が多いと縦一列では見通しが悪いため、CSS 段組み（`columns: 12em`）にした。
+候補には Grid のマス割り、列ごとの幅を JS で計算する GNU ls 方式もあり、100件の
+試作を見比べて設計者が段組みを選んだ。段組みは JS もサーバー側の幅の見積もりも
+要らず、狭い場所では自然に1列へ戻る。列の幅が全列で同じなので、長い名前は
+省略か折り返しで収める。
+
+**段組みにするのは recursive も ajaxview も無い一覧だけ**（`ls-columns`）。
+recursive の見せかたは設計者が別に考えるとしている（2026-10-30）。ajaxview は
+開いた本文が列の幅に閉じ込められて読めなくなるので、縦一列のままにした
+（クロコの実装例。設計者は未確認）。
+
+**省略の要否は `plugin/ls.js` が実測する。** 列の幅とフォントで決まるので、サーバーでは
+分からない。`ls-clip` を付けた状態で `scrollWidth > clientWidth` の項目を探し、あれば
+チェックボックスを出す。幅が変わると測り直す（`ResizeObserver`）。ajaxview で読み込んだ
+本文の中の `#ls` には、読み込んだ時点で同じ準備をする。
+
+**チェックボックスは最後の列の先頭、1項目分の場所に置く**（設計者の指定、2026-10-30）。
+`<li class="ls-clip-slot">` として `<ul>` に入れ、末尾に置いて最後の列を測ってから、その列の
+先頭へ移して `break-before: column` を付ける。段組みには「右上を空ける」指定が無いため。
+読み上げ・Tab の順では、項目の途中に入る。
+
+**`ls-clip` はサーバーが最初から付ける**（JS で後から付けると、折り返した姿が一瞬
+見える）。その代わり CSS の省略は `@media (scripting: enabled)` の中に書き、JS が
+動かない閲覧者には名前の全体を折り返して見せる（チェックボックスも `title` も JS が
+作るので、省略だけが残ると全体を読む手段が無くなる）。
+
+マーカーは `list-style` をやめて `::before` にした。省略に要る `overflow: hidden` は、
+`<li>` の外側に描かれる標準のマーカーを切ってしまう。
+
+## ajaxview で開いた本文は読むだけ（2026-10-31）
+
+設計者の指示（「読むだけのものとして、include_.render を使う形で修正して」）で、`_action` の
+本文の描画を `include_.render` に換えた。それまでは自前で描いていて、`#viewable_period` で
+止めたページの本文が読めた。プラグインの CSS/JS は読み込まない（`used_plugins` は集まるが
+親ページはもう届いている）。後から読み込むと初期化が一度きりの JS は動かず、読み込み直すと
+`comment.js` の受け口が2つになるためで、詳しくは ai-notes の `ls-ajax-render`。
+
+読むだけにするため、次の2つをしている（どちらもクロコの実装例。設計者は未確認）。
+
+- `_callid_readonly` を立てて描く。開いただけで本文へ ID を書き足さない（`include_.render` が
+  入れ子の差し込みにも引き継ぐ）。`context.partial` は使わない。`need_outer_info` の
+  プラグインが描かれなくなり、読む内容まで変わるため
+- `_polling.freeze` で `.poll-box` を外す。残すと、親ページに `_polling.js` があるとき
+  問い合わせの差し替えで送信ボタンが押せるようになる
+
+## フォルダの "/"（2026-10-30）
+
+付けるのは `_render_tree` の「中身を畳まない」分岐のうち、`child is None`
+（recursive でない）のときだけ。`_scan` が `has_children` で `folders` へ振り分けた
+ものなので、入口ページだけのフォルダ（`pages` 側に入る）には付かない。recursive の
+見せかたは別に考えるので、そちらは変えていない。
+
+`format_md=TITLE` などでタイトルを見せるときも、見せている名前の後ろに付ける
+（フォルダかどうかを示す目印なので。クロコの実装例。設計者は未確認）。
 """
+import importlib.util
+import os
 import re
 from html import escape
 
 from wikilib import pagelist
-from wikilib.auth import PAGE_NONE
-from wikilib.pagedb import published_ref
 from wikilib.paths import (
     INDEX_NAME, PLUGIN_URLPATH, full_pagepath, is_valid_pagepath,
-    farm_plugin_dir, markup_name_for, resolve_page_ref,
+    markup_name_for, resolve_page_ref,
 )
 from wikilib.plugins import FREE_TEXT, PluginArgumentError
 from wikilib.search import name_matches, split_filters
@@ -688,8 +752,10 @@ def _label(page, fmt, display_name=None):
     return escape(name), escape(title) if title else ""
 
 
-def _render_page(page, fmt, ajaxview=False, display_name=None):
+def _render_page(page, fmt, ajaxview=False, display_name=None, is_folder=False):
     main, sub = _label(page, fmt, display_name)
+    if is_folder:
+        main += "/"
     extra = f'<span class="ls-title">{sub}</span>' if sub else ""
     if not ajaxview:
         return f'<li class="ls-page"><a href="/{escape(page.pagepath)}">{main}</a>{extra}</li>'
@@ -753,7 +819,8 @@ def _render_tree(node, fmt_md, fmt_pk, key, reverse, ajaxview=False, natural=Fal
             # 付ける（Wiki設計者の報告:「ajaxviewがフォルダのindexだと反応しない」
             # で発見。技術資料参照）。
             entries.append((folder_key,
-                            _render_page(index_page, folder_fmt, ajaxview, display_name=folder["name"])))
+                            _render_page(index_page, folder_fmt, ajaxview, display_name=folder["name"],
+                                         is_folder=child is None)))
             continue
 
         # ここから先は中身がある（<details>に畳む）場合。summary側にも
@@ -852,11 +919,23 @@ def _convert(resolved, body, context):
         cls += " ls-tree"
     if ajaxview:
         cls += " ls-ajax"
+    if not recursive and not ajaxview:
+        cls += " ls-columns ls-clip"
     # 読み込み先は自分自身（このプラグインの _action）。base_url を持たせて、
     # 別のWikiを見ているときやサブパス設置でも正しい宛先になるようにする。
     api = escape(f"{context.base_url}/{PLUGIN_URLPATH}/ls")
     return (f'<nav class="{cls}" data-ls-api="{api}">'
             f'<ul class="ls-list">{"".join(items)}</ul></nav>')
+
+
+def _load_sibling(name):
+    """隣の共有モジュール（`include_`・`_polling`）を読み込む（`comment.py` の
+    `_load_polling` と同じ。`sys.modules` に置くと、直してもサーバーの再起動まで効かない）。"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name + ".py")
+    spec = importlib.util.spec_from_file_location("plugin_" + name + "_for_ls", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _action(context):
@@ -865,38 +944,33 @@ def _action(context):
     ajaxview=true の一覧から呼ばれる。読み込みに答える処理をこのファイルに置くことで、
     一覧の見せかたと中身の出しかたが1つのプラグインの中で完結する。
 
-    本文のレンダリングは閲覧時とまったく同じ経路（同じレンダラ・同じプラグイン）を
-    通すので、表示が食い違わない。1行目のタイトルは一覧側に出ているので取り除く。
-    読む中身も閲覧時と同じく**公開されたもの**（DB）にする。
+    本文は `include_.render` で描く（技術資料「ajaxview で開いた本文は読むだけ」）。
+    1行目のタイトルは一覧側に出ているので取り除かれる。読む中身も閲覧時と同じく
+    **公開されたもの**（DB）にする。
 
     **閲覧の権限が無いページ（`ref.privilege` が `-`）は読み込ませない**（Wiki設計者の
-    指示、2026-09-15）。`published_ref` は `-` でも本文を入れて返すので、ここで見ないと
+    指示、2026-09-15）。`published_ref` は `-` でも本文を入れて返すので、`lookup` で見ないと
     ページを開けば403になる本文が、このURLからは読めてしまう。在るかどうかより先に
     見る（ページの表示と同じ順）。一覧に出すページ名・タイトルは変えない
     （Wiki設計者の判断、2026-09-15）。"""
     from bottle import request
 
-    from wikilib.plugins import PluginContext, build_markdown_renderer
-    from wikilib.render import render_source, rewrite_content_links
+    from wikilib.plugins import PluginContext
 
+    include_ = _load_sibling("include_")
     pagepath = (request.query.getunicode("page", "") or "").strip("/")
     if not pagepath or not is_valid_pagepath(pagepath):
         return '<div class="ls-view-error">ページを指定してください。</div>'
 
-    ref = published_ref(context.wiki_dir, pagepath)
-    if ref is not None and ref.privilege == PAGE_NONE:
+    status, ref = include_.lookup(context, pagepath)
+    if status == "forbidden":
         return '<div class="ls-view-error">このページを閲覧する権限がありません。</div>'
-    if ref is None or not ref.exists:
+    if status == "missing":
         return '<div class="ls-view-error">このページはまだありません。</div>'
 
-    # 対象ページを指す実行時情報を作る。#contents などページ自身を見るプラグインが
-    # 正しく働くよう、ここで page を差し替えておく。
-    sub = PluginContext(config=context.config, farm=context.farm, wiki_dir=context.wiki_dir,
+    # 対象ページを指す実行時情報を作る。自分自身を差し込まないための記録もこのページで作る
+    top = PluginContext(config=context.config, farm=context.farm, wiki_dir=context.wiki_dir,
                         page=pagepath, base_url=context.base_url)
-    md = build_markdown_renderer(context.config, farm_plugin_dir(context.wiki_dir), sub)
-    md_conf = (context.config or {}).get("markdown") or {}
-    html, _, _ = render_source(md, ref.body, ref.ext,
-                               md_conf.get("first_h1_as_title", True), sub)
-    # 添付の裸のファイル名は、そのページ自身の添付として解決させる
-    html = rewrite_content_links(html, context.base_url, ref.subpath)
-    return f'<div class="ls-view-body">{html}</div>'
+    html = include_.render(top, pagepath, ref, include_.state(top),
+                           sub_attrs={"_callid_readonly": True})
+    return f'<div class="ls-view-body">{_load_sibling("_polling").freeze(html)}</div>'

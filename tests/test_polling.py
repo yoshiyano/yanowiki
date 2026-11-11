@@ -73,6 +73,60 @@ class TestWrap(PollingTestBase):
         self.assertIn("_polling", context.used_plugins)
 
 
+class TestFreeze(unittest.TestCase):
+    """`freeze`: 描画範囲を読むだけの形にする（`ls` の `ajaxview`）。"""
+
+    def test_問い合わせの対象から外して押せないままにする(self):
+        polling = load_plugin("_polling")
+        html = ('<p>前</p><div class="poll-box" data-poll-id="cmtAAAAA">'
+                f'<button type="submit"{polling.NEEDS_JS}>投稿</button></div>')
+        out = polling.freeze(html)
+        self.assertNotIn("poll-box", out)
+        self.assertNotIn("data-needs-js", out)
+        self.assertIn('<button type="submit" disabled>', out)
+        self.assertIn(polling.FROZEN, out)
+
+    def test_描画範囲が無ければ変えない(self):
+        polling = load_plugin("_polling")
+        self.assertEqual(polling.freeze("<p>本文</p>"), "<p>本文</p>")
+
+
+class TestLsAjaxview(CallIdTestBase):
+    """`ls` の `ajaxview` で開いた本文は読むだけ。"""
+
+    def open_view(self, page):
+        bottle.request.bind({"REQUEST_METHOD": "GET", "QUERY_STRING": urlencode({"page": page})})
+        context = PluginContext(config={}, farm="t", wiki_dir=self.wiki_dir, page="", base_url="")
+        try:
+            return load_plugin("ls")._action(context)
+        finally:
+            bottle.request.bind({})
+
+    def test_開いただけではIDを書き足さない(self):
+        self.write("P", "#comment()\n")
+        html = self.open_view("P")
+        self.assertEqual(self.read("P"), "#comment()\n")
+        self.assertIn("投稿できません", html)
+
+    def test_入れ子の差し込みでも書き足さない(self):
+        self.write("Q", "#comment()\n")
+        self.write("P", "#include(Q)\n")
+        html = self.open_view("P")
+        self.assertEqual(self.read("Q"), "#comment()\n")
+        self.assertIn("投稿できません", html)
+
+    def test_IDがあれば読むだけの形にする(self):
+        self.write("P", '#comment(id="cmtprobe1")\n')
+        html = self.open_view("P")
+        self.assertNotIn("poll-box", html)
+        self.assertIn(load_plugin("_polling").FROZEN, html)
+        self.assertIn(" disabled>", html)
+
+    def test_表示を止めたページの本文を出さない(self):
+        self.write("P", "#viewable_period(2099/01/01,2099/01/02)\n\n秘密の本文\n")
+        self.assertNotIn("秘密の本文", self.open_view("P"))
+
+
 class TestHandle(PollingTestBase):
     def test_版が同じなら描かない(self):
         self.write("Top", "#comment()\n")

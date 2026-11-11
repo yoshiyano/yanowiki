@@ -60,3 +60,21 @@ woff2・woff・ttf の順に並べており、いまのブラウザは先頭のw
 
 auto-render拡張（contrib/auto-render.min.js）は使っていないので置いて
 いません。数式の入れ物は plugin/katex.js が自分で見つけて描画します。
+
+## qrcode
+
+QRコードの符号化ライブラリ（qrcode-generator 2.0.4、Kazuhiko Arase 作、MITライセンス）。
+ヘッダの帯から出す「いまのページのQRコード」（theme/common.js）が使います。
+帯に初めてマウスが乗ったときに読み込むので、ふつうのページ表示の負担にはなりません。
+
+  qrcode/qrcode.js   本体（<script>で読み込むとwindow.qrcodeが生える）
+
+npmの配布物（qrcode-generator@2.0.4）の dist/qrcode.js をそのままコピーしたものです。
+更新するときも同じです（このディレクトリでビルドはしません）。
+
+  curl -sSLo qrcode.tgz https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-<版>.tgz
+  tar xzf qrcode.tgz package/dist/qrcode.js
+  cp package/dist/qrcode.js qrcode/qrcode.js
+
+使いかた: `var qr = qrcode(0, "L"); qr.addData(url); qr.make();` のあと、
+`qr.getModuleCount()` と `qr.isDark(行, 列)` で各セルを読みます（0 は大きさの自動選択）。

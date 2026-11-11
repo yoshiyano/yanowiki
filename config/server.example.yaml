@@ -27,6 +27,7 @@ server:
 farm:
   # 起点Wiki。localhost/ に直接アクセスした際に表示するWiki名（個別Wikiの1つ）。
   # Wikiの作成・削除・一覧・再起動は、このWikiの管理者と助手が行う。
+  # このWikiの管理者は、画面（/.allwiki の「起点Wikiにする」）からも切り替えられる。
   default: _system
   # 全Wikiの一覧を出すページのURL名。既定は allwiki（/.allwiki で開ける）。
   # 一覧はサーバーにどんなWikiがあるかを明かすので、見せたくない運用では

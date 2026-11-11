@@ -22,16 +22,17 @@
  1. ページの並び … 1行で並べるなら引数に、縦横に並べるなら `{{ }}` の中に書く
        `{{ }}` の中は、表と同じく1行を `|` で始めて `|` で終え、セルを `|` で区切る
        `>` … そのセルを右のセルとつなぐ（横に2つ分の大きさになる。続けて書けば3つ分…）
-       `^` … そのセルを上のセルとつなぐ（縦に2つ分の大きさになる）
+       `^` または `~` … そのセルを上のセルとつなぐ（縦に2つ分の大きさになる）
        何も書かないセル（`||`）は空いたままになる
  2. notitle     … 単語を書くと、各セルの上のページ名（見出し）を付けない (default: 付ける)
  3. nostack     … 単語を書くと、狭い画面でも縦1列に積み直さない (default: 積み直す)
  4. cols        … 単語を書くと、行の高さを揃えず、表の列ごとにページを上から詰めて
        並べる（短いページの下に空きを作らない） (default: 表のとおり行を揃える)
-       `>` でつないだセルは始まりの列に置き、`^` は無視します
+       `>` でつないだセルは横に広がり、その下にそれぞれの列が続きます。`^`・`~` は無視します
  5. cols=N      … ページを N 列へ、書いた順に左から1つずつ振り分けて、上から詰める
        （A→1列目、B→2列目、…、N+1番目→1列目）。列の幅は等分で、`;40%` などの
-       幅の指定は使いません。`cols` と両方書いたら `cols=N` が効きます
+       幅の指定は使いません。`>` でつないでも横に広がりません。
+       `cols` と両方書いたら `cols=N` が効きます
 
 各ページ名の後ろには `;` で区切って見た目を足せます（`メモ;40%;bgcol:#cdf`）。
 
@@ -77,13 +78,25 @@
   グリッドの masonry はまだ主要ブラウザで使えない。高さを測って詰めるJSは
   JavaScript必須で画像の読み込みで崩れる。サーバーで列に振り分ければ、JS無しで
   どのブラウザでも同じに見え、書いたとおりの列になる
-- `cols`: 列＝表の列（`_layout` の `col`）。`>` でつないだセルは始まりの列に置く
-  （幅は1列分）。`^` は縦の結合で、列ごとに積む形では意味が無いので無視する
-  （Wiki設計者の選択、案a。書いたページを消さないため）。空のセルは飛ばす
-  （列の中に空きを作らない）。列の幅は表のとき（`_columns`）と同じ
+- `cols`: 列＝表の列（`_layout` の `col`）。`^` は縦の結合で、列ごとに積む形では
+  意味が無いので無視する（Wiki設計者の選択、案a。書いたページを消さないため）。
+  空のセルは飛ばす（列の中に空きを作らない）。列の幅は表のとき（`_columns`）と同じ
+- `cols` の `>`: 列をまたいで横に広げ、**つないでいない列の詰めは止めない**
+  （2026-11-06、Wiki設計者の選択「Aで」。案Bの「`>` のある行だけ高さを揃える」は
+  短いページの下に空きが戻るので退けた。それ以前は、始まりの列に1列分で置いていた）。
+  組みかたは `_cols_block`: 列の境目をどのセルもまたいでいなければ、そこで左右に
+  分ける。またがれていれば、横長のセルの行で上下に分ける。列の中に、横長のセルと
+  入れ子のグリッド（`.pagediv-nested`）を縦に積む形になる。`>` が交互にずれて
+  左右に分けられないときは、その行で上下に揃うので空きが出る（列ごとに独立に
+  詰めながら列をまたぐことは、形として不可能なため）
+- 入れ子のグリッドの `--pd-cols` は、外の列の定義から該当の列を切り出したもの。
+  `fr` は比だけが効くので、外の2列分の幅（列＋すき間＋列）から内のすき間を引いて
+  同じ比で分けると、外の列と同じ線に揃う（`px` の列が混ざっても同じ）。`subgrid`
+  は要らない。`--pd-span` は継承されるので、CSS側で子に打ち消している
 - `cols=N`: セルを書いた順（上の行から左→右）に並べ、左の列から1つずつ振り分ける。
   高さを見て詰めるには測るJSが要るので、順番どおりにした。幅の指定は、どのセルの
-  指定をどの列に使うか決めようが無いので使わず、N列を等分する
+  指定をどの列に使うか決めようが無いので使わず、N列を等分する。`>` で広げないのも
+  同じ理由（書いた表の列と、振り分け先の列が対応しない）
 - `cols=N` は名前付きでしか書けない（`kw_only`）。単語の `cols` と同じ引数にすると、
   自由順序の位置引数としての候補に数字が入り、`2026` のような名前のページを列の数と
   取り違えるため。単語の `cols` は、ページの並びの受け皿（`pages`）から拾う
@@ -118,6 +131,10 @@
   記録（`_include_state["included"]`）に載っているページも差し込まない。
   セルに差し込んだページはその記録に**足さない**（足すと、同じページ上の後の
   `#include` が「差し込み済み」になり、本家に無い制限になる）。
+- **`~` も `^` と同じに読む**（2026-11-06、Wiki設計者の指示「~ も受け付けて」）。
+  PukiWikiの表の書きかた（`|~|` が上のセルとの結合）に合わせたもの。本家の pagediv
+  は `^` だけで、`~` はページ名だった。代わりに `~` だけの名前のページはセルに
+  直接書けない（指示の時点で、どのWikiにもそのページは無かった）。
 - 入れ子の上限3段は本家どおり（`_pagediv_depth`、`sub` へ引き継ぐ）。
 - 件数の上限は無い（本家どおり）。`include` の12件の上限はかからない。このため
   `include` を `call_plugin` で呼ぶのではなく、差し込みの中核を兄弟の
@@ -222,8 +239,8 @@ def _rows_from_body(body):
 def _layout(rows):
     """表の各行（セルの文字列の並び）から、各セルの位置と大きさを決める。
 
-    文字列の何番目か＝列の番号（`>`・`^` もその位置を1つ取る）。`>` は直後の
-    実セルを左へ広げ、`^` は真上の位置を持つセルを下へ広げる（HTMLの表の
+    文字列の何番目か＝列の番号（`>`・`^`・`~` もその位置を1つ取る）。`>` は直後の
+    実セルを左へ広げ、`^`・`~` は真上の位置を持つセルを下へ広げる（HTMLの表の
     colspan/rowspan と同じ結果）。返すのは (セルの一覧, 列の数)。"""
     cells, owner = [], {}
     ncols = 0
@@ -234,7 +251,7 @@ def _layout(rows):
             if text == ">":
                 pending += 1
                 continue
-            if text == "^":
+            if text in ("^", "~"):
                 pending = 0
                 above = owner.get((r - 1, c))
                 if above is not None:
@@ -252,12 +269,20 @@ def _layout(rows):
 
 def _columns(cells, ncols):
     """`grid-template-columns` の値。%は比率（fr）に、指定の無い列は残りを等分。"""
+    tracks = _tracks(cells, ncols)
+    if len(tracks) > 1 and len(set(tracks)) == 1 and tracks[0] == "minmax(0, 1fr)":
+        return f"repeat({ncols}, minmax(0, 1fr))"
+    return " ".join(tracks)
+
+
+def _tracks(cells, ncols):
+    """各列の幅の指定を、左の列から順に並べたリストで返す。"""
     widths = {}
     for cell in cells:
         if cell["width"] and cell["colspan"] == 1 and cell["col"] not in widths:
             widths[cell["col"]] = cell["width"]
     if not widths:
-        return f"repeat({ncols}, minmax(0, 1fr))" if ncols > 1 else "minmax(0, 1fr)"
+        return ["minmax(0, 1fr)"] * ncols
     percents = [v for v, unit in widths.values() if unit == "%"]
     rest_cols = ncols - len(widths)
     rest = 100 - sum(percents)
@@ -270,7 +295,7 @@ def _columns(cells, ncols):
             out.append(f"{value:g}px" if unit == "px" else f"minmax(0, {value:g}fr)")
         else:
             out.append(f"minmax(0, {share:g}fr)")
-    return " ".join(out)
+    return out
 
 
 def _notice(message):
@@ -357,20 +382,70 @@ def _convert(resolved, body, context):
 def _cols_html(cells, ncols, ncols_wanted, context, embed, st, chain, depth, with_title, nostack):
     """`cols`・`cols=N`: 列ごとにセルを上から詰める（技術資料「cols」）。"""
     filled = [c for c in cells if c["page"]]   # 空のセルは飛ばす（列の中に空きを作らない）
+
+    def cell_html(cell):
+        return _cell_html(cell, context, embed, st, chain, depth, with_title, place=False)
+
     if ncols_wanted:
         count = ncols_wanted
-        columns = [filled[i::count] for i in range(count)]
         widths = f"repeat({count}, minmax(0, 1fr))" if count > 1 else "minmax(0, 1fr)"
+        parts = []
+        for i in range(count):
+            inner = "\n".join(cell_html(c) for c in filled[i::count])
+            parts.append(f'<div class="pagediv-col">\n{inner}\n</div>')
+        body = "\n".join(parts)
     else:
-        count = ncols
-        columns = [[c for c in filled if c["col"] == i] for i in range(1, count + 1)]
         widths = _columns(cells, ncols)
+        body = _cols_columns(_split_columns(filled, 1, ncols), _tracks(cells, ncols), cell_html, nostack)
     style = f"--pd-cols: {widths};"
-    parts = []
-    for column in columns:
-        inner = "\n".join(_cell_html(cell, context, embed, st, chain, depth, with_title,
-                                     place=False) for cell in column)
-        parts.append(f'<div class="pagediv-col">\n{inner}\n</div>')
-    body = "\n".join(parts)
     return (f'<div class="pagediv pagediv-cols{nostack}" style="{escape(style)}">\n'
             f'{body}\n</div>\n')
+
+
+def _split_columns(cells, first, last):
+    """列 first〜last を、どのセルもまたいでいない境目で分ける。
+
+    返すのは (始まりの列, 終わりの列, その範囲のセル) の並び（セルの無い列も1つ取る）。"""
+    groups = []
+    start = first
+    for col in range(first, last + 1):
+        crossed = any(c["col"] <= col < c["col"] + c["colspan"] - 1 for c in cells)
+        if not crossed:
+            groups.append((start, col, [c for c in cells if start <= c["col"] <= col]))
+            start = col + 1
+    return groups
+
+
+def _cols_columns(groups, tracks, cell_html, nostack):
+    """分けた列を `.pagediv-col` にする。2列以上にまたがる列には `--pd-span` を付ける。"""
+    parts = []
+    for first, last, cells in groups:
+        span = last - first + 1
+        attr = f' style="--pd-span: span {span};"' if span > 1 else ""
+        inner = "\n".join(_cols_block(cells, first, last, tracks, cell_html, nostack))
+        parts.append(f'<div class="pagediv-col"{attr}>\n{inner}\n</div>')
+    return "\n".join(parts)
+
+
+def _cols_block(cells, first, last, tracks, cell_html, nostack):
+    """列 first〜last の中身を、縦に積む順の HTML のリストで返す（技術資料「`cols` の `>`」）。"""
+    if not cells:
+        return []
+    if first == last:
+        return [cell_html(c) for c in cells]
+    groups = _split_columns(cells, first, last)
+    if len(groups) > 1:
+        widths = " ".join(tracks[first - 1:last])
+        style = f"--pd-cols: {widths};"
+        body = _cols_columns(groups, tracks, cell_html, nostack)
+        return [f'<div class="pagediv pagediv-cols pagediv-nested{nostack}" style="{escape(style)}">\n'
+                f'{body}\n</div>']
+    if len(cells) == 1:   # 範囲の全幅にわたる横長のセル
+        return [cell_html(cells[0])]
+    # どの境目もまたがれている: 最初の横長のセルの行で上下に分ける
+    row = min(c["row"] for c in cells if c["colspan"] > 1)
+    above = [c for c in cells if c["row"] < row]
+    same = [c for c in cells if c["row"] == row]
+    below = [c for c in cells if c["row"] > row]
+    return [html for part in (above, same, below)
+            for html in _cols_block(part, first, last, tracks, cell_html, nostack)]

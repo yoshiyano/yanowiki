@@ -20,6 +20,8 @@
  * 全部が開いていると行が多すぎて扱いにくい画面（編集画面のページ一覧・
  * 名前を変える画面の移し先）向け。呼び出し側が続けて `selectSubpath` を
  * 呼べば、選んだ行までの道だけが開く（Wiki設計者の指示、2026-09-19）。
+ * ほかの行までの道を開きたいときは `reveal(row)` を呼ぶ（編集画面が書きかけの
+ * ページの行に使う）。
  *
  * ## titleOnly のとき、行ごとにファイル名かタイトルかが変わる
  *
@@ -365,11 +367,22 @@
     var item = this.box.querySelector(
       "." + this._cls("node") + '[data-subpath="' + escapeAttr(subpath) + '"]');
     if (!item) return false;
-    for (var p = item; p && p !== this.box; p = p.parentNode) {
-      if (p.classList && p.classList.contains("is-folded")) this._fold(p, false);
-    }
+    this._unfoldFrom(item);
     this.select(item.querySelector("." + this._cls("row")), notify);
     return true;
+  };
+
+  /* その行が見えるよう、畳まれた祖先のフォルダを開く。行自身のフォルダは
+     開かない（中身まで見せるかは呼び出し側が決める）。選びはしない */
+  TreeView.prototype.reveal = function (row) {
+    var item = row.closest("." + this._cls("node"));
+    if (item) this._unfoldFrom(item.parentNode);
+  };
+
+  TreeView.prototype._unfoldFrom = function (node) {
+    for (var p = node; p && p !== this.box; p = p.parentNode) {
+      if (p.classList && p.classList.contains("is-folded")) this._fold(p, false);
+    }
   };
 
   /* ---- 開閉 ---- */

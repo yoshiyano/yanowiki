@@ -16,6 +16,8 @@
  * 起きないよう、event.preventDefault() で <details> 側のトグルを止める。
  */
 (function () {
+  [].forEach.call(document.querySelectorAll(".ls-columns"), setupClip);
+
   var lists = [].slice.call(document.querySelectorAll(".ls-ajax"));
   if (!lists.length) return;
 
@@ -55,6 +57,8 @@
         .then(function (html) {
           view.innerHTML = html;
           view.dataset.loaded = "1";
+          // 読み込んだ本文の中の #ls() にも、省略の切り替えを付ける
+          [].forEach.call(view.querySelectorAll(".ls-columns"), setupClip);
         })
         .catch(function () {
           // 失敗しても一覧は使えるままにしておく。閉じれば元に戻る
@@ -62,6 +66,71 @@
         });
     });
   });
+
+  // 列に収まらない名前があるときだけ「ファイル名の部分省略」のチェックボックスを出す。
+  // 収まるかどうかは列の幅とフォントで決まるので、ここで実測する（plugin/ls.py 参照）
+  function setupClip(nav) {
+    var box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = true;
+    var label = document.createElement("label");
+    label.className = "ls-clip-toggle";
+    label.appendChild(box);
+    label.appendChild(document.createTextNode("ファイル名の部分省略"));
+    var slot = document.createElement("li");
+    slot.className = "ls-clip-slot";
+    slot.hidden = true;
+    slot.appendChild(label);
+
+    var list = nav.querySelector(".ls-list");
+    list.appendChild(slot);
+    var items = [].slice.call(nav.querySelectorAll(".ls-page"));
+
+    // 右上の1項目分をスイッチに使う。段組みに「右上を空ける」指定は無いので、
+    // 末尾に置いて最後の列を測り、その列の先頭へ移す。同じ列の中で動かすだけなので
+    // 前の列の割り振りは変わらない。列が余る件数のときは、項目のある最後の列に置く
+    function placeSlot() {
+      var focused = document.activeElement === box;
+      slot.classList.remove("ls-clip-slot-placed");
+      list.appendChild(slot);
+      var left = slot.getBoundingClientRect().left;
+      var first = null;
+      for (var i = 0; i < items.length && !first; i++) {
+        if (Math.abs(items[i].getBoundingClientRect().left - left) < 1) first = items[i];
+      }
+      if (first) {
+        list.insertBefore(slot, first);
+        slot.classList.add("ls-clip-slot-placed");
+      }
+      if (focused) box.focus();
+    }
+
+    function update() {
+      // オフのときも、省略した姿で測るために一時的に付ける（描画の前に戻すので見えない）
+      nav.classList.add("ls-clip");
+      var needed = false;
+      items.forEach(function (item) {
+        var over = item.scrollWidth > item.clientWidth;
+        needed = needed || over;
+        var link = item.querySelector("a");
+        if (over && box.checked) link.title = item.textContent;
+        else link.removeAttribute("title");
+      });
+      nav.classList.toggle("ls-clip", box.checked);
+      slot.hidden = !needed;
+      if (needed) placeSlot();
+    }
+
+    box.addEventListener("change", update);
+    // チェックボックスの出し入れでは幅が変わらないので、幅だけを見れば繰り返さない
+    var lastWidth = -1;
+    new ResizeObserver(function () {
+      if (nav.clientWidth === lastWidth) return;
+      lastWidth = nav.clientWidth;
+      update();
+    }).observe(nav);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(update);
+  }
 
   function open(button, view) {
     view.hidden = false;

@@ -7,12 +7,13 @@
 
 呼びかたのルールは [共通の書きかた](/Syntax/Common#プラグインの呼びかた) をご覧ください。
 
-[calendar2](/Syntax/Plugin/calendar2) などで作った日ごとのページ（`日記/2026-09-25`）の中身を、日付の見出しを付けて
+[calendar2](/Syntax/Plugin/calendar2) などで作った日ごとのページ（`日記/2026/09/2026-09-25`）の中身を、日付の見出しを付けて
 続けて表示します。日記や作業記録を1ページで読むのに使います。PukiWikiの `calendar_viewer` の移植です。
 
 - 見出しは `2026/9/25 (金)` の形です。編集の権限があればそのページの編集画面を開くボタン、無ければページへのリンクです
 - 最後に、前後の月（`<<2026-10`・`2026-08>>`）や前後の件（`<<前の5件`・`次の5件>>`）へのリンクを出します
 - 閲覧できないページは並びません
+- 以前の形（`日記/2026-09-25` を直下に置く）のページは、編集の権限がある人が表示したときに新しい形へ移します（[calendar2 の「日ごとのページの置き場所」](/Syntax/Plugin/calendar2#日ごとのページの置き場所)）
 - 長い記事は7行ほどで畳まれ、「（省略）」を押すと続きが開きます。開いたあとは「（閉じる）」で畳み直せます（JavaScriptが動かない環境や印刷では全文です）
 
 ## 引数
@@ -22,7 +23,7 @@
 | `page` | 日ごとのページを置いた場所のページ名。空なら、ページ名の頭に何も付けない日付のページ（calendar2 の `*`） | 頭に何も付けない |
 | `range` | どのページを出すか（下の表） | 省略できません |
 | `mode` | 出す範囲と並べる順（下の表） | `past` |
-| `date_sep` | 日付の区切り文字。calendar のページ（`20260925`）を出すときは `none` | `-` |
+| `date_sep` | 年月（`range` の `2026-09`）の区切り文字。区切らないときは `none`（`202609`）。以前の形のページ（`日記/2026.09.25` のように、この区切りで直下に置いたもの）を見分けるのにも使います | `-` |
 
 | `range` | 出すページ |
 |---|---|
@@ -46,19 +47,18 @@
 生成されるHTML（`日記` のページに置き、編集の権限がある人が見た場合。本文は省略しています。長い記事の「（省略）」ボタンは、ブラウザで表示したときに付きます）:
 
 ```html
-<h1 class="calendar_viewer-title"><form class="calendar_viewer-edit" method="post" action="/%E6%97%A5%E8%A8%98/2026-09-25"><input type="hidden" name="cmd" value="edit"><button type="submit">2026/9/25 (金)</button></form></h1>
+<h1 class="calendar_viewer-title"><form class="calendar_viewer-edit" method="post" action="/%E6%97%A5%E8%A8%98/2026/09/2026-09-25"><input type="hidden" name="cmd" value="edit"><button type="submit">2026/9/25 (金)</button></form></h1>
 <div class="calendar_viewer-body">
-（日記/2026-09-25 の中身）
+（日記/2026/09/2026-09-25 の中身）
 </div>
-<h1 class="calendar_viewer-title"><form class="calendar_viewer-edit" method="post" action="/%E6%97%A5%E8%A8%98/2026-09-24"><input type="hidden" name="cmd" value="edit"><button type="submit">2026/9/24 (木)</button></form></h1>
+<h1 class="calendar_viewer-title"><form class="calendar_viewer-edit" method="post" action="/%E6%97%A5%E8%A8%98/2026/09/2026-09-24"><input type="hidden" name="cmd" value="edit"><button type="submit">2026/9/24 (木)</button></form></h1>
 <div class="calendar_viewer-body">
-（日記/2026-09-24 の中身）
+（日記/2026/09/2026-09-24 の中身）
 </div>
 <div class="calendar_viewer"><span class="calendar_viewer_left"><a href="/%E6%97%A5%E8%A8%98?plugin=calendar_viewer&amp;mode=past&amp;file=%E6%97%A5%E8%A8%98&amp;date_sep=-&amp;date=2026-10">&lt;&lt;2026-10</a></span><span class="calendar_viewer_right"><a href="/%E6%97%A5%E8%A8%98?plugin=calendar_viewer&amp;mode=past&amp;file=%E6%97%A5%E8%A8%98&amp;date_sep=-&amp;date=2026-08">2026-08&gt;&gt;</a></span></div>
 ```
 
-予定のページを今日から先の順に並べるときは `#calendar_viewer(予定, this, future)`、
-[calendar](/Syntax/Plugin/calendar) で作ったページ（`日記/20260925`）なら `#calendar_viewer(日記, this, past, none)` と書きます。
+予定のページを今日から先の順に並べるときは `#calendar_viewer(予定, this, future)` と書きます。
 
 ## エラーについて
 

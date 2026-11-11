@@ -25,6 +25,8 @@ import re
 from html import escape
 from urllib.parse import quote as urlquote
 
+import yaml
+
 from bottle import HTTPResponse, request
 
 from wikilib.paths import (
@@ -41,6 +43,24 @@ from wikilib.wikiconfig import (
 
 # Wiki名に許す文字。URLの一部になり、フォルダ名にもなるので控えめにしておく
 WIKI_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+# 数値・真偽値・日付などに読める名前を断るときの文言（名前の変更と共有）
+NUMERIC_LIKE_MESSAGE = ("「{}」は数値・真偽値・日付などに読めるため、Wikiの名前に使えません"
+                        "（設定ファイルに書いたとき、システムが名前として読めないためです）。"
+                        "英字を混ぜた名前にしてください。")
+
+
+def reads_back_as_name(name):
+    """YAML の値としてそのまま書いて、同じ文字列として読み戻せる名前か。
+
+    Wiki名は `server.yaml` の `farm.default` などに引用符なしで書かれる。`123`・`true`・
+    `null`・`on`・`2026-11-12`（日付）・`1_000`（数値）は文字列として読み戻せず、
+    システムが別の値と取り違えるので、名前として受け付けない。"""
+    try:
+        return yaml.safe_load(name) == name
+    except yaml.YAMLError:
+        return False
+
 
 # 作るときに選ぶ「利用形態」（Wiki設計者が挙げた5つの使いかた、2026-09-20）。
 # **権限の既定値（既定の行）とユーザ登録の受け入れかたの組**で表す。
@@ -214,6 +234,8 @@ def validate_name(name):
                 "（URLの一部になり、フォルダ名にもなるためです）。")
     if name.startswith((FARM_PREFIX, SYSTEM_PREFIX)):
         return f"「{FARM_PREFIX}」「{SYSTEM_PREFIX}」で始まる名前は使えません。"
+    if not reads_back_as_name(name):
+        return NUMERIC_LIKE_MESSAGE.format(name)
     if wiki_exists(name):
         return f"「{name}」はすでにあります。"
     return None

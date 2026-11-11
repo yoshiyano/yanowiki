@@ -122,3 +122,15 @@ div.calendar_viewer {
   justify-content: space-between;
   margin: 1.2em 0 0.6em;
 }
+
+/* 日ごとのページを年・月のフォルダへ組み替えている間の枠（calendar.js） */
+.calendar-migrate {
+  margin: 0.8em 0;
+  padding: 0.8em 1em;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 4px;
+}
+.calendar-migrate-title { margin: 0 0 0.5em; font-weight: bold; }
+.calendar-migrate-bar { width: 100%; max-width: 30em; vertical-align: middle; }
+.calendar-migrate-count, .calendar-migrate-current { font-size: 0.9em; }
+.calendar-migrate-message p { margin: 0.3em 0; }

@@ -140,6 +140,7 @@
 | `wikimark.py` | そのWikiを取り違えていないかを確かめる目印 |
 | `convwiki.py` | PukiWikiのデータを写して新しいWikiを作る（`./wiki.py convwiki`） |
 | `allwiki.py` | このサーバーの全Wikiの一覧（`/.allwiki`。URL名は設定で決まる。起点Wikiの管理者と助手だけ） |
+| `defaultswitch.py` | 既にあるWikiを起点Wikiに切り替える（`/.allwiki` へのPOST。起点Wikiの管理者だけ） |
 
 依存はおおよそ **`paths`/`wikiconfig` → `plugins` → `render` → `themes` →
 各機能 → `editor`/`views`** の向きで、循環しないようにしてあります。

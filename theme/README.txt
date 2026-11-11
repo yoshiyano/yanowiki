@@ -205,15 +205,6 @@ _system トップの画像から切り出して背景を透過にしたもの。
                             文字が深緑なので明るい背景向け。ヘッダには高さ72px・
                             横幅約182px（縦横比のまま）で出る
 
-tDiary（http://www.tdiary.org/）用CSSテーマ（342種、GPL2）をwikiSystemの
-テーマへ変換する仕組み（PukiWiki本家の skin/tdiary.skin.php 相当）も
-2026-09-04に作ったが、**theme/（Git管理・GitHub公開）には何も置いていない。**
-変換プログラム（tdiary.build.py）・共有資材（tdiary.css等）・変換済みの
-テーマ一式は、いずれも wikidata/freshtest/theme/ に置く運用にした（Wiki設計者の
-指示。個別テーマCSSと同じ理由に加え、342種ぶんの生成物でリポジトリを
-太らせないため）。詳細は wikidata/freshtest/theme/tdiary.build.py
-自身のdocstringと、ChangeLog/Theme/2026-09-04 を参照。
-
 search.html は「設定中のテーマ」を継承するため、どのテーマを選んでも
 検索結果ページはそのデザインに追従します。
 

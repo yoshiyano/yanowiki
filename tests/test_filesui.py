@@ -336,6 +336,18 @@ class TestFilesUIRename(FilesUITestBase):
         self.assertTrue(self.page_file("Opened"))
         self.assertFalse(self.page_file("Open"))
 
+    def test_プロキシ越しのOriginでも名前を変えられる(self):
+        # 別のサイトかどうかは入口（dispatch）で Wiki が照合する。webFileDir には Origin を
+        # 渡さないので、HTTPS を終えるプロキシの後ろ（Origin が https、届くのは http）でも断らない
+        with act_as("alice"):
+            status, _, text = self.call(
+                "/api/v1/commands/rename", method="POST",
+                body={"mount": "wiki", "paths": ["/Open"], "input": "Opened"},
+                headers={"X-WebFileDir": "1", "Origin": "https://127.0.0.1",
+                         "X-Forwarded-Host": "wiki.example"})
+            self.assertNotIn("bad_origin", text)
+            self.assertEqual(status, 200, text)
+
     def test_フォルダの名前を変えると中のページごと動く(self):
         with act_as("alice"):
             status, res = self.rename("/Tech", "Tech2")

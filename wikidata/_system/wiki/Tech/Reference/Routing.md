@@ -36,7 +36,7 @@
 | `/.solveDupPage/<ページ名>` | 同じ名前の `.txt` と `.md`、同じ名前のファイルとフォルダ（`X.md` と `X/`）の整理。重なっていれば1段ずつ（フォームの `stage` で、開いたときの段を確かめる）。GETで2つのプレビューと添付・アクセス制限の状態、POSTで採用するほうと、添付ごとの移動先（`dest:<ファイル名>`）を受けて整理する。アクセス制限は書き換えない（案内とリンクだけ）。**そのページの編集の権限（`W`）が要る**（閲覧だけの人には説明のみ、閲覧できなければ403）。ページのタイトル右端の info（`page_info`）の ⚠ から開く（[整理のしかた](/UsageGuide/Edit/Duplicate)、[仕組み](/Tech/SolveDupPage)） |
 | `/.newwiki` | 新しいWikiを作る。GETで入力画面、POSTで作成。**起点Wikiの管理者と助手だけ**。[新しいWikiを作る仕組み](/Tech/NewWiki)参照 |
 | `/.delwiki` | いまあるWikiを消す。**起点Wikiの管理者と助手だけ**（Wiki名付きのURLは403）。名前・そのWikiの管理者のパスワード・いまの様子・最後の確認の4段。消す前に `wikidata/<Wiki名>.<yymmdd_hhmmss>.7z` へ固める。資材は `/.delwiki.css`。[Wikiを消す仕組み](/Tech/DelWiki)参照 |
-| `/.allwiki` | このサーバーの全Wikiの一覧。**起点Wikiの管理者と助手だけ**（Wiki名付きのURLは403）。URL名は `server.yaml` の `farm.allwiki` で決まり、空にすると出さない。資材は `/.allwiki.css`。下の「[Wikiの一覧](/Tech/Reference/Views#wikiの一覧)」参照 |
+| `/.allwiki` | このサーバーの全Wikiの一覧。**起点Wikiの管理者と助手だけ**（Wiki名付きのURLは403）。URL名は `server.yaml` の `farm.allwiki` で決まり、空にすると出さない。資材は `/.allwiki.css`。POSTで起点Wikiを切り替える（起点Wikiの管理者だけ）。下の「[Wikiの一覧](/Tech/Reference/Views#wikiの一覧)」参照 |
 | `/.editor.css`, `/.editor.js` | 編集画面の資材（`_sys/editor/`） |
 | `/.section/<ページパス>?heading=<id>&scope=header\|body` | セクション単位の生テキストの取り出し（GET）と、ページ全体での保存（POST）。**編集の権限（`W`）が要る**。[セクション編集](/Tech/SectionEditing)参照 |
 | `/.conflict/<ページパス>` | 編集の競合を統合する画面。**編集の権限（`W`）が要る**。資材は `/.conflict.css`・`/.conflict.js`。[編集の競合を統合する画面の仕組み](/Tech/ConflictMerge)参照 |

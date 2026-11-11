@@ -238,6 +238,28 @@ class TestMarkupAndTitle(NewWikiTestBase):
 
 
 
+class TestNameRule(NewWikiTestBase):
+    """数値・真偽値・日付などに読める名前は、設定ファイルに書くと文字列として読み戻せない
+    （`farm.default: 123` が数値になる）ので、作る段階で断る。"""
+
+    def test_数値などに読める名前は断る(self):
+        for name in ("123", "007", "true", "True", "null", "on", "no",
+                     "2026-11-12", "1_000", "0x1f"):
+            problem = newwiki.validate_name(name)
+            self.assertIsNotNone(problem, name)
+            self.assertIn("数値・真偽値・日付", problem, name)
+
+    def test_文字列として読める名前は通す(self):
+        for name in ("w1", "y", "n", "1e3", "12-3", "nan", "true1", "x123", "2026-11"):
+            self.assertIsNone(newwiki.validate_name(name), name)
+
+    def test_断った名前では何も作らない(self):
+        ok, message = newwiki.create_wiki("123", "", False, "adminpw")
+        self.assertFalse(ok)
+        self.assertIn("数値・真偽値・日付", message)
+        self.assertFalse(os.path.isdir(os.path.join(paths.WIKIDATA_DIR, "123")))
+
+
 class TestNewWikiForm(NewWikiTestBase):
     """作成画面（`/.newwiki`）から作ったとき。画面で選んだ書きかたが、置く index の
     拡張子と書きかたまで届くこと。誰が開けるかの関門は `tests/test_servicegate.py`。"""

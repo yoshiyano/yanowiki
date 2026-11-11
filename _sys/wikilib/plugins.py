@@ -30,6 +30,7 @@ from mdit_py_plugins.footnote.index import (
 from wikilib.paths import (
     PLUGIN_DEFAULT_INFO, PLUGIN_DIR, PLUGIN_MAX_DEPTH, PLUGIN_URLPATH,
 )
+from wikilib.icdbody import find_body_end
 from wikilib.paths import as_attach_link, farm_plugin_dir
 from wikilib.render import is_pukiwiki, render_softbreak
 from wikilib.subst import render_display_time
@@ -1237,22 +1238,11 @@ def match_plugin_inline(text, pos=0):
     i = head.end()
     body = None
     if i < len(text) and text[i] == "{":
-        depth = 1
-        j = i + 1
-        n = len(text)
-        while j < n:
-            ch = text[j]
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    body = text[i + 1:j]
-                    i = j + 1
-                    break
-            j += 1
-        else:
+        close = find_body_end(name, text, i + 1)
+        if close is None:
             return None  # 対応する閉じ括弧が見つからない
+        body = text[i + 1:close]
+        i = close + 1
     if i < len(text) and text[i] == ";":
         return name, args, body, args_start, args_end, i + 1
     return None

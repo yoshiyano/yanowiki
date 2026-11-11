@@ -35,6 +35,7 @@ from markdown_it.token import Token
 from mdit_py_plugins.anchors.index import slugify, unique_slug
 
 from wikilib.extrarules import MAX_NEST_DEPTH, match_extra_rule
+from wikilib.icdbody import find_body_end, split_outside_calls
 from wikilib.paths import ATTACH_LINK_MARK, FOOTNOTE_TIP_MAX, IMAGE_EXTS, as_attach_link
 from wikilib.subst import DISPLAY_TIME_NAMES
 
@@ -218,22 +219,11 @@ def match_amp_token(text, pos):
 
     body = None
     if i < len(text) and text[i] == "{":
-        depth = 1
-        j = i + 1
-        n = len(text)
-        while j < n:
-            ch = text[j]
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    body = text[i + 1:j]
-                    i = j + 1
-                    break
-            j += 1
-        else:
+        close = find_body_end(name, text, i + 1)
+        if close is None:
             return None  # 対応する閉じ括弧が見つからない
+        body = text[i + 1:close]
+        i = close + 1
 
     if i < len(text) and text[i] == ";":
         return ("plugin", name, args, body, args_start, args_end, i + 1)
@@ -844,7 +834,7 @@ def append_table(tokens, lines, i, offset):
         m = TABLE_RE.match(lines[i].rstrip())
         if not m:
             break
-        cells = m.group(1).split("|")
+        cells = split_outside_calls(m.group(1))
         if columns is not None and len(cells) != columns:
             break
         columns = len(cells)
@@ -1115,9 +1105,10 @@ def append_deflist(tokens, lines, i, offset):
         m = DEFLIST_RE.match(lines[i].rstrip())
         if not m:
             break
-        term = m.group(1).strip()
+        parts = split_outside_calls(lines[i].rstrip()[1:])
+        term = parts[0].strip()
         line_no = offset + i
-        first = m.group(2).strip()
+        first = "|".join(parts[1:]).strip()
         # 頭の "~" は「この説明文は段落」という目印。目印そのものは残さない
         as_paragraph = first.startswith("~")
         if as_paragraph:

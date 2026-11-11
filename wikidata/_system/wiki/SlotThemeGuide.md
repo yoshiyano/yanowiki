@@ -81,7 +81,7 @@ HTML と CSS は、画面の右クリックの「テキストを編集」で直�
 | `page-info` | info の知らせ（重複の警告など）。知らせが無ければ空 |
 | `topic-path` | TopicPath のリンク |
 | `menu1` / `menu2` | メニューのページ |
-| `content` | 本文 |
+| `content` | 本文。置いた要素には本体が `content` の class を付けます（書かなくてもかまいません） |
 | `toc` | 目次の項目（`<li>` の並び。見出しが1つ以下なら空） |
 | `page-search-panel` | ページ内検索の結果 |
 | `scripts` | 本体の JavaScript（`</body>` の前に置く） |
@@ -149,4 +149,7 @@ HTML と CSS は、画面の右クリックの「テキストを編集」で直�
 
 - 検索結果のページは、Jinja2 のテーマで描きます（`theme.name` が Jinja2 のテーマならそれ、そうでなければ `base`）
 - 同じ名前の Jinja2 のテーマがあると、そちらが使われます
+- ヘッダを `<header class="site-header">`（または `id="header"`）で書き、`scripts` スロットを置くと、ヘッダの左端に
+  ページの QR コードを出す透明な帯（幅 7px）が付きます。ヘッダに左の余白が無いと、頭の文字にマウスを乗せただけで
+  QR コードが出るので、7px 以上の余白を空けてください（[ファイル構成](/Tech/ThemeGuide/Files)）
 - 仕組みは [スロットHTML のテーマ](/Tech/ThemeGuide/SlotTheme) にあります

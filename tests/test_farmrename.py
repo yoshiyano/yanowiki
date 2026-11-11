@@ -91,6 +91,18 @@ class TestProblem(RenameTestBase):
         for name in ("すなば", "a b", "-start", "a/b", "../etc"):
             self.assertIsNotNone(farmrename.rename_problem("sandbox", name), name)
 
+    def test_数値などに読める名前へは変えない(self):
+        # 新規作成と同じ決まり。`farm.default` に書くと文字列として読み戻せない
+        for name in ("123", "true", "null", "2026-11-12", "1_000"):
+            problem = farmrename.rename_problem("sandbox", name)
+            self.assertIsNotNone(problem, name)
+            self.assertIn("数値・真偽値・日付", problem, name)
+
+    def test_数値などに読める名前のWikiからは変えられる(self):
+        # 手で置かれた `123` から逃がす道は残す
+        self.make_wiki("123")
+        self.assertIsNone(farmrename.rename_problem("123", "w123"))
+
     def test_すでにある名前は断る(self):
         self.make_wiki("other")
         self.assertIn("すでにあります", farmrename.rename_problem("sandbox", "other"))

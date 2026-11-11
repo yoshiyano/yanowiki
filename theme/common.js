@@ -58,6 +58,9 @@
  *     のときだけ）。高さを測って html の --anchor-offset に入れ、
  *     common.css の scroll-padding-top でページ内アンカーの移動先が
  *     ヘッダに隠れないようにする。無い・固定していないなら 0
+ *   .site-header / #header / .page-header  一番左に幅 7px の帯（.qr-strip）を
+ *     差し込み、マウスが乗ったらこのページの QR コード（.qr-popup）を出す。
+ *     20 秒経つか QR をクリックするまで出し続ける。どれも無いテーマには出さない
  *
  * (2) は common.js が作るのではなく、**テーマが置いたものに振る舞いを付ける**
  * 形です。クラス名を合わせておけば、一から書いたテーマでも検索が使えます。
@@ -1781,5 +1784,125 @@
     // 幅の変化で position が切り替わる（sticky ⇔ static）場合は高さが変わらない
     // こともあるので、ウィンドウのリサイズでも測り直す。
     window.addEventListener("resize", update);
+  })();
+
+  /* ---- ヘッダ左端の帯から、このページの QR コードを出す -------------------
+     PC で開いているページを携帯などから開くためのもの。ヘッダの一番左に
+     幅 7px の帯（.qr-strip。透明で、ヘッダの背景に溶け込む）を差し込み、マウスが乗ったら location.href
+     の QR コード（.qr-popup）を出す。一度出したら、マウスが離れても 20 秒経つか
+     QR をクリックするまで出し続ける。出ている間に帯をもう一度通ったら 20 秒を
+     数え直す。1 セル 4px、エラー訂正レベル L、生成は出すたびに行う。
+
+     帯を置くのは .site-header（base 系）か #header（post_it_1 / pkwk）。どちらも
+     無いテーマ（bloom）はページの顔の .page-header に置く。それも無いテーマ
+     （スロットHTMLのテーマなど）には出さない。帯は親を基準に絶対配置するので、
+     親が position: static のとき（post_it_1 / pkwk の狭い幅など）だけ
+     .qr-strip-host-rel を付けて relative にする（sticky を上書きしないよう、
+     JS で見て付け外しする）。
+
+     ライブラリ（qrcode-generator。/.vendor/qrcode/qrcode.js）は帯に最初に触れたとき
+     に読み込む。URL はこのファイルの src の .theme/common.js を置き換えて作る
+     （Wiki名の付いた URL でも動くように）。QR は body 直下に position: fixed で
+     出し、ヘッダの flex 配置や overflow の影響を受けないようにする。 */
+  (function () {
+    var script = document.currentScript;
+    var src = script && script.src;
+    var libUrl = src && src.replace(/\.theme\/common\.js(\?.*)?$/, ".vendor/qrcode/qrcode.js");
+    if (!libUrl || libUrl === src) return;
+    var host = document.querySelector(".site-header, #header") ||
+      document.querySelector(".page-header");
+    if (!host) return;
+
+    var CELL = 4;        // 1 セルの幅（CSS px）
+    var QUIET = 4;       // 周囲の余白（セル数）
+    var HOLD_MS = 20000; // 出し続ける時間
+
+    var strip = document.createElement("span");
+    strip.className = "qr-strip";
+    strip.setAttribute("aria-hidden", "true");
+    host.insertBefore(strip, host.firstChild);
+    host.classList.add("qr-strip-host");
+
+    function fixPosition() {
+      host.classList.remove("qr-strip-host-rel");
+      if (getComputedStyle(host).position === "static") {
+        host.classList.add("qr-strip-host-rel");
+      }
+    }
+    fixPosition();
+    window.addEventListener("resize", fixPosition);
+
+    var popup = null, timer = 0, loading = null;
+
+    function loadLib() {
+      if (window.qrcode) return Promise.resolve();
+      if (!loading) {
+        loading = new Promise(function (resolve, reject) {
+          var s = document.createElement("script");
+          s.src = libUrl;
+          s.onload = resolve;
+          s.onerror = function () { loading = null; reject(); };
+          document.head.appendChild(s);
+        });
+      }
+      return loading;
+    }
+
+    // セルを 1 本の path にした SVG（白地・黒セルに固定。ダークモードでも読めるように）
+    function build() {
+      var qr = window.qrcode(0, "L");
+      qr.addData(location.href);
+      qr.make();
+      var n = qr.getModuleCount(), size = n + QUIET * 2, d = [];
+      for (var r = 0; r < n; r++) {
+        for (var c = 0; c < n; c++) {
+          if (qr.isDark(r, c)) d.push("M" + (c + QUIET) + " " + (r + QUIET) + "h1v1h-1z");
+        }
+      }
+      var px = size * CELL;
+      var div = document.createElement("div");
+      div.className = "qr-popup";
+      div.title = HOLD_MS / 1000 + "秒経過かクリックで閉じる";
+      div.innerHTML =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="' + px + '" height="' + px +
+        '" viewBox="0 0 ' + size + " " + size + '" shape-rendering="crispEdges">' +
+        '<rect width="' + size + '" height="' + size + '" fill="#fff"/>' +
+        '<path fill="#000" d="' + d.join("") + '"/></svg>';
+      div.addEventListener("click", hide);
+      return div;
+    }
+
+    function hide() {
+      clearTimeout(timer);
+      timer = 0;
+      if (popup) popup.remove();
+      popup = null;
+    }
+
+    // 帯の右隣、帯の上端に揃える。画面からはみ出す分は内側へ寄せる
+    function place() {
+      var r = strip.getBoundingClientRect();
+      var w = popup.offsetWidth, h = popup.offsetHeight;
+      popup.style.left = Math.max(0, Math.min(r.right + 2, window.innerWidth - w)) + "px";
+      popup.style.top = Math.max(0, Math.min(r.top, window.innerHeight - h)) + "px";
+    }
+
+    function show() {
+      clearTimeout(timer);
+      timer = setTimeout(hide, HOLD_MS);
+      if (popup) return;
+      loadLib().then(function () {
+        if (popup || !timer) return;  // 読み込みの間に閉じた・もう出ている
+        try {
+          popup = build();
+        } catch (e) {
+          return;  // URL が長すぎるなど。ページの動きは止めない
+        }
+        document.body.appendChild(popup);
+        place();
+      }, function () {});
+    }
+
+    strip.addEventListener("mouseenter", show);
   })();
 })();

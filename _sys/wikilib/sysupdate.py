@@ -22,13 +22,18 @@
 - 画面は `/.admin/update`（管理の道具は `/.admin` の下へつなぐ。2026-09-08）
 - 設定で自動的に更新する仕組みは作らない（再起動の失敗や `_system` の上書きを、誰も見ていない
   ときに起こさないため）
+- **ディスク上の版と動いている版が違えば、info で知らせ、画面で再起動の許可を求める**（Wiki設計者の指示、
+  2026-11-12「ディスクのバージョンと動作のバージョンが異なる場合は info 機能で再起動の許可を得るように」）。
+  動いている版は `wiki.py` が読み込まれたときに渡す（`set_running_version`）
 
 ## クロコの実装例（設計者は未確認）
 
 - 最新版を調べるのは、権限のある人が既定のWikiを開いたとき、前に調べてから `CHECK_INTERVAL`
   （1日。更新の試験のあいだは暫定で10分だった）たっていれば、裏のスレッドで行う。起動時に始める形にしないのは、gunicorn などの WSGI で
   動かしたときに起動時の処理が通らないため。画面の「今すぐ調べる」でも調べ直せる
-- 今のバージョンは、手元の `wiki.py` から同じ読みかた（`parse_version`）で読む。値を1か所に保つため
+- 公開版と比べるのは、手元の `wiki.py` から同じ読みかた（`parse_version`）で読んだ版（ディスク上の版）。値を1か所に保つため
+- 画面の「いまのバージョン」は動いている版を出し、違うときはファイルの版も並べる。再起動のボタンは
+  `/.restart` へ飛ばさず、この画面に置く（版の食い違いを見せたまま許可を得るため）
 """
 import os
 import re
@@ -94,12 +99,37 @@ def parse_version(text):
 
 
 def current_version(root=REPO_ROOT):
-    """手元の `wiki.py` の `VERSION`。"""
+    """手元の `wiki.py` の `VERSION`（ディスク上のファイルの版）。"""
     try:
         with open(os.path.join(root, "wiki.py"), encoding="utf-8") as f:
             return parse_version(f.read())
     except OSError:
         return None
+
+
+# 動いているプログラムの版。`wiki.py` が読み込まれたときに渡す（`set_running_version`）。
+# ディスク上の `wiki.py` は、手での `git pull` や、取り込んだあと再起動できなかった更新で、
+# 動いている版より先に進むことがある（2026-11-12、1.2.0 で動いたまま 1.2.1 のファイルになった例）
+_running_version = None
+
+
+def set_running_version(version):
+    global _running_version
+    _running_version = version or None
+
+
+def running_version():
+    """動いているプログラムの版。渡されていなければ（試験など）ディスク上の版。"""
+    return _running_version or current_version()
+
+
+def restart_pending():
+    """ディスク上の版と動いている版が違えば `(動いている版, ディスク上の版)`。同じ・分からなければ None。
+    違うときは、再起動すればディスク上の版で動く。"""
+    running, disk = _running_version, current_version()
+    if running and disk and running != disk:
+        return running, disk
+    return None
 
 
 def version_key(version):
@@ -313,7 +343,8 @@ def _when(ts):
 
 def render_update(wiki_dir, config, farm, explicit_farm):
     """`/.admin/update`。GET で今と最新のバージョン・更新履歴、POST の `cmd=check` で調べ直し、
-    `cmd=update` で更新して再起動する。関門は `/.restart` と同じ（既定のWikiの管理者と、
+    `cmd=update` で更新して再起動する。ディスク上の版と動いている版が違えば、`cmd=restart` で
+    再起動だけする（ファイルは変えない）。関門は `/.restart` と同じ（既定のWikiの管理者と、
     `site.restart` を許された助手。Wiki名を含むURLは断る）。"""
     from wikilib import sysui
     from wikilib.restart import describe, detect_mode, request_restart
@@ -364,12 +395,35 @@ def render_update(wiki_dir, config, farm, explicit_farm):
                              escape(describe(mode, request.environ)), escape(context.base_url))
         return sysui.page(wiki_dir, config, farm, explicit_farm, UPDATE_URLPATH, "更新", body)
 
+    pending = restart_pending()
+    if cmd == "restart":
+        # ディスク上の版で動かし直すだけ。ファイルは変えない
+        if pending is None:
+            body = ('<div class="update"><p class="update-message">動いているバージョンとファイルのバージョンは'
+                    '同じです。再起動は要りません。</p><p><a href="{}">更新の画面へ戻る</a></p></div>').format(
+                escape(action))
+            return sysui.page(wiki_dir, config, farm, explicit_farm, UPDATE_URLPATH, "更新", body)
+        _staff_record(wiki_dir, farm, "{} のファイルで動かすため再起動した（動いていたのは {}）".format(
+            pending[1], pending[0]))
+        mode, _ = request_restart(request.environ)
+        body = (
+            '<div class="update">'
+            '<p class="update-message">{} で動かすため、再起動を受け付けました。</p>'
+            '<p class="update-note">{}</p>'
+            '<p class="update-hint">数秒ほどで戻ります。つながらない場合は、少し待ってから'
+            '<a href="{}/">トップページ</a>を開き直してください。</p>'
+            "</div>").format(escape(pending[1]), escape(describe(mode, request.environ)),
+                             escape(context.base_url))
+        return sysui.page(wiki_dir, config, farm, explicit_farm, UPDATE_URLPATH, "更新", body)
+
     info = check_now() if cmd == "check" else latest()
     if info["checked_at"] is None:
         info = check_now()
     newer = is_newer(info["version"], current)
-    rows = [
-        ("いまのバージョン", escape(current or "不明")),
+    rows = [("いまのバージョン", escape(running_version() or "不明"))]
+    if pending is not None:
+        rows.append(("ファイルのバージョン", escape(pending[1]) + "（再起動が済んでいません）"))
+    rows += [
         ("最新のバージョン", escape(info["version"] or "不明")
          + ('（{} に調べました）'.format(escape(_when(info["checked_at"]))) if info["checked_at"] else "")),
         ("公開版", '<a href="{0}" rel="noopener">{0}</a>（ブランチ {1}{2}）'.format(
@@ -382,8 +436,16 @@ def render_update(wiki_dir, config, farm, explicit_farm):
         parts.append('<p class="update-error">{}</p>'.format(escape(info["error"])))
     parts.append('<form method="post" action="{}"><button type="submit" name="cmd" value="check">'
                  "今すぐ調べる</button></form>".format(escape(action)))
+    if pending is not None:
+        parts.append("<h2>再起動する</h2>")
+        parts.append('<p class="update-warn">ファイルは {} になっていますが、動いているのは {} です'
+                     "（手で更新した、または更新のあとの再起動が済んでいない）。再起動すると {} で動きます。"
+                     "{}</p>".format(escape(pending[1]), escape(pending[0]), escape(pending[1]),
+                                     escape(describe(detect_mode(request.environ), request.environ))))
+        parts.append('<form method="post" action="{}"><button type="submit" name="cmd" value="restart">'
+                     "再起動する</button></form>".format(escape(action)))
     if not newer:
-        if info["version"]:
+        if info["version"] and pending is None:
             parts.append('<p class="update-message">いまのバージョンが最新です。</p>')
         parts.append("</div>")
         return sysui.page(wiki_dir, config, farm, explicit_farm, UPDATE_URLPATH, "更新", "".join(parts))

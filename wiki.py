@@ -8,9 +8,9 @@
 起動時の下ごしらえだけはこのファイルの先頭に置いてある。
 """
 # ---- バージョンとリビジョン ---------------------------------------------------
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 VERSION_DATE = "2026-11-12"
-REVISION = "7"
+REVISION = "12"
 
 import argparse
 import atexit
@@ -132,6 +132,10 @@ from wikilib.wikiconfig import (
 # バージョンとリビジョンの値をこのファイル1か所だけで持つため（wikilib 側は受け取るだけ）。
 # gunicorn や mod_wsgi から読み込まれた場合もこの行を通る
 set_version_label(version_label())
+# 動いている版を覚えさせる。ディスク上の wiki.py だけが先に進んだ（再起動が済んでいない）ことを、
+# 更新の画面と info で知らせるため
+from wikilib.sysupdate import set_running_version  # noqa: E402
+set_running_version(VERSION)
 
 # 受け取るPOSTの大きさの上限。bottle の既定は100KBで、これを超えると本文を
 # 読む前に 413 で撥ねられる。

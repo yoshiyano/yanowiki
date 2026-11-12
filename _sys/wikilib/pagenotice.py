@@ -156,6 +156,8 @@ def signup_notice(base_url, wiki_dir, farm):
 
 def update_notice(config, farm, base_url, wiki_dir, explicit_farm=False):
     """公開版に新しいバージョンが出ていれば、更新の画面（`/.admin/update`）へつなぐ `<a>`（Markup）。
+    ディスク上の版と動いている版が違えば（手での更新や、再起動が済んでいない更新）、先にそちらを知らせ、
+    同じ画面で再起動の許可を求める（Wiki設計者の指示、2026-11-12）。
     Wiki名を含まないURLで開いた既定のWikiで、管理者か再起動を許された助手にだけ出す
     （`/.restart` と同じ範囲。Wiki設計者の指示、2026-10-27）。出さないときは None。
 
@@ -168,6 +170,11 @@ def update_notice(config, farm, base_url, wiki_dir, explicit_farm=False):
     if not auth.can(wiki_dir, farm, "site.restart"):
         return None
     sysupdate.check_in_background()
+    pending = sysupdate.restart_pending()
+    if pending is not None:
+        text = "ファイルは {} になっていますが、動いているのは {} です。再起動の画面を開きます".format(
+            pending[1], pending[0])
+        return _link(base_url + "/" + UPDATE_URLPATH, text, _UPDATE_ICON)
     newer = sysupdate.available()
     if newer is None:
         return None

@@ -266,14 +266,40 @@ class TestRunUpdate(unittest.TestCase):
         self.assertIn("戻しました", result["message"])
 
 
+class TestRestartPending(unittest.TestCase):
+    """ディスク上の版と動いている版の食い違い（手での更新や、再起動が済んでいない更新）。"""
+
+    def setUp(self):
+        self.addCleanup(sysupdate.set_running_version, sysupdate._running_version)
+
+    def pending(self, running, disk):
+        sysupdate.set_running_version(running)
+        with mock.patch.object(sysupdate, "current_version", return_value=disk):
+            return sysupdate.restart_pending(), sysupdate.running_version()
+
+    def test_違えば両方を返す(self):
+        self.assertEqual(self.pending("1.2.0", "1.2.1"), (("1.2.0", "1.2.1"), "1.2.0"))
+
+    def test_同じなら無い(self):
+        self.assertEqual(self.pending("1.2.1", "1.2.1"), (None, "1.2.1"))
+
+    def test_動いている版が分からなければ無い(self):
+        # 渡されていなければ（試験など）、いまのバージョンはディスク上の版
+        self.assertEqual(self.pending(None, "1.2.1"), (None, "1.2.1"))
+
+    def test_ディスク上の版が読めなければ無い(self):
+        self.assertEqual(self.pending("1.2.0", None)[0], None)
+
+
 class TestUpdateNotice(unittest.TestCase):
     """info の更新の知らせ。Wiki名を含まないURLの既定のWikiで、再起動を許された人にだけ出す。"""
 
-    def notice(self, farm="main", explicit=False, can=True, newer="1.2.0"):
+    def notice(self, farm="main", explicit=False, can=True, newer="1.2.0", pending=None):
         config = {}
         with mock.patch("wikilib.wikiconfig.load_default_farm", return_value="main"), \
                 mock.patch("wikilib.auth.can", return_value=can), \
                 mock.patch.object(sysupdate, "check_in_background"), \
+                mock.patch.object(sysupdate, "restart_pending", return_value=pending), \
                 mock.patch.object(sysupdate, "available", return_value=newer), \
                 mock.patch.object(sysupdate, "current_version", return_value="1.1.1"):
             return pagenotice.update_notice(config, farm, "", "/wiki", explicit)
@@ -283,6 +309,14 @@ class TestUpdateNotice(unittest.TestCase):
         self.assertIn('href="/.admin/update"', html)
         self.assertIn("1.2.0", html)
         self.assertIn("1.1.1", html)
+
+    def test_再起動が済んでいなければ先にそれを知らせる(self):
+        html = str(self.notice(newer="1.2.2", pending=("1.2.0", "1.2.1")))
+        self.assertIn('href="/.admin/update"', html)
+        self.assertIn("ファイルは 1.2.1 になっていますが、動いているのは 1.2.0 です", html)
+
+    def test_再起動が済んでいなくても権限が無ければ出さない(self):
+        self.assertIsNone(self.notice(can=False, pending=("1.2.0", "1.2.1")))
 
     def test_新しい版が無ければ出さない(self):
         self.assertIsNone(self.notice(newer=None))

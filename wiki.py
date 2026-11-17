@@ -10,7 +10,7 @@
 # ---- バージョンとリビジョン ---------------------------------------------------
 VERSION = "1.2.3"
 VERSION_DATE = "2026-11-18"
-REVISION = "5"
+REVISION = "8"
 
 import argparse
 import atexit

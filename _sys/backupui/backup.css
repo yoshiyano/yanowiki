@@ -100,6 +100,16 @@
   margin-bottom: -1px;
 }
 .bk-tab:hover { color: var(--k-accent); }
+/* 選ばれていないタブは、地の色に文字色を少し混ぜて暗くする。編集画面のタブ（editor.css の
+   .edit-tab）と同じ見分けかた（設計者の指示、2026-11-18「履歴タブの中のタブも同じ色に揃えて」） */
+.bk-tab[aria-selected="false"] {
+  background: color-mix(in srgb, var(--k-bg) 90%, var(--k-fg));
+  border-color: var(--k-border);
+  border-bottom-color: transparent;
+}
+.bk-tab[aria-selected="false"]:hover {
+  background: color-mix(in srgb, var(--k-bg) 95%, var(--k-fg));
+}
 .bk-tab[aria-selected="true"] {
   color: var(--k-fg);
   font-weight: 600;

@@ -31,6 +31,7 @@
 | [`#hr`](/Syntax/Plugin/hr) | 水平線（区切り線）を引く |
 | [`#html`](/Syntax/Plugin/html) | 中身をそのままHTMLとして表示する |
 | [`#img`](/Syntax/Plugin/img) | 画像を差し込む |
+| [`#htmlref`](/Syntax/Plugin/htmlref) | 管理者が承認した添付の HTML を、スクリプトを動かして開く |
 | [`#include`](/Syntax/Plugin/include) | 別のページの本文をこのページに差し込む |
 | [`#katex`](/Syntax/Plugin/katex) | LaTeX数式をKaTeXで表示する |
 | [`#login`](/Syntax/Plugin/login) | ログイン・ログアウト・アカウント作成のフォームを置く |

@@ -249,6 +249,17 @@
   margin-bottom: -1px;
 }
 .edit-tab:hover { color: var(--e-accent); }
+/* 選ばれていないタブは、地の色に文字色を少し混ぜて暗くする（設計者の指示、2026-11-18。
+   編集画面と表記の変換の画面の両方）。選ばれているタブ（地の色のまま）との差で、どれを
+   見ているかが分かる。テーマの色から作るので、暗い配色でも同じ向きに効く。混ぜる割合はクロコの実装例 */
+.edit-tab[aria-selected="false"] {
+  background: color-mix(in srgb, var(--e-bg) 90%, var(--e-fg));
+  border-color: var(--e-border);
+  border-bottom-color: transparent;
+}
+.edit-tab[aria-selected="false"]:hover {
+  background: color-mix(in srgb, var(--e-bg) 95%, var(--e-fg));
+}
 .edit-tab[aria-selected="true"] {
   color: var(--e-fg);
   font-weight: 600;
@@ -257,6 +268,36 @@
   border-bottom: 1px solid var(--e-bg);
 }
 .edit-shell.is-tabbed .edit-panel[hidden] { display: none; }
+/* タブの行の右端: いまの書きかた。タブの下の線から浮かせ、タブとは別の
+   部品だと分かるよう、角の丸い小さなボタンにする（クロコの実装例） */
+.edit-markup-badge {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: baseline;
+  padding: 0.2rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--e-fg);
+  background: var(--e-panel);
+  border: 1px solid var(--e-border);
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.edit-markup-badge:hover:not(:disabled) { border-color: var(--e-accent); color: var(--e-accent); }
+/* 新しいページ（変換するものが無い）。押せないことが分かるよう、枠と字を薄くする */
+.edit-markup-badge:disabled { cursor: default; color: var(--e-muted); background: transparent; }
+.edit-markup-badge-ext { font-size: 0.72rem; color: var(--e-muted); }
+/* 狭い画面: 右端に置いたぶんタブの文字が縦に折り返すので、
+   拡張子を省き、タブの左右の余白も詰める */
+@media (max-width: 40rem) {
+  .edit-tab { padding-left: 0.55rem; padding-right: 0.55rem; }
+  .edit-markup-badge { padding: 0.15rem 0.5rem; font-size: 0.72rem; }
+  .edit-markup-badge-ext { display: none; }
+}
 
 /* ---- 添付ファイルのタブ ---- */
 .attach-notice {
@@ -1167,7 +1208,6 @@
   border-color: var(--e-discard-idle);
   cursor: default;
 }
-.edit-hint { margin-left: auto; font-size: 0.8rem; color: var(--e-muted); }
 /* ツールバーは編集画面でしか使わない（textareaが見えていないと押しても分からない）。
    表示側で隠すのではなく、そもそも編集画面の中に置いてある。 */
 
@@ -1250,6 +1290,7 @@
    預かれなかったときだけ色を変えて気づけるようにする */
 .edit-draft-state {
   flex: 0 0 auto;
+  margin-left: auto;   /* 足もとの右端に寄せる */
   font-size: 0.8rem;
   color: var(--e-muted);
 }
@@ -1494,6 +1535,9 @@
   /* タブもボタンも小さくしてよい（Wiki設計者の指示）。タブの行に2つ並ぶので、
      どちらも丈を詰めて高さをそろえる */
   .edit-tab { padding: 0.2rem 0.6rem; font-size: 0.8rem; }
+  /* ボタン列がタブの行へ来るので、右へ寄せるのはボタン列に任せ、
+     書きかたはその右に並べる */
+  .edit-markup-badge { margin-left: 0.4rem; padding: 0.1rem 0.55rem; font-size: 0.75rem; }
   .edit-buttons button, .edit-files {
     padding: 0.15rem 0.7rem;
     font-size: 0.78rem;
@@ -1501,7 +1545,6 @@
   .edit-save { padding: 0.15rem 1rem; }
   .edit-key { display: none; }   /* 「(ESC)」まで出す余裕は無い */
   .edit-draft-state { font-size: 0.72rem; }
-  .edit-hint { display: none; }
 
   /* 編集画面: 書きかたのボタンを出さない。
      **4枚の高さを揃える約束はここでは崩れる**（編集側だけ帯が1つ減る）が、
@@ -1524,3 +1567,73 @@
 /* ファイルを選んだらそのまま送るので、スクリプトが動くときは「追加」を出さない
    （editor.js が <html> に .attach-auto を付ける。動かないときは従来どおり押して送る） */
 .attach-auto .attach-add { display: none; }
+
+/* ---- 表記の変換の管理ページ（wikilib.markupswitch） ----
+   編集画面と同じ枠組み（タブ・入力欄とプレビューの2枚）を使う。ページ一覧は無い。
+   見た目はクロコの実装例 */
+.mc-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.8rem 1rem 1rem;
+}
+/* タブの「変換前」「変換後」。どちらの版かを見分けるのがタブの役目なので、書きかたの名前より
+   前に、塗りつぶしのラベルで出す。変換後（確定すると残るほう）はアクセント色、変換前は灰色 */
+.mc-tab-note {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0.05rem 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--e-muted);
+  border-radius: 999px;
+}
+.mc-tab-note-to { background: var(--e-accent); }
+.mc-lead { margin: 0 0 0.6rem; font-size: 0.88rem; }
+.mc-lead code { font-size: 0.82rem; }
+.mc-warnings {
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  background: rgb(217 131 36 / 10%);
+  border: 1px solid rgb(217 131 36 / 40%);
+  border-radius: var(--e-radius);
+  max-height: 9rem;
+  overflow-y: auto;
+}
+.mc-warnings summary { cursor: pointer; font-weight: 600; }
+.mc-warnings ul { margin: 0.3rem 0 0; padding-left: 1.3rem; }
+.mc-panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.mc-panes {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border: 1px solid var(--e-border);
+  border-radius: var(--e-radius);
+  overflow: hidden;
+}
+.mc-code {
+  min-height: 0;
+  padding: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--e-fg);
+  background: var(--e-panel);   /* 書き換えられない欄なので、地の色を変えて見分ける */
+  border: none;
+  border-right: 1px solid var(--e-border);
+  resize: none;
+}
+.mc-code:focus { outline: none; }
+.mc-preview { min-height: 0; overflow-y: auto; padding: 0.8rem 1rem; background: var(--e-bg); }
+.mc-preview > :first-child { margin-top: 0; }
+.mc-actions { flex: 0 0 auto; display: flex; gap: 0.6rem; margin-top: 0.8rem; }
+@media (max-width: 40rem) {
+  /* 狭い画面では2枚を縦に積む（見るだけの画面なので、書く場所の広さは要らない） */
+  .mc-panes { display: flex; flex-direction: column; }
+  .mc-code, .mc-preview { flex: 1 1 0; width: 100%; }
+  .mc-code { border-right: none; border-bottom: 1px solid var(--e-border); }
+}

@@ -550,6 +550,10 @@ def _move_entity(wiki_dir, plan):
             os.replace(src, dst)
         except OSError:
             raise _Failed("ページを動かせませんでした。", undo=True)
+        # 表記の変換の途中のファイル（`=名前.md` など）は置いていかずに消す。
+        # 元の名前のページの変換なので、新しい名前へは持っていかない
+        from wikilib.markupswitch import remove_temps
+        remove_temps(wiki_dir, old_root)
     elif page_file_of(wiki_dir, new_root)[0] is None:
         raise _Failed("元のページが見つかりません。", undo=True)
     # 同じ名前のフォルダ（配下ページの置き場所）も一緒に動かす。

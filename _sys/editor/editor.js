@@ -1257,7 +1257,8 @@ var wikiSend = (function () {
 
   function place() {
     if (short.matches) {
-      if (buttons.parentElement !== tabs) tabs.appendChild(buttons);
+      // 書きかたのボタン（.edit-markup-badge）があれば、その手前へ入れて右端を譲る
+      if (buttons.parentElement !== tabs) tabs.insertBefore(buttons, tabs.querySelector(".edit-markup-badge"));
     } else if (buttons.parentElement !== home) {
       home.insertBefore(buttons, homeNext);
     }
@@ -2001,6 +2002,12 @@ var wikiSend = (function () {
     radio.addEventListener("change", function () {
       if (!radio.checked) return;
       useFormat(radio.value);
+      // タブの行の右端の表示（.edit-markup-badge）も合わせる
+      var badge = document.querySelector(".edit-markup-badge");
+      if (badge) {
+        badge.querySelector(".edit-markup-badge-name").textContent = radio.dataset.label;
+        badge.querySelector(".edit-markup-badge-ext").textContent = radio.dataset.ext;
+      }
       // 本文が同じでも、書きかたが変われば見えかたは変わる
       lastSent = null;
       updatePreview();
@@ -2300,7 +2307,10 @@ var wikiSend = (function () {
     [saveButton, discardButton].forEach(function (button) {
       if (!button) return;
       button.disabled = unchanged;
-      if (unchanged) button.title = "変更がありません";
+      // 機能の説明（サーバーが data-title に入れる）は、押せないあいだも併せて出す
+      var about = button.dataset.title || "";
+      if (unchanged) button.title = "変更がありません" + (about ? "\n" + about : "");
+      else if (about) button.title = about;
       else button.removeAttribute("title");
     });
   }

@@ -8,9 +8,9 @@
 起動時の下ごしらえだけはこのファイルの先頭に置いてある。
 """
 # ---- バージョンとリビジョン ---------------------------------------------------
-VERSION = "1.2.2"
-VERSION_DATE = "2026-11-12"
-REVISION = "12"
+VERSION = "1.2.3"
+VERSION_DATE = "2026-11-18"
+REVISION = "5"
 
 import argparse
 import atexit
@@ -414,6 +414,10 @@ def dispatch(urlpath=""):
             return render_preview(wiki_dir, config, farm, explicit_farm, pagepath)
         if cmd == "diff":
             return render_diff(wiki_dir, config, farm, explicit_farm, pagepath)
+        if cmd == "convert":
+            # 表記の変換（編集画面の表記ボタンから。wikilib.markupswitch）
+            from wikilib.markupswitch import serve_convert
+            return serve_convert(wiki_dir, config, farm, explicit_farm, pagepath)
         if cmd == "history":
             # 編集画面の「履歴」タブ（以前の /.backup。wikilib.backupui の冒頭）
             return render_history(wiki_dir, config, farm, explicit_farm, pagepath)

@@ -377,7 +377,7 @@ def build_toolbar_html(actions):
     )
 
 
-def build_markup_choice_html(current):
+def build_markup_choice_html(current, hidden=False):
     """書きかたを選ぶラジオボタンを組み立てる。
 
     ページの書きかたは拡張子で決まるので、ここでの選択は**保存先のファイル名**を
@@ -394,8 +394,13 @@ def build_markup_choice_html(current):
             f'<code class="edit-markup-ext">{escape(fmt["ext"])}</code>'
             "</label>"
         )
+    # **既にあるページでは隠す**（Wiki設計者の選択、2026-11-15「新しいページのときだけ残す」）。
+    # 本文を変えずに拡張子だけを変えると、本文が別の書きかたとして読まれてしまうため。
+    # 書きかたを移すときは表記ボタン（本文も変換する）を使う。要素は残してあり、
+    # editor.js はここからプレビューとツールバーの書きかたを読む
     return (
-        '<div class="edit-markup" role="radiogroup" aria-label="書きかた">'
+        '<div class="edit-markup" role="radiogroup" aria-label="書きかた"'
+        + (" hidden" if hidden else "") + '>'
         '<span class="edit-markup-title">書きかた</span>' + "".join(items) + "</div>"
     )
 
@@ -463,7 +468,19 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
     # `saved_text` が None なら比べる相手が無いので、いじらず押せるままにする。
     unchanged = (saved_text is not None
                  and normalize_newlines(source) == normalize_newlines(saved_text))
-    off = ' disabled title="変更がありません"' if unchanged else ""
+    # ボタンにマウスを重ねたときの説明。押せないあいだも「変更がありません」に
+    # 続けて出す（操作を確かめるときに、何ができるボタンかが分かるように）。
+    # editor.js も押せる・押せないが変わるたびに `data-title` から付け直す
+    def button_title(text, can_disable=False):
+        shown = ("変更がありません&#10;" + text) if (can_disable and unchanged) else text
+        return f' data-title="{text}" title="{shown}"'
+    off = " disabled" if unchanged else ""
+    save_title = button_title(
+        "Ctrl+S でも保存できます。&#10;本文を空にして保存すると、このページは削除されます", True)
+    pause_title = button_title(
+        "書きかけを預けて、ページに戻ります（Esc でも）。&#10;次に編集画面を開くと、続きから書けます")
+    discard_title = button_title(
+        "書きかけを消して、保存されている内容に戻します（取り消せません）", True)
     saved_json = ("" if saved_text is None else
                   '<script type="application/json" class="edit-saved">'
                   + json.dumps(saved_text, ensure_ascii=False).replace("<", "\\u003c")
@@ -471,7 +488,7 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
     tools = build_toolbar_html(fmt["actions"])
     toolbar = (
         '<div class="edit-toolbar" role="toolbar" aria-label="書きかたのボタン">'
-        f'<span class="edit-tools">{tools}</span>{build_markup_choice_html(markup)}</div>'
+        f'<span class="edit-tools">{tools}</span>{build_markup_choice_html(markup, hidden=not is_new)}</div>'
     )
     note = ""
     if is_new:
@@ -518,8 +535,25 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
     # ファイル一覧（/.files/）。編集中の本文を置いていかないよう、別のタブで開く
     files_link = (
         f'<a class="edit-files" href="{escape(files_url)}"'
-        ' target="_blank" rel="noopener">ファイル一覧</a>'
+        ' target="_blank" rel="noopener"'
+        ' title="ページの一覧を、パソコンのファイルの一覧と同じ形で別のタブに開きます。&#10;'
+        'ページを開く・編集する・名前を変える・動かす・コピーする・作る・消すができます">ファイル一覧</a>'
         if files_url else "")
+
+    # **表記ボタン**。タブの行の右端に、いまの書きかた（PukiWiki記法・Markdown）を出す。
+    # 押すと表記の変換の管理ページ（wikilib.markupswitch）へ移る。送るのは下の
+    # ボタンのフォーム（.edit-actions）で、保存と同じく書きかけを預けてから
+    # `cmd=convert` で送る（editor.js の submit）。
+    # 新しいページは変換するものが無いので押せない（書きかたは右下の選択で選ぶ）
+    current_fmt = dict(selectable_markups()).get(markup)
+    badge_title = ("新しいページの書きかたは、右下の「書きかた」で選びます" if is_new else
+                   "このページの書きかた。押すと、もう一方の書きかたへ変換する画面に移ります")
+    markup_badge = (
+        '\n  <button type="submit" form="edit-actions" name="cmd" value="convert"'
+        f' class="edit-markup-badge" title="{badge_title}"{" disabled" if is_new else ""}>'
+        f'<span class="edit-markup-badge-name">{escape(current_fmt["label"])}</span>'
+        f'<code class="edit-markup-badge-ext">{escape(current_fmt["ext"])}</code></button>'
+        if current_fmt else "")
 
     return f"""<div class="edit-shell" data-active-tab="{escape(active_tab)}">
 <div class="edit-tabs" role="tablist" aria-label="編集画面">
@@ -531,7 +565,7 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
           aria-selected="{selected['diff']}">更新状況</button>
   <button type="button" class="edit-tab" role="tab" data-tab="attach"
           id="edit-tab-attach" aria-controls="edit-panel-attach"
-          aria-selected="{selected['attach']}">添付ファイル</button>{history_tab}
+          aria-selected="{selected['attach']}">添付ファイル</button>{history_tab}{markup_badge}
 </div>
 
 {warn}{saved}{draft}{note}
@@ -585,10 +619,10 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
          値を詰めるのは editor.js の fill() で、**無ければその場で作る**ので、
          ここに置いておく必要はない。置かなければ、横取りできなかったときは
          「本文が届きませんでした」と断られて終わる（消えない）。 -->
-    <form class="edit-actions" method="post" action="{escape(action)}">
-      <button type="submit" name="cmd" value="save" class="edit-save"{off}>保存</button>
-      <button type="submit" name="cmd" value="pause" class="edit-pause">一時中断<span class="edit-key">(ESC)</span></button>
-      <button type="submit" name="cmd" value="discard" class="edit-discard"{off}>内容破棄</button>
+    <form class="edit-actions" id="edit-actions" method="post" action="{escape(action)}">
+      <button type="submit" name="cmd" value="save" class="edit-save"{off}{save_title}>保存</button>
+      <button type="submit" name="cmd" value="pause" class="edit-pause"{pause_title}>一時中断<span class="edit-key">(ESC)</span></button>
+      <button type="submit" name="cmd" value="discard" class="edit-discard"{off}{discard_title}>内容破棄</button>
     </form>
     <!-- 本文を空にして保存する（＝ページの削除）ときの確かめ。［はい］［いいえ］で尋ねる
          （Wiki設計者の指示、2026-10-10。ファイル一覧の削除と揃える）。文は editor.js が入れる。
@@ -613,8 +647,6 @@ def build_editor_html(markup, source, origin, is_new, action, preview_url,
     <label class="edit-continuous"
            title="保存・内容破棄のあと、ページへ戻らずに編集を続けます。ページへは「ページを見る」か「一時中断」で戻れます">
       <input type="checkbox" class="edit-continuous-check" checked> 連続編集</label>
-    <span class="edit-hint">Ctrl+S でも保存できます。
-      <strong>本文を空にして保存すると、このページは削除されます</strong></span>
     <!-- 書きかけを預かった時刻を出す。預かれなかったときもここに出る -->
     <span class="edit-draft-state" role="status" aria-live="polite"></span>
   </div>

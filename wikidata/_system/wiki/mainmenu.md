@@ -74,6 +74,7 @@
     - [img](/Syntax/Plugin/img)
     - [ref](/Syntax/Plugin/ref)
     - [attachls](/Syntax/Plugin/attachls)
+    - [htmlref](/Syntax/Plugin/htmlref)
     - [glossarytip](/Syntax/Plugin/glossarytip)
     - [include](/Syntax/Plugin/include)
     - [pagediv](/Syntax/Plugin/pagediv)

@@ -145,4 +145,7 @@ def remove_page(wiki_dir, subpath, known=None):
         known = pagedb.published_body(wiki_dir, subpath, "")
     backup_page(wiki_dir, subpath, known, "", merge=False)
     invalidate(wiki_dir)
+    # 表記の変換の途中のファイル（`=名前.md` など）も残さない
+    from wikilib.markupswitch import remove_temps
+    remove_temps(wiki_dir, subpath)
     return pagedb.remove_page(wiki_dir, subpath)

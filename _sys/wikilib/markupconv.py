@@ -106,7 +106,8 @@ def build_options(wiki_dir, config, page=""):
     """Wiki の設定と全ページの本文から `ConvertOptions` を作る。"""
     pw_conf = config.get("pukiwiki") or {}
     md_conf = config.get("markdown") or {}
-    pages_dir = os.path.join(wiki_dir, "wiki")
+    # wiki_dir は wikidata/<Wiki名>/wiki（サーバーが渡すもの）。ページはこの直下にある
+    pages_dir = wiki_dir
 
     def exists(name):
         return any(os.path.isfile(os.path.join(pages_dir, name + ext))
@@ -134,9 +135,10 @@ def collect_referenced_anchors(pages_dir):
     増えるだけで、リンク切れにはならない）。Wiki の外からの参照は分からない。"""
     names = set()
     for root, dirs, files in os.walk(pages_dir):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        # "=" と "." で始まる名前はページではない（表記の変換が置く `=名前.md` もここ）
+        dirs[:] = [d for d in dirs if not d.startswith((".", "="))]
         for filename in files:
-            if not filename.endswith((".txt", ".md")):
+            if not filename.endswith((".txt", ".md")) or filename.startswith((".", "=")):
                 continue
             try:
                 with open(os.path.join(root, filename), encoding="utf-8") as f:

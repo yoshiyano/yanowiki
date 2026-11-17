@@ -650,7 +650,10 @@
       window.setTimeout(function () { leavingForGood = false; }, LEAVE_BY_SUBMIT_MS);
     }
     function leavesEditing(cmd) {
-      if (cmd === "pause") return true;
+      // 表記ボタン（cmd=convert）も、表記の変換の画面へ移って戻ってこない（その画面は連動しない）。
+      // reload のままだと、エディタは戻りを待ってからバッファを閉じる。確定・やめるで編集画面へ
+      // 戻れば、開いたときにつなぎ直し、変換後の書きかたでバッファを開き直す
+      if (cmd === "pause" || cmd === "convert") return true;
       if (cmd !== "save" && cmd !== "discard") return false;
       var box = document.querySelector(".edit-continuous-check");
       return !(box && box.checked);

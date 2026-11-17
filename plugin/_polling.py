@@ -6,7 +6,7 @@
 
     call_id(context, name, resolved_id) → 描いている呼び出しの ID（使えなければ None）
     find_call(context, text, ext, name, pid) → (呼び出し, None) か (None, 断り文)
-    scan(context, text, ext)           → 保存されている本文の呼び出しの一覧
+    scan(context, text, ext[, names])  → 保存されている本文の呼び出しの一覧（`htmlref` も使う）
     wrap(html, context, name, pid)     → 描画範囲を印（`.poll-box` と `data-poll-*`）で包む
     handle(context)                    → 問い合わせ（`/.plugin/<name>?poll=1`）に答える
     fetch_only()                       → JS（fetch）からでない投稿を断る応答
@@ -192,9 +192,9 @@ def _is_tsv_table(args):
     return keyword.get("format") == "tsv" or "tsv" in (p.strip() for p in positional)
 
 
-def _walk(text, ext, offset, engine, env, out, depth):
-    """`text` の中の、描かれるブロックの呼び出しを `out` に足す（技術資料）。
-    `offset` は `text` の1行目がページの何行目か。"""
+def _walk(text, ext, offset, engine, env, out, depth, names=PREFIXES):
+    """`text` の中の、描かれるブロックの呼び出し（名前が `names` のもの）を `out` に
+    足す（技術資料）。`offset` は `text` の1行目がページの何行目か。"""
     registry = getattr(engine, "plugin_registry", {}) or {}
     for tok in parse_source(engine, text, ext, env):
         if tok.type != "plugin_block" or tok.map is None:
@@ -202,7 +202,7 @@ def _walk(text, ext, offset, engine, env, out, depth):
         name = tok.meta.get("name")
         line = offset + tok.map[0]
         info = (registry.get(name) or {}).get("info") or {}
-        if name in PREFIXES:
+        if name in names:
             out.append({"name": name, "line": line, "args": tok.meta.get("args"),
                         "body": tok.meta.get("body"), "body_error": tok.meta.get("body_error")})
         body = tok.meta.get("body")
@@ -212,9 +212,9 @@ def _walk(text, ext, offset, engine, env, out, depth):
         start = line + 1 if tok.map[1] - tok.map[0] > 1 else line
         if name == "table" and not _is_tsv_table(tok.meta.get("args")):
             for cell_line, cell in _table_cells(body):
-                _walk(cell, ext, start + cell_line, engine, env, out, depth + 1)
+                _walk(cell, ext, start + cell_line, engine, env, out, depth + 1, names)
         elif info.get("expand_block"):
-            _walk(body, ext, start, engine, env, out, depth + 1)
+            _walk(body, ext, start, engine, env, out, depth + 1, names)
 
 
 def locate(line, name, nth=0):
@@ -245,12 +245,13 @@ def locate(line, name, nth=0):
     return loc
 
 
-def scan(context, text, ext):
+def scan(context, text, ext, names=PREFIXES):
     """保存されている本文から、描かれる呼び出しを本文の順に返す。
     [{"name", "line", "args", "body", "body_error", "loc", "id"}]（行の中に見つからない
-    ものは除く）"""
+    ものは除く）。探すのは名前が `names` の呼び出し（既定は `PREFIXES` の全部。`htmlref` は
+    自分の名前だけを渡して、承認待ちの印の場所を探すのに使う）"""
     out = []
-    _walk(text, ext, 0, _engine(context), {"wiki": context}, out, 0)
+    _walk(text, ext, 0, _engine(context), {"wiki": context}, out, 0, names)
     lines = text.split("\n")
     nth = {}
     calls = []

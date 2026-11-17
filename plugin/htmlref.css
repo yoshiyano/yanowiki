@@ -1,0 +1,52 @@
+/* htmlref プラグインの見た目。ファイルの札は ref.css の .plugin-ref-file と同じ値
+   （ref を使っていないページでも同じ見た目になるよう、ここにも持つ）。
+   テーマの共通カスタムプロパティ（--accent, --panel-bg, --border, --muted）だけを頼りにし、
+   フォールバックも添えてある。 */
+
+div.plugin-htmlref {
+  margin: 0.6rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.plugin-htmlref-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.15em 0.6em 0.15em 0.15em;
+  border: 1px solid var(--border, #ccc);
+  border-radius: var(--radius, 4px);
+  background: var(--panel-bg, #f6f6f6);
+  text-decoration: none;
+  color: inherit;
+}
+a.plugin-htmlref-file:hover { border-color: var(--accent); }
+
+.htmlref-kind {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius, 4px);
+  background: var(--accent-soft, var(--panel-bg, #eee));
+  color: var(--accent);
+}
+.htmlref-name { text-decoration: underline; }
+.htmlref-info {
+  font-size: 0.8rem;
+  color: var(--muted, #777);
+}
+
+/* スクリプトの状態の札。承認待ちは控えめに、許可は目立たせる */
+.htmlref-kind-pending { color: var(--muted, #777); }
+.htmlref-kind-script { background: var(--accent, #36c); color: var(--accent-fg, #fff); }
+
+/* 持ち主のページを閲覧できない添付（ref と同じ扱い） */
+.htmlref-kind-denied { color: var(--muted, #777); }
+span.plugin-htmlref-file { color: var(--muted, #777); cursor: default; }
+span.plugin-htmlref-file .htmlref-name { text-decoration: none; }
+
+/* 管理者だけに出る［承認］（ブロックなので、ふつうのフォーム） */
+.plugin-htmlref-approve { display: inline; margin: 0; }
+.plugin-htmlref-approve button { font-size: 0.85rem; }

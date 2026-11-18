@@ -5,8 +5,9 @@
 
     #login()           未ログイン時 … ログインフォーム
                           （タブを切り替えてアカウント作成も受け付ける）
-                        ログイン中  … 現在のユーザー情報＋ログアウトボタンと、
-                          パスワード変更をタブで切り替え
+                        ログイン中  … 現在のユーザー情報（いつまでログイン
+                          したままか・この端末のログインの設定）＋ログアウト
+                          ボタンと、パスワード変更をタブで切り替え
                         **管理者と助手**… さらに「管理者メニュー」のタブが
                           増え、`/.admin` と同じ道具の一覧がそこに出る
     #login(){案内文}    案内文（Wikiテキスト）をフォームの上に添える
@@ -159,13 +160,44 @@ HTMLとして渡ってくる。`note.py`と同じ扱いでエスケープしな�
 `PluginContext`へ追加してもらった）からそのまま渡す。**`base_url`を
 渡す形に作り替えなかったのは、`render_passwd`等の既存の呼び出しと
 シグネチャを揃えたかったため**（wikiSystem側の判断）。
+
+## この端末のログインの設定（2026-11-18）
+
+設計者の指示（2026-11-18）: ログインしたままでいる日数を端末ごとに最大14日まで、
+決まった曜日・時刻にログインし直させることも端末ごとに、**設定はアカウントタブから**。
+仕組み（設定の cookie・合言葉）は本体（`wikilib.auth`、`/Tech/Accounts/Login`）で、
+このプラグインは画面だけを持つ。
+
+- `cmd=loginprefs` → `wikilib.auth.do_set_login_prefs`。欄の名前は本体の定数
+  （`LOGIN_PREFS_FORM_DAYS`・`_WEEKDAY`・`_TIME`）、初期値は `login_prefs`、
+  「いつまでか」「次のログインし直し」は `login_state` から出す
+- **ログイン状態はページを開くたびに延びる**（設計者の指示、2026-11-18「開くたびに
+  延ばしてください」。本体の `auth.refresh_login`）。延ばすのは `wiki.py` の `dispatch` が
+  **描いたあと**なので、`login_state` の `expires`（いま持っている合言葉の期限）は
+  延ばす前のもの。表示には、本体が「この要求で延ばしたあとの期限」として返す `until` を
+  使う（`expires` だと、設定の無い端末でその日はじめて開いたとき、1日早い時刻になる）
+- 期限の時刻は、設定の無い端末にも出す（設計者の指示、2026-11-18「未設定の端末にも
+  期限の時刻を出して」）。文言「このまま開かなければ ○ までログインしたまま
+  （開くたびに延びます）」はクロコの実装例
+- 時刻の表示は `datetime.fromtimestamp`（サーバーの地方時）。本体が曜日・時刻を
+  判定するのと同じ時計にそろえる
+- 次のログインし直しが期限より後なら出さない（その前に切れるため）
+- 以下はクロコの実装例（設計者は未確認）: フォームは `<details>` に畳んでおく
+  （アカウントタブが長くなるため）。日数は 1〜14 の選択と「設定しない」。
+  「日数は最後に開いてから数える。曜日・時刻を選ぶと、開いていてもその時刻で
+  ログインし直し」とフォームに添える
 """
 from html import escape
 
 from bottle import request
 
-from wikilib.auth import (back_page_url, current_user, do_login, do_logout,
-                         do_revoke_others, do_signup, lock_warning)
+import datetime
+
+from wikilib.auth import (LOGIN_MAX_DAYS, LOGIN_DEFAULT_DAYS, LOGIN_PREFS_FORM_DAYS,
+                         LOGIN_PREFS_FORM_TIME, LOGIN_PREFS_FORM_WEEKDAY, LOGIN_RESULT_PREFS,
+                         back_page_url, current_user, do_login, do_logout,
+                         do_revoke_others, do_set_login_prefs, do_signup, lock_warning,
+                         login_prefs, login_state)
 from wikilib.paths import LOGIN_COOKIE, LOGIN_URLPATH, PASSWD_URLPATH, PLUGIN_URLPATH
 from wikilib.userdb import NAME_MAX
 from wikilib.web import get_wiki_cookie
@@ -215,6 +247,8 @@ def _result_notice():
         return _notice("ログアウトしました。")
     if result == "revoked":
         return _notice("他の端末のログイン状態を取り消しました。この端末はそのままご利用いただけます。")
+    if result == LOGIN_RESULT_PREFS:
+        return _notice("この端末のログインの設定を変えました。")
     if result == "lock":
         return _notice("このアカウントはロックされています。管理者に解除を頼んでください。", bad=True)
     if result == "ng":
@@ -377,10 +411,80 @@ def _revoke_form_html(context, back):
 
 
 _AUTH_PERIOD_NOTE = (
-    "このログイン状態は1日ごとに更新します。同じブラウザから毎日"
-    "利用していれば認証不要です。しかし2日以上利用が無いと"
-    "再びログインを要求します。"
+    "設定していない端末は、毎日このWikiを開いていればログインしたままです。"
+    "2日以上あく（日の区切りは日本時間の9時）と、ログインし直しになります。"
+    "下の「この端末のログインの設定」で、この端末だけ、ログインしたままでいる日数"
+    f"（最大{LOGIN_MAX_DAYS}日）と、ログインし直す曜日・時刻を決められます。"
 )
+
+_WEEKDAYS = "月火水木金土日"
+
+
+def _when(epoch):
+    """エポック秒を「11月20日（金）09:00」の形に。時刻は本体の判定と同じ、
+    サーバーの時計（地方時）で見る（`wikilib.auth.next_relogin` と同じ `fromtimestamp`）。"""
+    t = datetime.datetime.fromtimestamp(epoch)
+    return f"{t.month}月{t.day}日（{_WEEKDAYS[t.weekday()]}）{t:%H:%M}"
+
+
+def _state_html(context):
+    """いまのログインがいつまでか・次にログインし直す時刻（本体の `login_state`。
+    期限は延ばしたあとの `until`。技術資料「この端末のログインの設定」）。"""
+    state = login_state(context.wiki_dir, context.farm)
+    if state is None:
+        return ""
+    until = state["until"]
+    lines = [f"このまま開かなければ <strong>{escape(_when(until))}</strong> まで"
+             "ログインしたまま（開くたびに延びます）"]
+    nxt = state["next_relogin"]
+    if nxt is not None and nxt < until:
+        lines.append(f"次のログインし直し: <strong>{escape(_when(nxt))}</strong>")
+    return '<p class="login-state">' + "<br>".join(lines) + "</p>\n  "
+
+
+def _prefs_form_html(context, back, i):
+    """この端末のログインの設定（日数・曜日・時刻）。初期値は端末の cookie
+    （本体の `login_prefs`）。値の読み取り・cookie と合言葉の作り直しは本体の
+    `do_set_login_prefs` が受け持つ。"""
+    prefs = login_prefs(context.farm) or {"days": 0, "weekdays": 0, "hour": 0, "minute": 0}
+    options = ['<option value="">設定しない</option>']
+    for n in range(1, LOGIN_MAX_DAYS + 1):
+        sel = " selected" if prefs["days"] == n else ""
+        options.append(f'<option value="{n}"{sel}>{n}日</option>')
+    days = "".join(options)
+    boxes = []
+    for n, label in enumerate(_WEEKDAYS):
+        checked = " checked" if prefs["weekdays"] & (1 << n) else ""
+        boxes.append(f'<label class="login-wd"><input type="checkbox" '
+                     f'name="{LOGIN_PREFS_FORM_WEEKDAY}" value="{n}"{checked}>{label}</label>')
+    at = "{:02d}:{:02d}".format(prefs["hour"], prefs["minute"])
+    login_url = _login_action_url(context)
+    return f"""<details class="login-prefs">
+  <summary>この端末のログインの設定</summary>
+  <form class="login-form" method="post" action="{login_url}">
+  <input type="hidden" name="cmd" value="loginprefs">
+  <div class="login-row">
+    <label for="login-days-{i}">日数</label>
+    <select id="login-days-{i}" name="{LOGIN_PREFS_FORM_DAYS}">{days}</select>
+  </div>
+  <div class="login-row">
+    <span class="login-row-label">ログインし直す曜日</span>
+    <span class="login-wds">{"".join(boxes)}</span>
+  </div>
+  <div class="login-row">
+    <label for="login-at-{i}">その時刻</label>
+    <input id="login-at-{i}" type="time" name="{LOGIN_PREFS_FORM_TIME}" value="{at}">
+  </div>
+  <p class="login-hint">日数は、最後にこのWikiを開いてから数えます（開くたびに延びます）。
+    曜日を選ぶと、開いていても、その曜日のその時刻を過ぎたらログインし直しになります
+    （日数を設定しないときは{LOGIN_DEFAULT_DAYS}日）。設定はこの端末に残り、
+    ログアウトしても消えません。</p>
+  {_hidden_back(back)}
+  <div class="login-actions">
+    <button type="submit" class="login-go">設定を保存</button>
+  </div>
+  </form>
+</details>"""
 
 
 def _pending_html(context, user):
@@ -405,7 +509,7 @@ def _pending_html(context, user):
             f"承認待ち {waiting}人</a></p>\n  ")
 
 
-def _account_panel_html(context, user, back):
+def _account_panel_html(context, user, back, i="1"):
     """現在ログイン中のユーザー情報＋ログアウトボタン（タブの1枚目）。
     「ようこそ、○○さん」ではなく現在のユーザーそのものを示す表示に
     する（Wiki設計者の指示、2026-09-08）。
@@ -420,7 +524,8 @@ def _account_panel_html(context, user, back):
     name = user["name"] or user["uid"]
     return f"""<p class="login-current">現在ログイン中のユーザー:
     <strong>{escape(name)}</strong>（ID: <code>{escape(user["uid"])}</code>）</p>
-  {_pending_html(context, user)}<p class="login-hint">{_AUTH_PERIOD_NOTE}</p>
+  {_pending_html(context, user)}{_state_html(context)}<p class="login-hint">{_AUTH_PERIOD_NOTE}</p>
+  {_prefs_form_html(context, back, i)}
   {_revoke_form_html(context, back)}
   {_logout_form_html(context, back)}"""
 
@@ -458,7 +563,7 @@ def _logged_in_html(context, user, back, i):
     プラグイン側で「管理者とは誰か」を決め直さないため。"""
     from wikilib.auth import is_staff
 
-    tabs = [("アカウント", _account_panel_html(context, user, back)),
+    tabs = [("アカウント", _account_panel_html(context, user, back, i)),
             ("パスワード変更", _passwd_form_html(context, back, user, i))]
     if is_staff(context.wiki_dir, user):
         tabs.append(("管理者メニュー", _admin_panel_html(context, user)))
@@ -503,6 +608,9 @@ def _action(context):
     if cmd == "revoke":
         return do_revoke_others(context.config, context.farm, context.wiki_dir,
                                 context.explicit_farm, back)
+    if cmd == "loginprefs":
+        return do_set_login_prefs(context.config, context.farm, context.wiki_dir,
+                                  context.explicit_farm, back)
     if cmd == "signup":
         return do_signup(context.config, context.farm, context.wiki_dir,
                          context.explicit_farm, back)

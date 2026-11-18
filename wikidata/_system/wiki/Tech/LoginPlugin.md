@@ -16,6 +16,7 @@
 | （無し） | ログイン | `uid` `pw` |
 | `logout` | ログアウト（cookieを捨てる） | — |
 | `revoke` | 他端末の認証を解除する（`cnt` を上げ、押した端末だけ合言葉を作り直して残す） | — |
+| `loginprefs` | この端末のログインの設定を変える（設定の cookie を置き直し、合言葉を作り直す。[ログイン](/Tech/Accounts/Login#端末ごとのログインの設定)） | `days`（空か1〜14）`wd`（0=月〜6=日、いくつでも）`at`（HH:MM） |
 | `signup` | アカウントを作って、そのまま入る（承認制のWikiでは承認待ちで作られ、入れない） | `uid` `name` `pw` `pw2` |
 
 `/.passwd` へ送る値は `uid` `current` `new1` `new2` です。
@@ -47,6 +48,7 @@
 | `pending` | 承認待ちのアカウントでログインしようとした（入れない） |
 | `out` | 出た |
 | `revoked` | 他の端末のログイン状態を取り消した（押した端末は入ったまま） |
+| `prefs` | この端末のログインの設定を変えた |
 | `ng` | 通らなかった |
 | `lock` | ロックされている（管理者に解除を頼む） |
 
@@ -85,7 +87,7 @@
 `POST /.plugin/login` は、他のプラグインの `_action`（`/.plugin/ls` など）と同じく
 `wikilib.plugins.render_plugin_action` が振り分けます。`plugin/login.py` の
 `_action(context)` は、`wikilib.auth` の `back_page_url`/`do_login`/`do_logout`/
-`do_revoke_others`/`do_signup` を呼ぶだけです。
+`do_revoke_others`/`do_set_login_prefs`/`do_signup` を呼ぶだけです。
 
 これらの関数は `(config, farm, wiki_dir, explicit_farm)` を引数に取るので、
 `PluginContext` に `explicit_farm` を持たせてあります。
@@ -98,7 +100,8 @@
 
 #login()       入っていないとき  … ログインフォーム
                                    （タブを切り替えてアカウント作成も）
-               入っているとき    … パスワード変更フォームと、「他端末からの認証を解除する」
+               入っているとき    … パスワード変更フォームと、いつまで入っていられるかの表示、
+                                   この端末のログインの設定、「他端末からの認証を解除する」
                                    「ログアウト」のボタン（アカウントのタブ）
                管理者・助手      … さらに「管理者メニュー」のタブが増える。承認待ちの
                                    アカウントがあれば、ログイン中のユーザーのすぐ下に

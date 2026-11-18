@@ -555,6 +555,9 @@ def _rename(wiki_dir, config, farm, explicit_farm, body):
              "message": f"確かめの欄に、いまの名前（{farm}）をそのまま書き写してください。"},
             status=400)
     user = auth.current_user(wiki_dir, farm)
+    # 端末ごとのログインの設定と、ログインした時刻も、古い名前の cookie から控えておく
+    state = auth.login_state(wiki_dir, farm)
+    prefs = auth.login_prefs(farm)
     staff = stafflog.actor(wiki_dir, farm)
     ok, message, new_default = farmrename.rename_farm(farm, new, config)
     if not ok:
@@ -574,7 +577,9 @@ def _rename(wiki_dir, config, farm, explicit_farm, body):
     # 古い名前のcookieは捨て、新しい名前で置き直す。**名前が衝突することは無い**
     # ——cookieの名前自体がWikiごとに分かれている（`paths.wiki_cookie_name`）
     auth.forget_login(out, config, farm, wiki_dir, explicit_farm)
-    auth.remember_login(out, after, new, new_dir, explicit_farm, user)
+    auth.save_login_prefs(out, config, farm, wiki_dir, explicit_farm, None)
+    auth.save_login_prefs(out, after, new, new_dir, explicit_farm, prefs)
+    auth.remember_login(out, after, new, new_dir, explicit_farm, user, prefs=prefs, keep=state)
     return out
 
 

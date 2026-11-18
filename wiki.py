@@ -8,9 +8,9 @@
 起動時の下ごしらえだけはこのファイルの先頭に置いてある。
 """
 # ---- バージョンとリビジョン ---------------------------------------------------
-VERSION = "1.2.3"
+VERSION = "1.2.4"
 VERSION_DATE = "2026-11-18"
-REVISION = "8"
+REVISION = "16"
 
 import argparse
 import atexit
@@ -99,6 +99,7 @@ from wikilib.paths import (
     SLOTTHEME_URLPATH, THEMEFILES_URLPATH, THEMESELECT_URLPATH, THEME_URLPATH, VENDOR_URLPATH,
     farm_wiki_dir, is_valid_pagepath, resolve_page_ref,
 )
+from wikilib import auth
 from wikilib.attach import serve_attach
 from wikilib.backupui import render_history, serve_history_asset
 from wikilib.vendor import serve_vendor_asset
@@ -171,6 +172,14 @@ def too_large(error):
 @app.route("/", method=["GET", "POST"])
 @app.route("/<urlpath:path>", method=["GET", "POST"])
 def dispatch(urlpath=""):
+    out = _dispatch(urlpath)
+    # 開くたびにログイン状態を延ばす（wikilib.auth.refresh_login）。テーマ・資材の要求は
+    # どのWikiかを控えないので、ここで素通りする
+    auth.refresh_login(out)
+    return out
+
+
+def _dispatch(urlpath):
     # 別のサイトから送られた POST は、どの画面・プラグインにも渡さない（wikilib.web の
     # 「別のサイトから送られた POST を断る」）
     if request.method == "POST":
@@ -209,6 +218,7 @@ def dispatch(urlpath=""):
     if pagepath == VENDOR_URLPATH or pagepath.startswith(VENDOR_URLPATH + "/"):
         # 第三者ライブラリの資材（例: /.vendor/diffmerge/diffmerge.umd.js）
         return serve_vendor_asset(pagepath[len(VENDOR_URLPATH):].strip("/"))
+    auth.note_wiki_context(config, farm, wiki_dir, explicit_farm)
     if pagepath == ATTACH_URLPATH or pagepath.startswith(ATTACH_URLPATH + "/"):
         return serve_attach(wiki_dir, config, farm,
                             pagepath[len(ATTACH_URLPATH):].strip("/"), explicit_farm)

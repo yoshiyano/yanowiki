@@ -63,6 +63,7 @@ Pathでの分離だけに頼ると、Pathの付かない既定のWikiのcookie�
 """
 import contextlib
 import contextvars
+import datetime
 import hashlib
 import hmac
 import json
@@ -73,11 +74,12 @@ import time
 from urllib.parse import parse_qs, quote, urlsplit
 
 from bottle import HTTPResponse, request
+from bottle import response as bottle_response
 
 from wikilib import authlog, groups, privilege_records, staffperms, userdb
 from wikilib.paths import (
-    LOGIN_AUTH_COOKIE, LOGIN_COOKIE, LOGIN_COOKIE_MAX_AGE, LOGIN_URLPATH, SECRET_LENGTH,
-    SECRET_PATH, is_valid_pagepath,
+    LOGIN_AUTH_COOKIE, LOGIN_COOKIE, LOGIN_COOKIE_MAX_AGE, LOGIN_PREF_COOKIE, LOGIN_PREF_MAX_AGE,
+    LOGIN_URLPATH, SECRET_LENGTH, SECRET_PATH, is_valid_pagepath, wiki_cookie_name,
 )
 from wikilib.themes import make_plugin_context
 from wikilib.web import delete_wiki_cookie, get_wiki_cookie, set_wiki_cookie
@@ -127,6 +129,7 @@ LOGIN_RESULT_MADE = "made"      # アカウントを作った
 LOGIN_RESULT_APPLIED = "applied"  # 申請した（承認待ち）
 LOGIN_RESULT_PENDING = "pending"  # 承認待ちのアカウントでログインしようとした
 LOGIN_RESULT_REVOKED = "revoked"  # 他の端末のログイン状態を取り消した
+LOGIN_RESULT_PREFS = "prefs"      # この端末のログインの設定を変えた
 LOGIN_RESULT_CLOSED = "closed"   # 承認待ちが上限に届いていて、申請を受け付けなかった
 LOGIN_RESULT_BUSY = "busy"       # 同じIPからの申請が多すぎて、受け付けなかった
 
@@ -209,6 +212,14 @@ def verify_token(wiki_dir, wikiname, uid, token, now=None):
     変わった瞬間に全員が閉め出されては使いものにならないためで、通した側は
     呼び出し元が今日のぶんに置き換える（`remember_login`）。その結果、
     **毎日開いている人は入れ直しにならず、開かない日が続くとそこで切れる**。"""
+    state = check_token(wiki_dir, wikiname, uid, token, now)
+    return state["user"] if state else None
+
+
+def check_token(wiki_dir, wikiname, uid, token, now=None):
+    """`verify_token` の中身。通れば、そのログイン状態の控え（`login_state` の形）、
+    通らなければ None。今の形の合言葉と、端末ごとの設定で作った合言葉（`TOKEN2_PREFIX`
+    で始まる）の両方を見る。"""
     if not uid or not token:
         return None
     user = userdb.find_by_uid(wiki_dir, uid)
@@ -216,12 +227,178 @@ def verify_token(wiki_dir, wikiname, uid, token, now=None):
         # 承認待ちは入れない。**承認を取り消したときも、持ち出された合言葉が
         # その場で効かなくなる**（`userdb.set_approved`）
         return None
+    if token.startswith(TOKEN2_PREFIX):
+        return _check_token2(user, wikiname, token, now)
     for back in range(TOKEN_GRACE + 1):
         want = session_token(user["uid"], wikiname, user["pw"], now, back,
                              userdb.user_cnt(user))
         if hmac.compare_digest(want, token):
-            return user
+            # 今の形は、日付番号の始まりから2日ぶん通る（今日ぶん＋昨日ぶん）
+            start = (int(token_period(now)) - back) * TOKEN_PERIOD
+            return {"user": user, "issued": start, "since": start,
+                    "expires": start + (TOKEN_GRACE + 1) * TOKEN_PERIOD,
+                    "prefs": None, "next_relogin": None}
     return None
+
+
+# ---- 端末ごとのログインの設定（設計者の指示、2026-11-18） ---------------------
+#
+# 「ログインしたまま何日続けるか（最大14日）」と「決まった曜日・時刻に入れ直させるか」を、
+# **端末ごとに**決められるようにしたもの。設計者が決めたこと:
+#
+#   - 端末ごと（その端末の cookie に持つ）。曜日・時刻の設定も端末ごと
+#   - 日数は**最後に開いてから N日**（開くたびに延ばす。2026-11-18、はじめは「ログインから
+#     N×24時間」を選んだが、開くたびに延ばすことにしたので変えた）。最大14日
+#   - 設定していない端末は今の合言葉のまま（毎日開いていれば続き、2日あくと切れる）
+#   - 設定はログアウトしても端末に残す（`LOGIN_PREF_COOKIE`）
+#
+# 以下はクロコの実装例（設計者は未確認）:
+#
+#   - **サーバー側に控えを持たない作りは変えない。** 設定した端末の合言葉は
+#     `2.<作った時刻>.<曜日・時刻を数えはじめる時刻>.<日数>.<曜日>.<時刻>.<照合値>`
+#     の形で、照合値は数字の部分すべてと、今の合言葉と同じ材料（uid・Wiki名・パスワードの
+#     ハッシュ・`cnt`）を、この設置の合言葉（`site_secret`）を鍵に HMAC-SHA256 にかけた
+#     もの。数字を書き換えると照合値が合わなくなるので、**手で日数を延ばすことはできない**
+#   - 延ばすのは `refresh_login`（ページを出すたび。作り直しは1時間おき）。持ち出された
+#     合言葉も使われ続ければ延びるので、止めるのは曜日・時刻の入れ直し・他端末からの
+#     認証の解除・パスワードの変更
+#   - 曜日・時刻は、**その時刻を過ぎたら入れ直し**。数えはじめは設定した時刻（設定する前に
+#     過ぎた時刻では切らない）。時刻はサーバーの時刻（地方時）で見る
+#   - 取り消しは今と同じ（他端末からの認証を解除する・パスワードを変える・ログアウト）
+
+TOKEN2_PREFIX = "2."
+LOGIN_MAX_DAYS = 14
+LOGIN_DEFAULT_DAYS = 2        # 曜日・時刻だけを決めて日数を決めていないとき
+CLOCK_SKEW = 300              # 時計のずれとして許す秒数
+
+
+def parse_login_prefs(value):
+    """設定の cookie の値 `<日数>.<曜日>.<時刻>` を読む。読めなければ None（未設定）。
+
+    日数は 0（未設定）か 1〜14。曜日は月曜を 1、日曜を 64 とするビットの和（0 なら無し）。
+    時刻は `HHMM`。日数も曜日も無いものは未設定と同じ（None）。"""
+    parts = (value or "").split(".")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        return None
+    days, mask, hhmm = int(parts[0]), int(parts[1]), parts[2]
+    if not 0 <= days <= LOGIN_MAX_DAYS or not 0 <= mask <= 127 or len(hhmm) != 4:
+        return None
+    hour, minute = int(hhmm[:2]), int(hhmm[2:])
+    if hour > 23 or minute > 59:
+        return None
+    if days == 0 and mask == 0:
+        return None
+    return {"days": days, "weekdays": mask, "hour": hour, "minute": minute}
+
+
+def format_login_prefs(prefs):
+    return "{}.{}.{:02d}{:02d}".format(prefs["days"], prefs["weekdays"], prefs["hour"],
+                                       prefs["minute"])
+
+
+def login_prefs(farm):
+    """いまの要求の端末の設定。未設定なら None。"""
+    return parse_login_prefs(get_wiki_cookie(LOGIN_PREF_COOKIE, farm))
+
+
+def last_relogin(prefs, now):
+    """`now` 以前で、いちばん近い「入れ直しの時刻」（エポック秒）。決めていなければ None。"""
+    if not prefs or not prefs["weekdays"]:
+        return None
+    today = datetime.datetime.fromtimestamp(now).date()
+    for back in range(8):
+        day = today - datetime.timedelta(days=back)
+        if prefs["weekdays"] & (1 << day.weekday()):
+            moment = datetime.datetime(day.year, day.month, day.day, prefs["hour"],
+                                       prefs["minute"]).timestamp()
+            if moment <= now:
+                return moment
+    return None
+
+
+def next_relogin(prefs, now):
+    """`now` より後で、いちばん近い「入れ直しの時刻」（エポック秒）。決めていなければ None。"""
+    if not prefs or not prefs["weekdays"]:
+        return None
+    today = datetime.datetime.fromtimestamp(now).date()
+    for ahead in range(8):
+        day = today + datetime.timedelta(days=ahead)
+        if prefs["weekdays"] & (1 << day.weekday()):
+            moment = datetime.datetime(day.year, day.month, day.day, prefs["hour"],
+                                       prefs["minute"]).timestamp()
+            if moment > now:
+                return moment
+    return None
+
+
+def _token2_mac(user, wikiname, fields):
+    msg = "\x00".join(["wikiauth2", user["uid"], wikiname, user["pw"],
+                       str(userdb.user_cnt(user))] + [str(f) for f in fields])
+    return hmac.new(site_secret().encode("utf-8"), msg.encode("utf-8"),
+                    hashlib.sha256).hexdigest()
+
+
+def session_token2(user, wikiname, issued, since, prefs):
+    """端末ごとの設定で作る合言葉（上の説明を参照）。"""
+    fields = [int(issued), int(since), prefs["days"] or LOGIN_DEFAULT_DAYS, prefs["weekdays"],
+              "{:02d}{:02d}".format(prefs["hour"], prefs["minute"])]
+    return TOKEN2_PREFIX + ".".join(str(f) for f in fields) + "." + _token2_mac(user, wikiname,
+                                                                               fields)
+
+
+def _check_token2(user, wikiname, token, now):
+    parts = token[len(TOKEN2_PREFIX):].split(".")
+    if len(parts) != 6 or not all(p.isdigit() for p in parts[:5]):
+        return None
+    issued, since, days, mask = (int(p) for p in parts[:4])
+    hhmm = parts[4]
+    prefs = parse_login_prefs(f"{days}.{mask}.{hhmm}")
+    if prefs is None or days < 1:
+        return None
+    if not hmac.compare_digest(_token2_mac(user, wikiname, parts[:5]), parts[5]):
+        return None
+    now = time.time() if now is None else now
+    expires = issued + days * TOKEN_PERIOD
+    # 延ばした合言葉では、曜日・時刻を数えはじめる時刻（since）は作った時刻より前になる
+    if not (issued - CLOCK_SKEW <= now < expires and since <= issued + CLOCK_SKEW):
+        return None
+    last = last_relogin(prefs, now)
+    if last is not None and last > since:
+        return None   # 決めた曜日・時刻を過ぎた。入れ直してもらう
+    return {"user": user, "issued": issued, "since": since, "expires": expires,
+            "prefs": prefs, "next_relogin": next_relogin(prefs, now)}
+
+
+def login_state(wiki_dir, wikiname, now=None):
+    """いまの要求のログイン状態の控え。ログインしていなければ None。
+
+        user          アカウント
+        issued        合言葉を作った（延ばした）時刻（今の形の合言葉なら、その日付番号の始まり）
+        expires       切れる時刻
+        prefs         合言葉を作ったときの端末の設定（今の形なら None）
+        next_relogin  次に入れ直しになる曜日・時刻（無ければ None）
+
+        until         **この要求で延ばしたあと**の期限（`refresh_login` が応答を返す前に延ばす）。
+                      画面に「このまま開かなければ いつまで」と出すときはこちらを使う
+
+    画面（`#login` のアカウントタブ）が、いつまで入っていられるかを出すためのもの。
+    `expires` はいま持っている合言葉の期限で、ページを描いているときはまだ延ばす前の値
+    （設定していない端末でその日はじめて開いたときは、1日早い）。"""
+    now = time.time() if now is None else now
+    state = check_token(wiki_dir, wikiname, get_wiki_cookie(LOGIN_COOKIE, wikiname),
+                        get_wiki_cookie(LOGIN_AUTH_COOKIE, wikiname), now)
+    if state is not None:
+        state["until"] = _until(state, now)
+    return state
+
+
+def _until(state, now):
+    """`refresh_login` が延ばしたあとの期限（`login_state` の `until`）。"""
+    if state["prefs"] is None:
+        return (int(token_period(now)) + TOKEN_GRACE + 1) * TOKEN_PERIOD
+    if now - state["issued"] < REFRESH_AFTER:
+        return state["expires"]
+    return int(now) + (state["prefs"]["days"] or LOGIN_DEFAULT_DAYS) * TOKEN_PERIOD
 
 
 # ---- いま誰が入っているか ---------------------------------------------------
@@ -328,7 +505,11 @@ def current_uid(wiki_dir, wikiname):
     return user["uid"] if user else None
 
 
-def remember_login(out, config, farm, wiki_dir, explicit_farm, user):
+_FROM_COOKIE = object()   # remember_login の既定値「いまの要求の cookie から読む」
+
+
+def remember_login(out, config, farm, wiki_dir, explicit_farm, user, fresh=False,
+                   prefs=_FROM_COOKIE, keep=_FROM_COOKIE, since_now=False):
     """ログインできた相手を控える（Wiki設計者の指示、2026-09-06）。
 
     名前（`wikiuser`）と合言葉（`wikiauth`）の2つを置く。次からはこれで
@@ -343,13 +524,92 @@ def remember_login(out, config, farm, wiki_dir, explicit_farm, user):
 
     Pathはこのwikiの入口に限る。アカウントはWikiごとに別なので、隣のWikiへ
     持ち出されないようにするため。どちらも `httponly`——画面側のJavaScriptから
-    読む用が無いうえ、合言葉のほうは読めてしまうと持ち出しが容易になる。"""
+    読む用が無いうえ、合言葉のほうは読めてしまうと持ち出しが容易になる。
+
+    **端末ごとの設定（`LOGIN_PREF_COOKIE`）があれば、その日数・曜日・時刻で作る**
+    （`session_token2`）。期限はいまから N日。`fresh` はパスワードを入れた直後（ログイン・
+    アカウント作成）、`since_now` は設定を変えたときで、どちらも曜日・時刻を数えはじめる
+    時刻をいまにする。`prefs`・`keep` は、cookie から読めない場面（Wiki名の変更）で、
+    呼び出し元が渡す。
+
+    **ページを出すたびに延ばすのは `refresh_login`**（`wiki.py` の `dispatch` から）。"""
     if user is None:
         return
     path = _base_url(config, farm, wiki_dir, explicit_farm)
-    token = session_token(user["uid"], farm, user["pw"], cnt=userdb.user_cnt(user))
+    now = time.time()
+    if prefs is _FROM_COOKIE:
+        prefs = login_prefs(farm)
+    if prefs is None:
+        token = session_token(user["uid"], farm, user["pw"], cnt=userdb.user_cnt(user))
+        max_age = LOGIN_COOKIE_MAX_AGE
+    else:
+        # 端末ごとの設定がある。期限は**いまから** N日（開くたびに延ばす）。曜日・時刻を
+        # 数えはじめる時刻だけは、パスワードを入れたとき（fresh）と設定を変えたとき
+        # （since_now）以外は今の合言葉から引き継ぐ——延ばすたびに数え直すと、決めた
+        # 時刻を過ぎても切れなくなるため
+        if keep is _FROM_COOKIE:
+            keep = None if fresh else login_state(wiki_dir, farm, now)
+        since = now if keep is None or since_now else keep["since"]
+        days = prefs["days"] or LOGIN_DEFAULT_DAYS
+        token = session_token2(user, farm, now, since, prefs)
+        max_age = days * TOKEN_PERIOD
     for base, value in ((LOGIN_COOKIE, user["uid"]), (LOGIN_AUTH_COOKIE, token)):
-        set_wiki_cookie(out, base, farm, value, path, LOGIN_COOKIE_MAX_AGE, httponly=True)
+        set_wiki_cookie(out, base, farm, value, path, max_age, httponly=True)
+
+
+# 設定した端末の合言葉を作り直す間隔。開くたびに作り直すと、画像やCSSの1つ1つにまで
+# cookie を置き直すことになるため、これより古くなったときだけ延ばす（クロコの実装例）
+REFRESH_AFTER = 60 * 60
+WIKI_CONTEXT_KEY = "wikisystem.login_context"
+
+
+def note_wiki_context(config, farm, wiki_dir, explicit_farm):
+    """`refresh_login` のために、この要求がどのWikiのものかを控える（`wiki.py` の `dispatch`）。"""
+    request.environ[WIKI_CONTEXT_KEY] = (config, farm, wiki_dir, explicit_farm)
+
+
+def refresh_login(out):
+    """**ページを開くたびにログイン状態を延ばす**（設計者の指示、2026-11-18「開くたびに
+    延ばしてください」）。`wiki.py` の `dispatch` が、応答を返す前に呼ぶ。
+
+    - 設定していない端末: 昨日のぶんの合言葉で通ったら、今日のぶんに置き換える。毎日開いて
+      いれば続き、2日以上あくと切れる
+    - 設定した端末: 合言葉が `REFRESH_AFTER` より古ければ、いまから N日で作り直す。
+      最後に開いてから N日あくと切れる。決めた曜日・時刻では延ばしても切れる
+
+    応答がすでにログイン状態の cookie を置いている（ログイン・ログアウトなど）ときは
+    触らない。`out` が文字列なら、bottle の `response` に置く。"""
+    ctx = request.environ.get(WIKI_CONTEXT_KEY)
+    if ctx is None:
+        return
+    config, farm, wiki_dir, explicit_farm = ctx
+    target = out if isinstance(out, HTTPResponse) else bottle_response
+    auth_name = wiki_cookie_name(LOGIN_AUTH_COOKIE, farm)
+    if any(k == "Set-Cookie" and v.startswith(auth_name + "=") for k, v in target.headerlist):
+        return
+    now = time.time()
+    state = login_state(wiki_dir, farm, now)
+    if state is None:
+        return
+    if state["prefs"] is None:
+        if state["issued"] >= int(token_period(now)) * TOKEN_PERIOD:
+            return   # 今日のぶん
+        remember_login(target, config, farm, wiki_dir, explicit_farm, state["user"], prefs=None)
+        return
+    if now - state["issued"] < REFRESH_AFTER:
+        return
+    remember_login(target, config, farm, wiki_dir, explicit_farm, state["user"],
+                   prefs=state["prefs"], keep=state)
+
+
+def save_login_prefs(out, config, farm, wiki_dir, explicit_farm, prefs):
+    """端末の設定の cookie を置く（None なら消す）。**ログアウトでは消さない。**"""
+    path = _base_url(config, farm, wiki_dir, explicit_farm)
+    if prefs is None:
+        delete_wiki_cookie(out, LOGIN_PREF_COOKIE, farm, path)
+    else:
+        set_wiki_cookie(out, LOGIN_PREF_COOKIE, farm, format_login_prefs(prefs), path,
+                        LOGIN_PREF_MAX_AGE, httponly=True)
 
 
 def forget_login(out, config, farm, wiki_dir, explicit_farm):
@@ -1007,7 +1267,7 @@ def do_login(config, farm, wiki_dir, explicit_farm, back):
         # パスワードは合っているが、まだ承認されていない。**入れない**（cookieを置かない）
         return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_PENDING)
     out = _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_DONE)
-    remember_login(out, config, farm, wiki_dir, explicit_farm, user)
+    remember_login(out, config, farm, wiki_dir, explicit_farm, user, fresh=True)
     return out
 
 
@@ -1031,14 +1291,61 @@ def do_revoke_others(config, farm, wiki_dir, explicit_farm, back):
     ログインしていない相手には何もしない（`back` へ戻すだけ。cookieも置かない）。
     パスワードは問わない——すでに入っている人が自分のアカウントに対してだけ
     できる操作で、他人のアカウントには届かない（対象は `current_user` から決める）。"""
-    user = current_user(wiki_dir, farm)
-    if user is None:
+    state = login_state(wiki_dir, farm)
+    if state is None:
         return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_NG)
+    user = state["user"]
     fresh = userdb.bump_cnt(wiki_dir, user["uidnum"])
     if fresh is None:
         return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_NG)
     out = _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_REVOKED)
-    remember_login(out, config, farm, wiki_dir, explicit_farm, fresh)
+    # `cnt` を上げたので、いまの合言葉はもう読めない。ログインした時刻は上げる前に控えたもの
+    remember_login(out, config, farm, wiki_dir, explicit_farm, fresh, keep=state)
+    return out
+
+
+LOGIN_PREFS_FORM_DAYS = "days"       # 日数（空か 0 で未設定、1〜14）
+LOGIN_PREFS_FORM_WEEKDAY = "wd"      # 曜日（0=月〜6=日。いくつでも）
+LOGIN_PREFS_FORM_TIME = "at"         # 時刻（HH:MM）
+
+
+def prefs_from_form(forms):
+    """フォームの値から端末の設定を作る。(設定 or None（未設定）, 正しく読めたか)。"""
+    days_raw = (forms.get(LOGIN_PREFS_FORM_DAYS) or "").strip() or "0"
+    mask = 0
+    for raw in forms.getall(LOGIN_PREFS_FORM_WEEKDAY):
+        if not raw.isdigit() or not 0 <= int(raw) <= 6:
+            return None, False
+        mask |= 1 << int(raw)
+    at = (forms.get(LOGIN_PREFS_FORM_TIME) or "").strip() or "00:00"
+    hh, _, mm = at.partition(":")
+    if not (days_raw.isdigit() and hh.isdigit() and mm.isdigit()):
+        return None, False
+    value = "{}.{}.{:02d}{:02d}".format(int(days_raw), mask, int(hh), int(mm))
+    prefs = parse_login_prefs(value)
+    if prefs is None and not (int(days_raw) == 0 and mask == 0 and int(hh) < 24
+                              and int(mm) < 60):
+        return None, False
+    return prefs, True
+
+
+def do_set_login_prefs(config, farm, wiki_dir, explicit_farm, back):
+    """この端末のログインの設定を変える（`#login` のアカウントタブから。設計者の指示、
+    2026-11-18）。ログインしている人だけ。
+
+    設定の cookie を置き直し、合言葉も新しい設定で作り直す（期限はいまから N日）。
+    曜日・時刻はいまから数えはじめる（設定する前に過ぎた時刻では切らない）。未設定に
+    戻すと、今の形の合言葉（毎日開いていれば続き、2日あくと切れる）になる。"""
+    state = login_state(wiki_dir, farm)
+    if state is None:
+        return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_NG)
+    prefs, ok = prefs_from_form(request.forms)
+    if not ok:
+        return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_NG)
+    out = _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_PREFS)
+    save_login_prefs(out, config, farm, wiki_dir, explicit_farm, prefs)
+    remember_login(out, config, farm, wiki_dir, explicit_farm, state["user"], prefs=prefs,
+                   keep=state, since_now=True)
     return out
 
 
@@ -1087,7 +1394,7 @@ def do_signup(config, farm, wiki_dir, explicit_farm, back):
         return _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_APPLIED)
     user = userdb.find_by_uid(wiki_dir, uid)
     out = _redirect(config, farm, wiki_dir, explicit_farm, back, LOGIN_RESULT_MADE)
-    remember_login(out, config, farm, wiki_dir, explicit_farm, user)
+    remember_login(out, config, farm, wiki_dir, explicit_farm, user, fresh=True)
     return out
 
 

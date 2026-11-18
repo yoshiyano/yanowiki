@@ -45,7 +45,7 @@ class PendingTestBase(unittest.TestCase):
                             userdb.hash_password(self.wiki_dir, uid, "p"), uid)
         groups.add_members(self.wiki_dir, "staff", ["helper"])
         self.plugin = load_plugin()
-        self.context = mock.Mock(wiki_dir=self.wiki_dir, base_url="/=testwiki")
+        self.context = mock.Mock(wiki_dir=self.wiki_dir, base_url="/=testwiki", farm="testwiki")
         bottle.request.bind({})
 
     def tearDown(self):

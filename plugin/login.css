@@ -181,6 +181,79 @@
   font-size: 0.85rem;
 }
 
+/* いまのログインがいつまでか・次にログインし直す時刻 */
+.login-state {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* ---- この端末のログインの設定（日数・曜日と時刻）。開いたときだけフォームを出す ---- */
+
+.login-prefs {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+}
+
+.login-prefs > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.login-prefs[open] > summary {
+  margin-bottom: 0.8rem;
+}
+
+.login-prefs .login-hint {
+  margin: 0;
+}
+
+/* 設定のフォームの見出しは「ログインし直す曜日」が 8em に収まらないので、少し広げる */
+.login-prefs .login-row > label:not(.login-wd),
+.login-prefs .login-row > .login-row-label {
+  flex-basis: 10em;
+}
+
+.login-row .login-row-label {
+  flex: 0 0 8em;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.login-row select {
+  padding: 0.4em 0.6em;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: var(--radius, 6px);
+  background: var(--bg, #fff);
+  color: var(--fg, #1f2328);
+  font: inherit;
+}
+
+.login-row input[type="time"] {
+  flex: 0 0 auto;
+}
+
+.login-wds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2em 0.8em;
+}
+
+/* 曜日のチェックの label は、上の .login-row label（8em 幅・太字）を打ち消す */
+.login-row label.login-wd {
+  flex: 0 0 auto;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.login-row label.login-wd input {
+  flex: none;
+  margin: 0 0.2em 0 0;
+  padding: 0;
+}
+
 /* ---- タブ（JavaScript不要。radioの:checkedと隣接兄弟結合子だけで動く） ---- */
 
 .login-tabs {
@@ -251,7 +324,17 @@
    2026-10-12）。このタブについて持つのは、上の .login の幅の判定だけ。 */
 
 @media (max-width: 480px) {
-  .login-row label {
+  .login-row label,
+  .login-row .login-row-label {
+    flex-basis: 100%;
+  }
+
+  .login-row label.login-wd {
+    flex-basis: auto;
+  }
+
+  .login-prefs .login-row > label:not(.login-wd),
+  .login-prefs .login-row > .login-row-label {
     flex-basis: 100%;
   }
 }
